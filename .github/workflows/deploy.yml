@@ -11,8 +11,13 @@ jobs:
     name: Deploy to Local VPS
     runs-on: self-hosted
     steps:
-      - name: Run Local Deploy Script
+      - name: Deploy Application
         run: |
           cd ~/nexam
+          echo "=== Menarik perubahan terbaru dari git ==="
+          git fetch origin experiment
+          git checkout experiment
+          git pull origin experiment
+
           chmod +x scripts/deploy.sh
           ./scripts/deploy.sh
