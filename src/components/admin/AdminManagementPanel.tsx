@@ -2114,37 +2114,42 @@ export default function AdminManagementPanel({
             activeYear={activeYearName}
             activeSemester={activeSemesterName}
             onToggleMobileMenu={() => setMobileSidebarOpen(true)}
+            breadcrumb={
+              activeTab === "dashboard" ? (
+                <div className="flex items-center gap-2 text-xs font-semibold text-slate-700">
+                  <div className="w-7 h-7 rounded-lg bg-[#0D274C]/5 border border-[#0D274C]/10 flex items-center justify-center text-[#0D274C]">
+                    <LayoutDashboard className="w-3.5 h-3.5" />
+                  </div>
+                  <span className="font-bold text-slate-800 text-sm">Dashboard</span>
+                </div>
+              ) : (
+                <nav className="flex items-center gap-1.5 sm:gap-2 text-xs text-slate-500 overflow-hidden" aria-label="Breadcrumb">
+                  <button
+                    type="button"
+                    onClick={() => handleSelectTab("dashboard")}
+                    className="inline-flex items-center gap-1.5 text-slate-500 hover:text-[#0D274C] font-medium transition cursor-pointer shrink-0"
+                    title="Ke Dashboard"
+                  >
+                    <div className="w-6 h-6 rounded-md bg-slate-100 hover:bg-[#0D274C]/10 flex items-center justify-center text-slate-500 hover:text-[#0D274C] transition">
+                      <LayoutDashboard className="w-3.5 h-3.5" />
+                    </div>
+                    <span className="hidden sm:inline">Dashboard</span>
+                  </button>
+                  <ChevronRight className="w-3.5 h-3.5 text-slate-300 shrink-0" />
+                  <span className="text-slate-500 font-medium whitespace-nowrap shrink-0">
+                    {getTabCategory(activeTab)}
+                  </span>
+                  <ChevronRight className="w-3.5 h-3.5 text-slate-300 shrink-0" />
+                  <span className="font-bold text-[#0D274C] whitespace-nowrap truncate max-w-[140px] sm:max-w-xs md:max-w-none">
+                    {getTabTitle(activeTab)}
+                  </span>
+                </nav>
+              )
+            }
           />
         )}
 
         <main className="flex-1 p-4 sm:p-6 lg:p-8 max-w-7xl w-full mx-auto space-y-6">
-          {/* Section Breadcrumbs (if not on dashboard) */}
-          {activeTab !== "dashboard" && (
-            <div className="flex items-center justify-between pb-3 border-b border-slate-200">
-              <div className="flex items-center gap-2 text-xs text-slate-500">
-                <button
-                  type="button"
-                  onClick={() => handleSelectTab("dashboard")}
-                  className="hover:text-[#0D274C] font-medium transition cursor-pointer"
-                >
-                  Dashboard
-                </button>
-                <ChevronRight className="w-3.5 h-3.5 text-slate-400" />
-                <span className="font-semibold text-slate-700">{getTabCategory(activeTab)}</span>
-                <ChevronRight className="w-3.5 h-3.5 text-slate-400" />
-                <span className="font-bold text-[#0D274C]">{getTabTitle(activeTab)}</span>
-              </div>
-
-              <button
-                type="button"
-                onClick={() => handleSelectTab("dashboard")}
-                className="hidden sm:inline-flex items-center gap-1.5 text-xs text-slate-500 hover:text-slate-800 transition cursor-pointer bg-white px-2.5 py-1.5 rounded-lg border border-slate-200 shadow-2xs"
-              >
-                <ArrowLeft className="w-3.5 h-3.5" />
-                <span>Kembali ke Dashboard</span>
-              </button>
-            </div>
-          )}
 
           {/* VIEW: DASHBOARD */}
           {activeTab === "dashboard" && (

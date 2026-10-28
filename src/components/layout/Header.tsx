@@ -2,7 +2,7 @@
 
 import React, { useState } from "react";
 import { useRouter } from "next/navigation";
-import { ShieldCheck, LogOut, Calendar, User as UserIcon } from "lucide-react";
+import { ShieldCheck, LogOut, Calendar, User as UserIcon, Menu } from "lucide-react";
 
 interface HeaderProps {
   user: {
@@ -13,6 +13,7 @@ interface HeaderProps {
   activeYear?: string | null;
   activeSemester?: string | null;
   onToggleMobileMenu?: () => void;
+  breadcrumb?: React.ReactNode;
 }
 
 export default function Header({
@@ -20,6 +21,7 @@ export default function Header({
   activeYear,
   activeSemester,
   onToggleMobileMenu,
+  breadcrumb,
 }: HeaderProps) {
   const router = useRouter();
   const [loggingOut, setLoggingOut] = useState(false);
@@ -49,29 +51,38 @@ export default function Header({
   return (
     <header className="sticky top-0 z-30 w-full bg-white/95 backdrop-blur-md border-b border-slate-200 px-4 sm:px-6 py-3 shadow-xs">
       <div className="w-full flex items-center justify-between gap-4">
-        {/* Left: Branding & Mobile Menu Toggle */}
-        <div className="flex items-center gap-3">
+        {/* Left: Breadcrumb (or Branding if breadcrumb not provided) */}
+        <div className="flex items-center gap-3 min-w-0">
           {onToggleMobileMenu && (
             <button
               type="button"
               onClick={onToggleMobileMenu}
-              className="lg:hidden p-2 -ml-1 text-slate-600 hover:text-slate-900 hover:bg-slate-100 rounded-xl transition cursor-pointer"
+              className="lg:hidden p-2 -ml-1 text-slate-600 hover:text-slate-900 hover:bg-slate-100 rounded-xl transition cursor-pointer shrink-0"
               title="Buka Menu Sidebar"
             >
-              <ShieldCheck className="w-5 h-5 text-[#0D274C]" />
+              <Menu className="w-5 h-5 text-[#0D274C]" />
             </button>
           )}
-          <div className="flex items-center justify-center w-9 h-9 rounded-xl bg-gradient-to-tr from-[#0D274C] to-[#163B6E] shadow-sm shadow-[#0D274C]/20 border border-[#0D274C]/30 shrink-0">
-            <ShieldCheck className="w-5 h-5 text-white" />
-          </div>
-          <div>
-            <div className="flex items-center gap-2">
-              <span className="font-extrabold text-[#0D274C] tracking-tight text-lg">Nexam</span>
-              <span className="text-[10px] uppercase px-1.5 py-0.5 rounded font-bold bg-[#65C443] text-white shadow-xs">
-                CBT
-              </span>
+
+          {breadcrumb ? (
+            <div className="min-w-0 flex items-center">
+              {breadcrumb}
             </div>
-          </div>
+          ) : (
+            <div className="flex items-center gap-3">
+              <div className="flex items-center justify-center w-9 h-9 rounded-xl bg-gradient-to-tr from-[#0D274C] to-[#163B6E] shadow-sm shadow-[#0D274C]/20 border border-[#0D274C]/30 shrink-0">
+                <ShieldCheck className="w-5 h-5 text-white" />
+              </div>
+              <div>
+                <div className="flex items-center gap-2">
+                  <span className="font-extrabold text-[#0D274C] tracking-tight text-lg">Nexam</span>
+                  <span className="text-[10px] uppercase px-1.5 py-0.5 rounded font-bold bg-[#65C443] text-white shadow-xs">
+                    CBT
+                  </span>
+                </div>
+              </div>
+            </div>
+          )}
         </div>
 
         {/* Center: Academic Context Indicator */}
