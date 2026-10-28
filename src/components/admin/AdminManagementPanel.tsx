@@ -3,6 +3,8 @@
 import React, { useState, useEffect, useRef } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import Link from "next/link";
+import AdminSidebar, { AdminTab } from "@/components/admin/AdminSidebar";
+import Header from "@/components/layout/Header";
 import {
   GraduationCap,
   BookOpen,
@@ -41,6 +43,9 @@ import {
   FolderArchive,
   FileSpreadsheet,
   ShieldCheck,
+  LayoutDashboard,
+  Activity,
+  FileQuestion,
 } from "lucide-react";
 import TeacherExaminationPanel from "@/components/teacher/TeacherExaminationPanel";
 import * as XLSX from "xlsx";
@@ -82,29 +87,192 @@ export default function AdminManagementPanel({
   activeYearId,
   activeYearName,
   activeSemesterName,
+  user,
 }: {
   initialStats: AdminStats;
   activeYearId: string | null;
   activeYearName?: string | null;
   activeSemesterName?: string | null;
+  user?: {
+    username: string;
+    displayName: string;
+    roles: string[];
+  };
 }) {
   const router = useRouter();
   const searchParams = useSearchParams();
 
-  // Tab State & User Dropdown
-  const [activeTab, setActiveTab] = useState<
-    "students" | "teachers" | "admins" | "academic_years" | "classes" | "subjects" | "audit" | "examinations"
-  >("students");
+  // Sidebar & Responsive State
+  const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
+  const [mobileSidebarOpen, setMobileSidebarOpen] = useState(false);
+
+  // Tab State (Default: Dashboard)
+  const [activeTab, setActiveTab] = useState<AdminTab>("dashboard");
 
   useEffect(() => {
     const tabParam = searchParams.get("tab");
-    if (
-      tabParam &&
-      ["students", "teachers", "admins", "academic_years", "classes", "subjects", "audit", "examinations"].includes(tabParam)
-    ) {
+    if (tabParam) {
       setActiveTab(tabParam as any);
     }
   }, [searchParams]);
+
+  const handleSelectTab = (tab: AdminTab) => {
+    setActiveTab(tab);
+    const newParams = new URLSearchParams(searchParams.toString());
+    if (tab === "dashboard") {
+      newParams.delete("tab");
+    } else {
+      newParams.set("tab", tab);
+    }
+    const newUrl = newParams.toString() ? `/admin?${newParams.toString()}` : "/admin";
+    router.replace(newUrl, { scroll: false });
+  };
+
+  // User Management State - Guru
+  const [userTeacherSearch, setUserTeacherSearch] = useState("");
+  const [userTeacherStatusFilter, setUserTeacherStatusFilter] = useState<"all" | "active" | "inactive">("all");
+  const [selectedUserTeacherIds, setSelectedUserTeacherIds] = useState<string[]>([]);
+  const [userTeacherBulkLoading, setUserTeacherBulkLoading] = useState(false);
+
+  // User Management State - Siswa
+  const [userStudentSearch, setUserStudentSearch] = useState("");
+  const [userStudentClassFilter, setUserStudentClassFilter] = useState("all");
+  const [userStudentStatusFilter, setUserStudentStatusFilter] = useState<"all" | "active" | "inactive">("all");
+  const [selectedUserStudentIds, setSelectedUserStudentIds] = useState<string[]>([]);
+  const [userStudentBulkLoading, setUserStudentBulkLoading] = useState(false);
+
+  // Bank Soal Search State
+  const [qbSearchTerm, setQbSearchTerm] = useState("");
+  const [qbCategoryFilter, setQbCategoryFilter] = useState("all");
+
+  const getTabCategory = (tab: AdminTab): string => {
+    switch (tab) {
+      case "academic_years":
+      case "subjects":
+      case "majors":
+      case "students":
+      case "classes":
+      case "teachers":
+        return "Data Umum";
+      case "question_banks":
+        return "Data Ujian";
+      case "exam_status":
+      case "exam_results":
+      case "exam_analysis":
+      case "exam_grades":
+      case "examinations":
+        return "Pelaksanaan Ujian";
+      case "user_teachers":
+      case "user_students":
+      case "admins":
+        return "Pengaturan > User Management";
+      case "audit":
+        return "Pengaturan > Log Sistem";
+      default:
+        return "Ringkasan";
+    }
+  };
+
+  const getTabTitle = (tab: AdminTab): string => {
+    switch (tab) {
+      case "academic_years":
+        return "Tahun Pelajaran";
+      case "subjects":
+        return "Mata Pelajaran";
+      case "majors":
+        return "Program Keahlian / Jurusan";
+      case "students":
+        return "Data Akademik Siswa";
+      case "classes":
+        return "Rombel & Kelas";
+      case "teachers":
+        return "Data Tenaga Pendidik / Guru";
+      case "question_banks":
+        return "Bank Soal Ujian";
+      case "exam_status":
+        return "Status Siswa (Monitoring Ujian)";
+      case "exam_results":
+        return "Hasil Ujian Peserta";
+      case "exam_analysis":
+        return "Analisis Butir Soal";
+      case "exam_grades":
+        return "Rekap Nilai Siswa";
+      case "examinations":
+        return "Jadwal & Pelaksanaan Ujian";
+      case "user_teachers":
+        return "User Management (Guru)";
+      case "user_students":
+        return "User Management (Siswa)";
+      case "admins":
+        return "Manajemen Administrator";
+      case "audit":
+        return "Log Audit Sistem";
+      default:
+        return "Dashboard";
+    }
+  };
+
+  const handleToggleUserStatus = async (userId: string, currentStatus: boolean, roleType: "teacher" | "student") => {
+    try {
+      const res = await fetch(`/api/users/${userId}`, {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          updateType: "generic",
+          isActive: !currentStatus,
+        }),
+      });
+      const json = await res.json();
+      if (json.success) {
+        if (roleType === "teacher") {
+          fetchTeachers();
+        } else {
+          fetchStudents();
+        }
+      } else {
+        alert(json.error || "Gagal mengubah status akun.");
+      }
+    } catch {
+      alert("Kesalahan jaringan.");
+    }
+  };
+
+  const handleBulkUserStatus = async (userIds: string[], action: "activate" | "deactivate", roleType: "teacher" | "student") => {
+    if (userIds.length === 0) return;
+    const actionLabel = action === "activate" ? "mengaktifkan" : "menonaktifkan";
+    if (!confirm(`Yakin ingin ${actionLabel} ${userIds.length} akun terpilih?`)) return;
+
+    if (roleType === "teacher") setUserTeacherBulkLoading(true);
+    else setUserStudentBulkLoading(true);
+
+    try {
+      const res = await fetch("/api/users/bulk", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          action,
+          userIds,
+        }),
+      });
+      const json = await res.json();
+      if (json.success) {
+        if (roleType === "teacher") {
+          setSelectedUserTeacherIds([]);
+          fetchTeachers();
+        } else {
+          setSelectedUserStudentIds([]);
+          fetchStudents();
+        }
+      } else {
+        alert(json.error || "Gagal memproses aksi massal.");
+      }
+    } catch {
+      alert("Kesalahan jaringan.");
+    } finally {
+      if (roleType === "teacher") setUserTeacherBulkLoading(false);
+      else setUserStudentBulkLoading(false);
+    }
+  };
   const [userDropdownOpen, setUserDropdownOpen] = useState(false);
   const [userDropdownPos, setUserDropdownPos] = useState<{ top: number; left: number }>({ top: 0, left: 0 });
   const userBtnRef = useRef<HTMLButtonElement>(null);
@@ -641,20 +809,26 @@ export default function AdminManagementPanel({
   };
 
   useEffect(() => {
-    if (activeTab === "students") fetchStudents();
-    if (activeTab === "teachers") fetchTeachers();
+    if (activeTab === "students" || activeTab === "user_students") fetchStudents();
+    if (activeTab === "teachers" || activeTab === "user_teachers") fetchTeachers();
     if (activeTab === "admins") fetchAdmins();
     if (activeTab === "academic_years") fetchYears();
-    if (activeTab === "classes") {
+    if (activeTab === "classes" || activeTab === "majors") {
       fetchClassesAndMajors();
       fetchTeachers();
       fetchYears();
     }
-    if (activeTab === "subjects") {
+    if (activeTab === "subjects" || activeTab === "question_banks") {
       fetchSubjectsAndCategories();
     }
     if (activeTab === "audit") fetchAuditLogs();
-    if (activeTab === "examinations") {
+    if (
+      activeTab === "examinations" ||
+      activeTab === "exam_status" ||
+      activeTab === "exam_results" ||
+      activeTab === "exam_analysis" ||
+      activeTab === "exam_grades"
+    ) {
       fetchSubjectsAndCategories();
       fetchYears();
       fetchClassesAndMajors();
@@ -1862,263 +2036,882 @@ export default function AdminManagementPanel({
     return matchesSearch && matchesMajor && matchesCategory;
   });
 
+  // Filter Question Bank Subjects
+  const filteredQbSubjects = subjects.filter((sub: any) => {
+    if (!qbSearchTerm) return true;
+    const q = qbSearchTerm.toLowerCase();
+    return (
+      (sub.name && sub.name.toLowerCase().includes(q)) ||
+      (sub.code && sub.code.toLowerCase().includes(q)) ||
+      (sub.major?.name && sub.major.name.toLowerCase().includes(q))
+    );
+  });
+
+  // Filter User Management Teachers
+  const filteredUserTeachers = teachers.filter((t: any) => {
+    const matchesSearch =
+      !userTeacherSearch ||
+      t.displayName?.toLowerCase().includes(userTeacherSearch.toLowerCase()) ||
+      t.nip?.toLowerCase().includes(userTeacherSearch.toLowerCase()) ||
+      t.username?.toLowerCase().includes(userTeacherSearch.toLowerCase()) ||
+      t.email?.toLowerCase().includes(userTeacherSearch.toLowerCase());
+
+    const matchesStatus =
+      userTeacherStatusFilter === "all" ||
+      (userTeacherStatusFilter === "active" ? t.isActive : !t.isActive);
+
+    return matchesSearch && matchesStatus;
+  });
+
+  // Filter User Management Students
+  const filteredUserStudents = students.filter((s: any) => {
+    const matchesSearch =
+      !userStudentSearch ||
+      s.displayName?.toLowerCase().includes(userStudentSearch.toLowerCase()) ||
+      s.nis?.toLowerCase().includes(userStudentSearch.toLowerCase()) ||
+      s.nisn?.toLowerCase().includes(userStudentSearch.toLowerCase()) ||
+      s.username?.toLowerCase().includes(userStudentSearch.toLowerCase()) ||
+      s.email?.toLowerCase().includes(userStudentSearch.toLowerCase());
+
+    const matchesClass =
+      userStudentClassFilter === "all" ||
+      s.classId === userStudentClassFilter ||
+      s.class?.id === userStudentClassFilter;
+
+    const matchesStatus =
+      userStudentStatusFilter === "all" ||
+      (userStudentStatusFilter === "active" ? s.isActive : !s.isActive);
+
+    return matchesSearch && matchesClass && matchesStatus;
+  });
+
   const isSemesterGanjilActive =
     activeSemesterName?.toLowerCase().includes("ganjil") ?? false;
 
   return (
-    <div className="space-y-6">
-      {/* Navigation Tabs - Carousel Horizontal Scroll */}
-      <div className="relative flex items-center border-b border-slate-200 pb-2">
-        {/* Carousel Scroll Left Button */}
-        {canScrollLeft && (
-          <button
-            type="button"
-            onClick={() => tabsTrackRef.current?.scrollBy({ left: -220, behavior: "smooth" })}
-            className="absolute left-0 z-20 w-8 h-8 rounded-full bg-white border border-slate-200 shadow-md flex items-center justify-center text-slate-700 hover:text-slate-900 hover:bg-slate-50 transition-all cursor-pointer -translate-x-1"
-            title="Geser Kiri"
-          >
-            <ChevronLeft className="w-4 h-4" />
-          </button>
+    <div className="min-h-screen bg-[#F8FAFC] flex flex-col lg:flex-row">
+      {/* Collapsible Sidebar */}
+      <AdminSidebar
+        activeTab={activeTab}
+        onSelectTab={handleSelectTab}
+        isCollapsed={sidebarCollapsed}
+        onToggleCollapse={() => setSidebarCollapsed(!sidebarCollapsed)}
+        mobileOpen={mobileSidebarOpen}
+        onCloseMobile={() => setMobileSidebarOpen(false)}
+        badgeCounts={{
+          students: initialStats.totalStudents,
+          teachers: initialStats.totalTeachers,
+          classes: initialStats.totalClasses,
+          majors: initialStats.totalMajors,
+        }}
+      />
+
+      {/* Main Content Area */}
+      <div className="flex-1 flex flex-col min-w-0 overflow-x-hidden">
+        {user && (
+          <Header
+            user={user}
+            activeYear={activeYearName}
+            activeSemester={activeSemesterName}
+            onToggleMobileMenu={() => setMobileSidebarOpen(true)}
+          />
         )}
 
-        {/* Left Fade Gradient */}
-        {canScrollLeft && (
-          <div className="pointer-events-none absolute left-0 top-0 bottom-0 w-8 bg-gradient-to-r from-white to-transparent z-10" />
-        )}
-
-        {/* Carousel Tabs Track */}
-        <div
-          ref={tabsTrackRef}
-          className="flex items-center gap-2 overflow-x-auto scroll-smooth [scrollbar-width:none] [-ms-overflow-style:none] [&::-webkit-scrollbar]:hidden px-1 py-1 w-full"
-        >
-          {/* Dropdown Menu Pengguna (Guru / Siswa / Administrator) */}
-          <div className="shrink-0">
-            <button
-              ref={userBtnRef}
-              onClick={toggleUserDropdown}
-              className={`flex items-center gap-2 px-4 py-2.5 rounded-xl text-sm font-medium transition-all cursor-pointer shrink-0 whitespace-nowrap ${
-                activeTab === "students" || activeTab === "teachers" || activeTab === "admins"
-                  ? "bg-[#0D274C] text-white shadow-xs font-semibold"
-                  : "text-slate-600 hover:text-slate-900 hover:bg-slate-100"
-              }`}
-            >
-              <Users className="w-4 h-4 text-[#65C443]" />
-              <span>
-                Pengguna{" "}
-                {activeTab === "students"
-                  ? "(Siswa)"
-                  : activeTab === "teachers"
-                  ? "(Guru)"
-                  : activeTab === "admins"
-                  ? "(Admin)"
-                  : ""}
-              </span>
-              <ChevronDown
-                className={`w-3.5 h-3.5 opacity-70 transition-transform duration-200 ${
-                  userDropdownOpen ? "rotate-180" : ""
-                }`}
-              />
-            </button>
-          </div>
-
-          <button
-            onClick={() => {
-              setActiveTab("academic_years");
-              setUserDropdownOpen(false);
-            }}
-            className={`flex items-center gap-2 px-4 py-2.5 rounded-xl text-sm font-medium transition-all cursor-pointer shrink-0 whitespace-nowrap ${
-              activeTab === "academic_years"
-                ? "bg-[#0D274C] text-white shadow-xs font-semibold"
-                : "text-slate-600 hover:text-slate-900 hover:bg-slate-100"
-            }`}
-          >
-            <Calendar className="w-4 h-4 text-[#65C443]" />
-            <span>Tahun Ajaran & Semester</span>
-          </button>
-
-          <button
-            onClick={() => {
-              setActiveTab("classes");
-              setUserDropdownOpen(false);
-            }}
-            className={`flex items-center gap-2 px-4 py-2.5 rounded-xl text-sm font-medium transition-all cursor-pointer shrink-0 whitespace-nowrap ${
-              activeTab === "classes"
-                ? "bg-[#0D274C] text-white shadow-xs font-semibold"
-                : "text-slate-600 hover:text-slate-900 hover:bg-slate-100"
-            }`}
-          >
-            <Layers className="w-4 h-4 text-[#65C443]" />
-            <span>Jurusan & Kelas (Penempatan)</span>
-          </button>
-
-          <button
-            onClick={() => {
-              setActiveTab("subjects");
-              setUserDropdownOpen(false);
-            }}
-            className={`flex items-center gap-2 px-4 py-2.5 rounded-xl text-sm font-medium transition-all cursor-pointer shrink-0 whitespace-nowrap ${
-              activeTab === "subjects"
-                ? "bg-[#0D274C] text-white shadow-xs font-semibold"
-                : "text-slate-600 hover:text-slate-900 hover:bg-slate-100"
-            }`}
-          >
-            <Tag className="w-4 h-4 text-[#65C443]" />
-            <span>Mata Pelajaran & Kategori</span>
-          </button>
-
-          <button
-            onClick={() => {
-              setActiveTab("audit");
-              setUserDropdownOpen(false);
-            }}
-            className={`flex items-center gap-2 px-4 py-2.5 rounded-xl text-sm font-medium transition-all cursor-pointer shrink-0 whitespace-nowrap ${
-              activeTab === "audit"
-                ? "bg-[#0D274C] text-white shadow-xs font-semibold"
-                : "text-slate-600 hover:text-slate-900 hover:bg-slate-100"
-            }`}
-          >
-            <History className="w-4 h-4 text-[#65C443]" />
-            <span>Log Audit</span>
-          </button>
-
-          <button
-            onClick={() => {
-              setActiveTab("examinations");
-              setUserDropdownOpen(false);
-            }}
-            className={`flex items-center gap-2 px-4 py-2.5 rounded-xl text-sm font-medium transition-all cursor-pointer shrink-0 whitespace-nowrap ${
-              activeTab === "examinations"
-                ? "bg-[#0D274C] text-white shadow-xs font-semibold"
-                : "text-slate-600 hover:text-slate-900 hover:bg-slate-100"
-            }`}
-          >
-            <FileSpreadsheet className="w-4 h-4 text-[#65C443]" />
-            <span>Ujian & Asesmen</span>
-          </button>
-        </div>
-
-        {/* Right Fade Gradient */}
-        {canScrollRight && (
-          <div className="pointer-events-none absolute right-0 top-0 bottom-0 w-8 bg-gradient-to-l from-white to-transparent z-10" />
-        )}
-
-        {/* Carousel Scroll Right Button */}
-        {canScrollRight && (
-          <button
-            type="button"
-            onClick={() => tabsTrackRef.current?.scrollBy({ left: 220, behavior: "smooth" })}
-            className="absolute right-0 z-20 w-8 h-8 rounded-full bg-white border border-slate-200 shadow-md flex items-center justify-center text-slate-700 hover:text-slate-900 hover:bg-slate-50 transition-all cursor-pointer translate-x-1"
-            title="Geser Kanan"
-          >
-            <ChevronRight className="w-4 h-4" />
-          </button>
-        )}
-
-        {/* Floating Popover Dropdown for Pengguna */}
-        {userDropdownOpen && (
-          <>
-            <div
-              className="fixed inset-0 z-50 bg-transparent"
-              onClick={() => setUserDropdownOpen(false)}
-            />
-            <div
-              style={{ top: `${userDropdownPos.top}px`, left: `${userDropdownPos.left}px` }}
-              className="fixed w-64 rounded-xl border border-slate-200 bg-white p-1.5 z-50 transition-all duration-150 shadow-xl"
-            >
-              <button
-                type="button"
-                onClick={() => {
-                  setActiveTab("students");
-                  setUserDropdownOpen(false);
-                }}
-                className={`w-full flex items-center gap-3 px-3 py-2.5 rounded-lg text-xs font-medium transition-colors duration-150 cursor-pointer text-left ${
-                  activeTab === "students"
-                    ? "bg-[#65C443]/15 text-emerald-800 font-semibold"
-                    : "text-slate-700 hover:bg-slate-50 hover:text-slate-900"
-                }`}
-              >
-                <div
-                  className={`p-2 rounded-lg flex items-center justify-center transition-colors ${
-                    activeTab === "students"
-                      ? "bg-[#65C443]/20 text-[#65C443]"
-                      : "bg-slate-100 text-slate-500"
-                  }`}
+        <main className="flex-1 p-4 sm:p-6 lg:p-8 max-w-7xl w-full mx-auto space-y-6">
+          {/* Section Breadcrumbs (if not on dashboard) */}
+          {activeTab !== "dashboard" && (
+            <div className="flex items-center justify-between pb-3 border-b border-slate-200">
+              <div className="flex items-center gap-2 text-xs text-slate-500">
+                <button
+                  type="button"
+                  onClick={() => handleSelectTab("dashboard")}
+                  className="hover:text-[#0D274C] font-medium transition cursor-pointer"
                 >
-                  <GraduationCap className="w-4 h-4" />
-                </div>
-                <div className="flex-1 min-w-0">
-                  <div className="font-semibold text-slate-900 text-sm">Siswa (Peserta Didik)</div>
-                  <div className="text-[11px] text-slate-500 truncate">Identitas NIS/NISN & Akun</div>
-                </div>
-                {activeTab === "students" && (
-                  <div className="w-1.5 h-1.5 rounded-full bg-[#65C443]" />
-                )}
-              </button>
+                  Dashboard
+                </button>
+                <ChevronRight className="w-3.5 h-3.5 text-slate-400" />
+                <span className="font-semibold text-slate-700">{getTabCategory(activeTab)}</span>
+                <ChevronRight className="w-3.5 h-3.5 text-slate-400" />
+                <span className="font-bold text-[#0D274C]">{getTabTitle(activeTab)}</span>
+              </div>
 
               <button
                 type="button"
-                onClick={() => {
-                  setActiveTab("teachers");
-                  setUserDropdownOpen(false);
-                }}
-                className={`w-full flex items-center gap-3 px-3 py-2.5 rounded-lg text-xs font-medium transition-colors duration-150 cursor-pointer text-left mt-1 ${
-                  activeTab === "teachers"
-                    ? "bg-[#65C443]/15 text-emerald-800 font-semibold"
-                    : "text-slate-700 hover:bg-slate-50 hover:text-slate-900"
-                }`}
+                onClick={() => handleSelectTab("dashboard")}
+                className="hidden sm:inline-flex items-center gap-1.5 text-xs text-slate-500 hover:text-slate-800 transition cursor-pointer bg-white px-2.5 py-1.5 rounded-lg border border-slate-200 shadow-2xs"
               >
-                <div
-                  className={`p-2 rounded-lg flex items-center justify-center transition-colors ${
-                    activeTab === "teachers"
-                      ? "bg-[#65C443]/20 text-[#65C443]"
-                      : "bg-slate-100 text-slate-500"
-                  }`}
-                >
-                  <BookOpen className="w-4 h-4" />
-                </div>
-                <div className="flex-1 min-w-0">
-                  <div className="font-semibold text-slate-900 text-sm">Guru (Tenaga Pendidik)</div>
-                  <div className="text-[11px] text-slate-500 truncate">NIP, Wali Kelas & Mapel</div>
-                </div>
-                {activeTab === "teachers" && (
-                  <div className="w-1.5 h-1.5 rounded-full bg-[#65C443]" />
-                )}
-              </button>
-
-              <button
-                type="button"
-                onClick={() => {
-                  setActiveTab("admins");
-                  setUserDropdownOpen(false);
-                }}
-                className={`w-full flex items-center gap-3 px-3 py-2.5 rounded-lg text-xs font-medium transition-colors duration-150 cursor-pointer text-left mt-1 ${
-                  activeTab === "admins"
-                    ? "bg-[#65C443]/15 text-emerald-800 font-semibold"
-                    : "text-slate-700 hover:bg-slate-50 hover:text-slate-900"
-                }`}
-              >
-                <div
-                  className={`p-2 rounded-lg flex items-center justify-center transition-colors ${
-                    activeTab === "admins"
-                      ? "bg-[#65C443]/20 text-[#65C443]"
-                      : "bg-slate-100 text-slate-500"
-                  }`}
-                >
-                  <ShieldCheck className="w-4 h-4" />
-                </div>
-                <div className="flex-1 min-w-0">
-                  <div className="font-semibold text-slate-900 text-sm">Administrator (Pengelola Sistem)</div>
-                  <div className="text-[11px] text-slate-500 truncate">Hak Akses Penuh Sistem & Pengaturan</div>
-                </div>
-                {activeTab === "admins" && (
-                  <div className="w-1.5 h-1.5 rounded-full bg-[#65C443]" />
-                )}
+                <ArrowLeft className="w-3.5 h-3.5" />
+                <span>Kembali ke Dashboard</span>
               </button>
             </div>
-          </>
-        )}
-      </div>
+          )}
 
+          {/* VIEW: DASHBOARD */}
+          {activeTab === "dashboard" && (
+            <div className="space-y-6 animate-in fade-in duration-200">
+              {/* Welcome Banner */}
+              <div className="relative overflow-hidden rounded-2xl bg-white p-6 sm:p-8 border border-slate-200 shadow-sm">
+                <div className="relative z-10 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-6">
+                  <div>
+                    <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-[#65C443]/10 border border-[#65C443]/20 text-emerald-800 text-xs font-semibold mb-3">
+                      <ShieldCheck className="w-3.5 h-3.5 text-[#65C443]" />
+                      <span>Panel Kendali Administrator Sekolah</span>
+                    </div>
+                    <h1 className="text-2xl sm:text-3xl font-bold text-slate-900 tracking-tight">
+                      Pusat Manajemen Akademik & Pengguna
+                    </h1>
+                    <p className="text-sm text-slate-500 mt-1">
+                      Tahun Ajaran Aktif:{" "}
+                      <span className="text-[#0D274C] font-bold">
+                        {activeYearName || "Belum Ditentukan"}
+                      </span>{" "}
+                      {activeSemesterName && `• Semester ${activeSemesterName}`}
+                    </p>
+                  </div>
+
+                  <div className="flex items-center gap-2 text-xs text-slate-600 bg-slate-50 px-3.5 py-2 rounded-xl border border-slate-200 shadow-xs">
+                    <Activity className="w-4 h-4 text-[#65C443] animate-pulse" />
+                    <span>Sistem Siap (Fase 1 & 2 Berjalan)</span>
+                  </div>
+                </div>
+              </div>
+
+              {/* 4 Statistical Summary Cards */}
+              <div className="grid grid-cols-2 sm:grid-cols-4 gap-4">
+                <div
+                  onClick={() => handleSelectTab("students")}
+                  className="rounded-xl p-4 sm:p-5 bg-white border border-slate-200 shadow-sm space-y-2 hover:border-[#65C443]/50 hover:shadow-md transition cursor-pointer group"
+                >
+                  <div className="flex items-center justify-between text-slate-500 text-xs font-semibold">
+                    <span>Peserta / Siswa</span>
+                    <div className="w-8 h-8 rounded-lg bg-[#65C443]/10 flex items-center justify-center text-[#65C443] group-hover:bg-[#65C443] group-hover:text-white transition">
+                      <GraduationCap className="w-4 h-4" />
+                    </div>
+                  </div>
+                  <div className="text-2xl sm:text-3xl font-extrabold text-slate-900">{initialStats.totalStudents}</div>
+                  <div className="text-[11px] text-slate-400 flex items-center justify-between">
+                    <span>Siswa terdaftar</span>
+                    <ArrowRight className="w-3 h-3 text-slate-400 group-hover:translate-x-0.5 transition-transform" />
+                  </div>
+                </div>
+
+                <div
+                  onClick={() => handleSelectTab("teachers")}
+                  className="rounded-xl p-4 sm:p-5 bg-white border border-slate-200 shadow-sm space-y-2 hover:border-[#0D274C]/50 hover:shadow-md transition cursor-pointer group"
+                >
+                  <div className="flex items-center justify-between text-slate-500 text-xs font-semibold">
+                    <span>Guru / Pendidik</span>
+                    <div className="w-8 h-8 rounded-lg bg-[#0D274C]/10 flex items-center justify-center text-[#0D274C] group-hover:bg-[#0D274C] group-hover:text-white transition">
+                      <BookOpen className="w-4 h-4" />
+                    </div>
+                  </div>
+                  <div className="text-2xl sm:text-3xl font-extrabold text-slate-900">{initialStats.totalTeachers}</div>
+                  <div className="text-[11px] text-slate-400 flex items-center justify-between">
+                    <span>Guru & wali kelas</span>
+                    <ArrowRight className="w-3 h-3 text-slate-400 group-hover:translate-x-0.5 transition-transform" />
+                  </div>
+                </div>
+
+                <div
+                  onClick={() => handleSelectTab("classes")}
+                  className="rounded-xl p-4 sm:p-5 bg-white border border-slate-200 shadow-sm space-y-2 hover:border-[#65C443]/50 hover:shadow-md transition cursor-pointer group"
+                >
+                  <div className="flex items-center justify-between text-slate-500 text-xs font-semibold">
+                    <span>Rombel / Kelas</span>
+                    <div className="w-8 h-8 rounded-lg bg-[#65C443]/10 flex items-center justify-center text-[#65C443] group-hover:bg-[#65C443] group-hover:text-white transition">
+                      <Layers className="w-4 h-4" />
+                    </div>
+                  </div>
+                  <div className="text-2xl sm:text-3xl font-extrabold text-slate-900">{initialStats.totalClasses}</div>
+                  <div className="text-[11px] text-slate-400 flex items-center justify-between">
+                    <span>Rombongan belajar</span>
+                    <ArrowRight className="w-3 h-3 text-slate-400 group-hover:translate-x-0.5 transition-transform" />
+                  </div>
+                </div>
+
+                <div
+                  onClick={() => handleSelectTab("majors")}
+                  className="rounded-xl p-4 sm:p-5 bg-white border border-slate-200 shadow-sm space-y-2 hover:border-[#0D274C]/50 hover:shadow-md transition cursor-pointer group"
+                >
+                  <div className="flex items-center justify-between text-slate-500 text-xs font-semibold">
+                    <span>Program Keahlian</span>
+                    <div className="w-8 h-8 rounded-lg bg-[#0D274C]/10 flex items-center justify-center text-[#0D274C] group-hover:bg-[#0D274C] group-hover:text-white transition">
+                      <Briefcase className="w-4 h-4" />
+                    </div>
+                  </div>
+                  <div className="text-2xl sm:text-3xl font-extrabold text-slate-900">{initialStats.totalMajors}</div>
+                  <div className="text-[11px] text-slate-400 flex items-center justify-between">
+                    <span>Jurusan kejuruan</span>
+                    <ArrowRight className="w-3 h-3 text-slate-400 group-hover:translate-x-0.5 transition-transform" />
+                  </div>
+                </div>
+              </div>
+
+              {/* Quick Actions Grid */}
+              <div className="rounded-2xl p-6 bg-white border border-slate-200 shadow-sm space-y-4">
+                <h3 className="text-sm font-bold text-slate-900 flex items-center gap-2">
+                  <Sparkles className="w-4 h-4 text-[#65C443]" />
+                  <span>Akses Cepat Pengelolaan Sistem</span>
+                </h3>
+
+                <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
+                  <button
+                    onClick={() => {
+                      handleSelectTab("students");
+                      setShowAddStudentModal(true);
+                    }}
+                    className="p-3.5 rounded-xl border border-slate-200 bg-slate-50/60 hover:bg-slate-100 hover:border-[#65C443] transition flex flex-col items-start gap-2 text-left cursor-pointer group"
+                  >
+                    <div className="w-8 h-8 rounded-lg bg-[#65C443]/10 flex items-center justify-center text-[#65C443] group-hover:scale-110 transition-transform">
+                      <Plus className="w-4 h-4" />
+                    </div>
+                    <div>
+                      <div className="text-xs font-bold text-slate-800">Tambah Siswa</div>
+                      <div className="text-[10px] text-slate-500">Input siswa individual</div>
+                    </div>
+                  </button>
+
+                  <button
+                    onClick={() => {
+                      handleSelectTab("students");
+                      setBulkImportType("student");
+                      setBulkCsvText("");
+                      setBulkExcelRows([]);
+                      setBulkExcelFileName("");
+                      setBulkExcelFile(null);
+                      setBulkPreviewData(null);
+                      setShowBulkModal(true);
+                    }}
+                    className="p-3.5 rounded-xl border border-slate-200 bg-slate-50/60 hover:bg-slate-100 hover:border-[#65C443] transition flex flex-col items-start gap-2 text-left cursor-pointer group"
+                  >
+                    <div className="w-8 h-8 rounded-lg bg-[#65C443]/10 flex items-center justify-center text-[#65C443] group-hover:scale-110 transition-transform">
+                      <FileSpreadsheet className="w-4 h-4" />
+                    </div>
+                    <div>
+                      <div className="text-xs font-bold text-slate-800">Impor Data Siswa</div>
+                      <div className="text-[10px] text-slate-500">Unggah berkas Excel .xlsx</div>
+                    </div>
+                  </button>
+
+                  <button
+                    onClick={() => {
+                    handleSelectTab("teachers");
+                    setShowAddTeacherModal(true);
+                    }}
+                    className="p-3.5 rounded-xl border border-slate-200 bg-slate-50/60 hover:bg-slate-100 hover:border-[#0D274C] transition flex flex-col items-start gap-2 text-left cursor-pointer group"
+                  >
+                    <div className="w-8 h-8 rounded-lg bg-[#0D274C]/10 flex items-center justify-center text-[#0D274C] group-hover:scale-110 transition-transform">
+                      <Plus className="w-4 h-4" />
+                    </div>
+                    <div>
+                      <div className="text-xs font-bold text-slate-800">Tambah Guru</div>
+                      <div className="text-[10px] text-slate-500">Input guru individual</div>
+                    </div>
+                  </button>
+
+                  <button
+                    onClick={() => {
+                      handleSelectTab("teachers");
+                      setBulkImportType("teacher");
+                      setBulkCsvText("");
+                      setBulkExcelRows([]);
+                      setBulkExcelFileName("");
+                      setBulkExcelFile(null);
+                      setBulkPreviewData(null);
+                      setShowBulkModal(true);
+                    }}
+                    className="p-3.5 rounded-xl border border-slate-200 bg-slate-50/60 hover:bg-slate-100 hover:border-[#0D274C] transition flex flex-col items-start gap-2 text-left cursor-pointer group"
+                  >
+                    <div className="w-8 h-8 rounded-lg bg-[#0D274C]/10 flex items-center justify-center text-[#0D274C] group-hover:scale-110 transition-transform">
+                      <FileSpreadsheet className="w-4 h-4" />
+                    </div>
+                    <div>
+                      <div className="text-xs font-bold text-slate-800">Impor Data Guru</div>
+                      <div className="text-[10px] text-slate-500">Unggah berkas Excel .xlsx</div>
+                    </div>
+                  </button>
+
+                  <button
+                    onClick={() => {
+                      handleSelectTab("classes");
+                      fetchClassesAndMajors();
+                      fetchTeachers();
+                      setShowAddClassModal(true);
+                    }}
+                    className="p-3.5 rounded-xl border border-slate-200 bg-slate-50/60 hover:bg-slate-100 hover:border-[#65C443] transition flex flex-col items-start gap-2 text-left cursor-pointer group"
+                  >
+                    <div className="w-8 h-8 rounded-lg bg-[#65C443]/10 flex items-center justify-center text-[#65C443] group-hover:scale-110 transition-transform">
+                      <Layers className="w-4 h-4" />
+                    </div>
+                    <div>
+                      <div className="text-xs font-bold text-slate-800">Tambah Rombel</div>
+                      <div className="text-[10px] text-slate-500">Buat kelas belajar baru</div>
+                    </div>
+                  </button>
+
+                  <button
+                    onClick={() => handleSelectTab("question_banks")}
+                    className="p-3.5 rounded-xl border border-slate-200 bg-slate-50/60 hover:bg-slate-100 hover:border-amber-400 transition flex flex-col items-start gap-2 text-left cursor-pointer group"
+                  >
+                    <div className="w-8 h-8 rounded-lg bg-amber-50 flex items-center justify-center text-amber-600 group-hover:scale-110 transition-transform">
+                      <FileQuestion className="w-4 h-4" />
+                    </div>
+                    <div>
+                      <div className="text-xs font-bold text-slate-800">Bank Soal Ujian</div>
+                      <div className="text-[10px] text-slate-500">Katalog butir soal CBT</div>
+                    </div>
+                  </button>
+
+                  <button
+                    onClick={() => handleSelectTab("exam_status")}
+                    className="p-3.5 rounded-xl border border-slate-200 bg-slate-50/60 hover:bg-slate-100 hover:border-sky-400 transition flex flex-col items-start gap-2 text-left cursor-pointer group"
+                  >
+                    <div className="w-8 h-8 rounded-lg bg-sky-50 flex items-center justify-center text-sky-600 group-hover:scale-110 transition-transform">
+                      <Activity className="w-4 h-4" />
+                    </div>
+                    <div>
+                      <div className="text-xs font-bold text-slate-800">Monitoring Ujian</div>
+                      <div className="text-[10px] text-slate-500">Status peserta ujian live</div>
+                    </div>
+                  </button>
+
+                  <button
+                    onClick={() => handleSelectTab("user_students")}
+                    className="p-3.5 rounded-xl border border-slate-200 bg-slate-50/60 hover:bg-slate-100 hover:border-indigo-400 transition flex flex-col items-start gap-2 text-left cursor-pointer group"
+                  >
+                    <div className="w-8 h-8 rounded-lg bg-indigo-50 flex items-center justify-center text-indigo-600 group-hover:scale-110 transition-transform">
+                      <UserCheck className="w-4 h-4" />
+                    </div>
+                    <div>
+                      <div className="text-xs font-bold text-slate-800">Aktivasi Akun Siswa</div>
+                      <div className="text-[10px] text-slate-500">Kunci / buka akses ujian</div>
+                    </div>
+                  </button>
+                </div>
+              </div>
+            </div>
+          )}
+
+          {/* VIEW: JURUSAN (PROGRAM KEAHLIAN) */}
+          {activeTab === "majors" && (
+            <div className="space-y-4 animate-in fade-in duration-200">
+              <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3">
+                <div>
+                  <h3 className="text-base font-bold text-slate-900">Program Keahlian / Jurusan Sekolah</h3>
+                  <p className="text-xs text-slate-500 mt-0.5">
+                    Kelola program keahlian kejuruan dan konsentrasi bidang belajar pada sekolah.
+                  </p>
+                </div>
+                <button
+                  onClick={() => setShowManageMajorsModal(true)}
+                  className="flex items-center gap-1.5 px-3.5 py-2 rounded-xl bg-[#65C443] hover:bg-[#52a835] text-white text-xs font-semibold shadow-sm transition cursor-pointer"
+                >
+                  <Plus className="w-3.5 h-3.5" />
+                  <span>Tambah / Kelola Jurusan</span>
+                </button>
+              </div>
+
+              <div className="rounded-2xl bg-white border border-slate-200 shadow-sm overflow-hidden">
+                <div className="overflow-x-auto">
+                  <table className="w-full text-left text-xs">
+                    <thead className="bg-slate-50 text-slate-600 uppercase font-bold border-b border-slate-200">
+                      <tr>
+                        <th className="py-3.5 px-4 w-12 text-center">No</th>
+                        <th className="py-3.5 px-4">Nama Program Keahlian</th>
+                        <th className="py-3.5 px-4">Kode Jurusan</th>
+                        <th className="py-3.5 px-4">Deskripsi Bidang</th>
+                        <th className="py-3.5 px-4 text-center">Rombel Terkait</th>
+                        <th className="py-3.5 px-4 text-center">Aksi</th>
+                      </tr>
+                    </thead>
+                    <tbody className="divide-y divide-slate-100">
+                      {majors.length === 0 ? (
+                        <tr>
+                          <td colSpan={6} className="py-12 text-center text-slate-400">
+                            Belum ada program keahlian / jurusan terdaftar.
+                          </td>
+                        </tr>
+                      ) : (
+                        majors.map((m, idx) => (
+                          <tr key={m.id} className="hover:bg-slate-50/80 transition">
+                            <td className="py-3.5 px-4 text-center text-slate-400 font-mono">{idx + 1}</td>
+                            <td className="py-3.5 px-4 font-bold text-slate-900">{m.name}</td>
+                            <td className="py-3.5 px-4">
+                              <span className="px-2 py-0.5 rounded bg-amber-50 text-amber-700 border border-amber-200 font-mono font-bold text-[11px]">
+                                {m.code}
+                              </span>
+                            </td>
+                            <td className="py-3.5 px-4 text-slate-500 max-w-xs truncate">
+                              {m.description || "Konsentrasi kejuruan"}
+                            </td>
+                            <td className="py-3.5 px-4 text-center font-semibold text-slate-700">
+                              {m._count?.classGroups || 0} Rombel
+                            </td>
+                            <td className="py-3.5 px-4 text-center">
+                              <button
+                                onClick={() => handleDeleteMajor(m.id, m.name)}
+                                className="p-1.5 rounded-lg bg-red-50 text-red-600 hover:bg-red-600 hover:text-white border border-red-200 transition cursor-pointer"
+                                title="Hapus Jurusan"
+                              >
+                                <Trash2 className="w-3.5 h-3.5" />
+                              </button>
+                            </td>
+                          </tr>
+                        ))
+                      )}
+                    </tbody>
+                  </table>
+                </div>
+              </div>
+            </div>
+          )}
+
+          {/* VIEW: BANK SOAL KATALOG */}
+          {activeTab === "question_banks" && (
+            <div className="space-y-4 animate-in fade-in duration-200">
+              <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3">
+                <div>
+                  <h3 className="text-base font-bold text-slate-900">Katalog Bank Soal Ujian CBT</h3>
+                  <p className="text-xs text-slate-500 mt-0.5">
+                    Pilih mata pelajaran untuk mengelola butir soal, mengatur paket ujian, dan melihat kisi-kisi soal.
+                  </p>
+                </div>
+
+                <div className="flex items-center gap-2">
+                  <div className="relative">
+                    <Search className="w-3.5 h-3.5 absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" />
+                    <input
+                      type="text"
+                      placeholder="Cari mata pelajaran..."
+                      value={qbSearchTerm}
+                      onChange={(e) => setQbSearchTerm(e.target.value)}
+                      className="pl-8 pr-3 py-1.5 rounded-xl bg-white border border-slate-200 text-xs text-slate-800 placeholder:text-slate-400 focus:outline-none focus:border-[#65C443]"
+                    />
+                  </div>
+                </div>
+              </div>
+
+              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+                {filteredQbSubjects.length === 0 ? (
+                  <div className="col-span-full py-12 text-center text-slate-400 bg-white rounded-2xl border border-slate-200">
+                    Tidak ada mata pelajaran yang sesuai.
+                  </div>
+                ) : (
+                  filteredQbSubjects.map((sub) => (
+                    <div
+                      key={sub.id}
+                      className="p-5 rounded-2xl bg-white border border-slate-200 shadow-sm hover:border-[#65C443]/50 hover:shadow-md transition flex flex-col justify-between space-y-4"
+                    >
+                      <div className="space-y-2">
+                        <div className="flex items-center justify-between">
+                          <span className="px-2 py-0.5 rounded text-[10px] font-mono font-bold bg-slate-100 text-slate-700 border border-slate-200">
+                            {sub.code || "MAPEL"}
+                          </span>
+                          <span className="text-[10px] px-2 py-0.5 rounded-full bg-emerald-50 text-emerald-700 border border-emerald-200 font-semibold">
+                            {sub.category?.name || "Umum"}
+                          </span>
+                        </div>
+                        <h4 className="text-sm font-bold text-slate-900">{sub.name}</h4>
+                        <p className="text-xs text-slate-500 line-clamp-2">
+                          {sub.major?.name ? `Jurusan: ${sub.major.name}` : "Mata Pelajaran Umum (Semua Jurusan)"}
+                        </p>
+                      </div>
+
+                      <div className="pt-3 border-t border-slate-100 flex items-center justify-between">
+                        <span className="text-xs text-slate-400">
+                          {sub._count?.questionBanks || 0} Paket Bank Soal
+                        </span>
+                        <Link
+                          href={`/admin/question-banks/${sub.id}`}
+                          className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-[#0D274C] hover:bg-[#163B6E] text-white text-xs font-semibold transition cursor-pointer shadow-xs"
+                        >
+                          <span>Buka Bank Soal</span>
+                          <ArrowRight className="w-3.5 h-3.5" />
+                        </Link>
+                      </div>
+                    </div>
+                  ))
+                )}
+              </div>
+            </div>
+          )}
+
+          {/* VIEW: PELAKSANAAN UJIAN (STATUS SISWA, HASIL, ANALISIS, REKAP NILAI) */}
+          {(activeTab === "exam_status" ||
+            activeTab === "exam_results" ||
+            activeTab === "exam_analysis" ||
+            activeTab === "exam_grades") && (
+            <div className="space-y-4 animate-in fade-in duration-200">
+              <div className="p-4 rounded-2xl bg-white border border-slate-200 shadow-sm flex items-center justify-between">
+                <div>
+                  <h3 className="text-base font-bold text-slate-900 flex items-center gap-2">
+                    <Activity className="w-4.5 h-4.5 text-[#65C443]" />
+                    <span>{getTabTitle(activeTab)}</span>
+                  </h3>
+                  <p className="text-xs text-slate-500 mt-0.5">
+                    {activeTab === "exam_status" && "Pantau langsung status aktivitas, pengerjaan, dan anti-cheat peserta ujian."}
+                    {activeTab === "exam_results" && "Rekapitulasi skor dan hasil pengerjaan ujian peserta didik."}
+                    {activeTab === "exam_analysis" && "Analisis statistik butir soal, daya pembeda, dan tingkat kesukaran soal."}
+                    {activeTab === "exam_grades" && "Rekap nilai akhir per rombel dan ekspor daftar nilai untuk raport."}
+                  </p>
+                </div>
+              </div>
+
+              <TeacherExaminationPanel
+                subjects={subjects}
+                academicYears={years}
+                semesters={years.flatMap((y: any) => y.semesters || [])}
+                classes={classes}
+                activeYearId={activeYearId}
+                activeYearName={activeYearName}
+                userRoles={["administrator"]}
+                teachers={teachers}
+              />
+            </div>
+          )}
+
+          {/* VIEW: USER MANAGEMENT - GURU (AKTIVASI/DEAKTIVASI) */}
+          {activeTab === "user_teachers" && (
+            <div className="space-y-4 animate-in fade-in duration-200">
+              <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3">
+                <div>
+                  <h3 className="text-base font-bold text-slate-900">User Management: Guru & Tenaga Pendidik</h3>
+                  <p className="text-xs text-slate-500 mt-0.5">
+                    Kelola status aktivasi akun guru. Akun yang dinonaktifkan tidak dapat login ke sistem.
+                  </p>
+                </div>
+
+                <div className="flex items-center gap-2 flex-wrap">
+                  <div className="relative">
+                    <Search className="w-3.5 h-3.5 absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" />
+                    <input
+                      type="text"
+                      placeholder="Cari guru atau NIP..."
+                      value={userTeacherSearch}
+                      onChange={(e) => setUserTeacherSearch(e.target.value)}
+                      className="pl-8 pr-3 py-1.5 rounded-xl bg-white border border-slate-200 text-xs text-slate-800 placeholder:text-slate-400 focus:outline-none focus:border-[#65C443]"
+                    />
+                  </div>
+
+                  <select
+                    value={userTeacherStatusFilter}
+                    onChange={(e: any) => setUserTeacherStatusFilter(e.target.value)}
+                    className="px-3 py-1.5 rounded-xl bg-white border border-slate-200 text-xs text-slate-700 font-semibold focus:outline-none cursor-pointer"
+                  >
+                    <option value="all">Semua Status</option>
+                    <option value="active">Hanya Aktif</option>
+                    <option value="inactive">Hanya Nonaktif</option>
+                  </select>
+                </div>
+              </div>
+
+              {/* Bulk Action Bar */}
+              {selectedUserTeacherIds.length > 0 && (
+                <div className="p-3 rounded-xl bg-indigo-50 border border-indigo-200 flex items-center justify-between text-xs text-indigo-900">
+                  <span className="font-semibold">{selectedUserTeacherIds.length} guru terpilih</span>
+                  <div className="flex items-center gap-2">
+                    <button
+                      disabled={userTeacherBulkLoading}
+                      onClick={() => handleBulkUserStatus(selectedUserTeacherIds, "activate", "teacher")}
+                      className="px-3 py-1 rounded-lg bg-[#65C443] hover:bg-[#52a835] text-white font-bold transition cursor-pointer disabled:opacity-50"
+                    >
+                      Aktifkan Akun
+                    </button>
+                    <button
+                      disabled={userTeacherBulkLoading}
+                      onClick={() => handleBulkUserStatus(selectedUserTeacherIds, "deactivate", "teacher")}
+                      className="px-3 py-1 rounded-lg bg-rose-600 hover:bg-rose-700 text-white font-bold transition cursor-pointer disabled:opacity-50"
+                    >
+                      Nonaktifkan Akun
+                    </button>
+                  </div>
+                </div>
+              )}
+
+              {/* Table User Management Teachers */}
+              <div className="rounded-2xl bg-white border border-slate-200 shadow-sm overflow-hidden">
+                <div className="overflow-x-auto">
+                  <table className="w-full text-left text-xs">
+                    <thead className="bg-slate-50 text-slate-600 uppercase font-bold border-b border-slate-200">
+                      <tr>
+                        <th className="py-3.5 px-3 w-10 text-center">
+                          <input
+                            type="checkbox"
+                            checked={
+                              filteredUserTeachers.length > 0 &&
+                              selectedUserTeacherIds.length === filteredUserTeachers.length
+                            }
+                            onChange={(e) => {
+                              if (e.target.checked) {
+                                setSelectedUserTeacherIds(filteredUserTeachers.map((t) => t.id));
+                              } else {
+                                setSelectedUserTeacherIds([]);
+                              }
+                            }}
+                            className="rounded text-[#65C443] cursor-pointer"
+                          />
+                        </th>
+                        <th className="py-3.5 px-4 w-12 text-center">No</th>
+                        <th className="py-3.5 px-4">Nama Lengkap & NIP</th>
+                        <th className="py-3.5 px-4">Username Login</th>
+                        <th className="py-3.5 px-4">Email</th>
+                        <th className="py-3.5 px-4 text-center">Status Akun</th>
+                        <th className="py-3.5 px-4 text-center">Aksi Cepat</th>
+                      </tr>
+                    </thead>
+                    <tbody className="divide-y divide-slate-100">
+                      {filteredUserTeachers.length === 0 ? (
+                        <tr>
+                          <td colSpan={7} className="py-12 text-center text-slate-400">
+                            Tidak ada data guru yang sesuai filter.
+                          </td>
+                        </tr>
+                      ) : (
+                        filteredUserTeachers.map((t, idx) => {
+                          const isSelected = selectedUserTeacherIds.includes(t.id);
+                          return (
+                            <tr key={t.id} className={`hover:bg-slate-50/80 transition ${isSelected ? "bg-slate-50/60" : ""}`}>
+                              <td className="py-3.5 px-3 text-center">
+                                <input
+                                  type="checkbox"
+                                  checked={isSelected}
+                                  onChange={(e) => {
+                                    if (e.target.checked) {
+                                      setSelectedUserTeacherIds((prev) => [...prev, t.id]);
+                                    } else {
+                                      setSelectedUserTeacherIds((prev) => prev.filter((id) => id !== t.id));
+                                    }
+                                  }}
+                                  className="rounded text-[#65C443] cursor-pointer"
+                                />
+                              </td>
+                              <td className="py-3.5 px-4 text-center text-slate-400 font-mono">{idx + 1}</td>
+                              <td className="py-3.5 px-4">
+                                <div className="font-bold text-slate-900">{t.displayName}</div>
+                                <div className="text-[11px] text-slate-400 font-mono mt-0.5">
+                                  NIP: {t.nip || "-"}
+                                </div>
+                              </td>
+                              <td className="py-3.5 px-4 font-mono text-slate-700">@{t.username}</td>
+                              <td className="py-3.5 px-4 text-slate-500">{t.email || "-"}</td>
+                              <td className="py-3.5 px-4 text-center">
+                                <span
+                                  className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-[11px] font-bold ${
+                                    t.isActive
+                                      ? "bg-emerald-50 text-emerald-800 border border-emerald-200"
+                                      : "bg-rose-50 text-rose-700 border border-rose-200"
+                                  }`}
+                                >
+                                  <span
+                                    className={`w-1.5 h-1.5 rounded-full ${
+                                      t.isActive ? "bg-[#65C443]" : "bg-rose-500"
+                                    }`}
+                                  />
+                                  <span>{t.isActive ? "Aktif" : "Nonaktif"}</span>
+                                </span>
+                              </td>
+                              <td className="py-3.5 px-4 text-center">
+                                <button
+                                  onClick={() => handleToggleUserStatus(t.id, t.isActive, "teacher")}
+                                  className={`px-3 py-1 rounded-lg text-xs font-semibold transition cursor-pointer border ${
+                                    t.isActive
+                                      ? "bg-rose-50 hover:bg-rose-100 text-rose-700 border-rose-200"
+                                      : "bg-emerald-50 hover:bg-emerald-100 text-emerald-700 border-emerald-200"
+                                  }`}
+                                >
+                                  {t.isActive ? "Nonaktifkan" : "Aktifkan"}
+                                </button>
+                              </td>
+                            </tr>
+                          );
+                        })
+                      )}
+                    </tbody>
+                  </table>
+                </div>
+              </div>
+            </div>
+          )}
+
+          {/* VIEW: USER MANAGEMENT - SISWA (AKTIVASI/DEAKTIVASI) */}
+          {activeTab === "user_students" && (
+            <div className="space-y-4 animate-in fade-in duration-200">
+              <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3">
+                <div>
+                  <h3 className="text-base font-bold text-slate-900">User Management: Siswa (Peserta Didik)</h3>
+                  <p className="text-xs text-slate-500 mt-0.5">
+                    Kelola status aktivasi akun siswa untuk mengontrol izin akses login ujian CBT.
+                  </p>
+                </div>
+
+                <div className="flex items-center gap-2 flex-wrap">
+                  <div className="relative">
+                    <Search className="w-3.5 h-3.5 absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" />
+                    <input
+                      type="text"
+                      placeholder="Cari siswa atau NIS..."
+                      value={userStudentSearch}
+                      onChange={(e) => setUserStudentSearch(e.target.value)}
+                      className="pl-8 pr-3 py-1.5 rounded-xl bg-white border border-slate-200 text-xs text-slate-800 placeholder:text-slate-400 focus:outline-none focus:border-[#65C443]"
+                    />
+                  </div>
+
+                  <select
+                    value={userStudentClassFilter}
+                    onChange={(e) => setUserStudentClassFilter(e.target.value)}
+                    className="px-3 py-1.5 rounded-xl bg-white border border-slate-200 text-xs text-slate-700 font-semibold focus:outline-none cursor-pointer"
+                  >
+                    <option value="all">Semua Rombel</option>
+                    {classes.map((c) => (
+                      <option key={c.id} value={c.name}>
+                        {c.name}
+                      </option>
+                    ))}
+                  </select>
+
+                  <select
+                    value={userStudentStatusFilter}
+                    onChange={(e: any) => setUserStudentStatusFilter(e.target.value)}
+                    className="px-3 py-1.5 rounded-xl bg-white border border-slate-200 text-xs text-slate-700 font-semibold focus:outline-none cursor-pointer"
+                  >
+                    <option value="all">Semua Status</option>
+                    <option value="active">Hanya Aktif</option>
+                    <option value="inactive">Hanya Nonaktif</option>
+                  </select>
+                </div>
+              </div>
+
+              {/* Bulk Action Bar */}
+              {selectedUserStudentIds.length > 0 && (
+                <div className="p-3 rounded-xl bg-indigo-50 border border-indigo-200 flex items-center justify-between text-xs text-indigo-900">
+                  <span className="font-semibold">{selectedUserStudentIds.length} siswa terpilih</span>
+                  <div className="flex items-center gap-2">
+                    <button
+                      disabled={userStudentBulkLoading}
+                      onClick={() => handleBulkUserStatus(selectedUserStudentIds, "activate", "student")}
+                      className="px-3 py-1 rounded-lg bg-[#65C443] hover:bg-[#52a835] text-white font-bold transition cursor-pointer disabled:opacity-50"
+                    >
+                      Aktifkan Akun Siswa
+                    </button>
+                    <button
+                      disabled={userStudentBulkLoading}
+                      onClick={() => handleBulkUserStatus(selectedUserStudentIds, "deactivate", "student")}
+                      className="px-3 py-1 rounded-lg bg-rose-600 hover:bg-rose-700 text-white font-bold transition cursor-pointer disabled:opacity-50"
+                    >
+                      Nonaktifkan Akun Siswa
+                    </button>
+                  </div>
+                </div>
+              )}
+
+              {/* Table User Management Students */}
+              <div className="rounded-2xl bg-white border border-slate-200 shadow-sm overflow-hidden">
+                <div className="overflow-x-auto">
+                  <table className="w-full text-left text-xs">
+                    <thead className="bg-slate-50 text-slate-600 uppercase font-bold border-b border-slate-200">
+                      <tr>
+                        <th className="py-3.5 px-3 w-10 text-center">
+                          <input
+                            type="checkbox"
+                            checked={
+                              filteredUserStudents.length > 0 &&
+                              selectedUserStudentIds.length === filteredUserStudents.length
+                            }
+                            onChange={(e) => {
+                              if (e.target.checked) {
+                                setSelectedUserStudentIds(filteredUserStudents.map((s) => s.id));
+                              } else {
+                                setSelectedUserStudentIds([]);
+                              }
+                            }}
+                            className="rounded text-[#65C443] cursor-pointer"
+                          />
+                        </th>
+                        <th className="py-3.5 px-4 w-12 text-center">No</th>
+                        <th className="py-3.5 px-4">Nama Siswa & NIS/NISN</th>
+                        <th className="py-3.5 px-4">Username Login</th>
+                        <th className="py-3.5 px-4">Kelas / Rombel</th>
+                        <th className="py-3.5 px-4 text-center">Status Akun</th>
+                        <th className="py-3.5 px-4 text-center">Aksi Cepat</th>
+                      </tr>
+                    </thead>
+                    <tbody className="divide-y divide-slate-100">
+                      {filteredUserStudents.length === 0 ? (
+                        <tr>
+                          <td colSpan={7} className="py-12 text-center text-slate-400">
+                            Tidak ada data siswa yang sesuai filter.
+                          </td>
+                        </tr>
+                      ) : (
+                        filteredUserStudents.map((s, idx) => {
+                          const isSelected = selectedUserStudentIds.includes(s.id);
+                          return (
+                            <tr key={s.id} className={`hover:bg-slate-50/80 transition ${isSelected ? "bg-slate-50/60" : ""}`}>
+                              <td className="py-3.5 px-3 text-center">
+                                <input
+                                  type="checkbox"
+                                  checked={isSelected}
+                                  onChange={(e) => {
+                                    if (e.target.checked) {
+                                      setSelectedUserStudentIds((prev) => [...prev, s.id]);
+                                    } else {
+                                      setSelectedUserStudentIds((prev) => prev.filter((id) => id !== s.id));
+                                    }
+                                  }}
+                                  className="rounded text-[#65C443] cursor-pointer"
+                                />
+                              </td>
+                              <td className="py-3.5 px-4 text-center text-slate-400 font-mono">{idx + 1}</td>
+                              <td className="py-3.5 px-4">
+                                <div className="font-bold text-slate-900">{s.displayName}</div>
+                                <div className="text-[11px] text-slate-400 font-mono mt-0.5">
+                                  NIS: {s.nis || "-"} • NISN: {s.nisn || "-"}
+                                </div>
+                              </td>
+                              <td className="py-3.5 px-4 font-mono text-slate-700">@{s.username}</td>
+                              <td className="py-3.5 px-4">
+                                <span className="px-2 py-0.5 rounded bg-slate-100 text-slate-700 font-semibold text-[11px]">
+                                  {s.className || "-"}
+                                </span>
+                              </td>
+                              <td className="py-3.5 px-4 text-center">
+                                <span
+                                  className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-[11px] font-bold ${
+                                    s.isActive
+                                      ? "bg-emerald-50 text-emerald-800 border border-emerald-200"
+                                      : "bg-rose-50 text-rose-700 border border-rose-200"
+                                  }`}
+                                >
+                                  <span
+                                    className={`w-1.5 h-1.5 rounded-full ${
+                                      s.isActive ? "bg-[#65C443]" : "bg-rose-500"
+                                    }`}
+                                  />
+                                  <span>{s.isActive ? "Aktif" : "Nonaktif"}</span>
+                                </span>
+                              </td>
+                              <td className="py-3.5 px-4 text-center">
+                                <button
+                                  onClick={() => handleToggleUserStatus(s.id, s.isActive, "student")}
+                                  className={`px-3 py-1 rounded-lg text-xs font-semibold transition cursor-pointer border ${
+                                    s.isActive
+                                      ? "bg-rose-50 hover:bg-rose-100 text-rose-700 border-rose-200"
+                                      : "bg-emerald-50 hover:bg-emerald-100 text-emerald-700 border-emerald-200"
+                                  }`}
+                                >
+                                  {s.isActive ? "Nonaktifkan" : "Aktifkan"}
+                                </button>
+                              </td>
+                            </tr>
+                          );
+                        })
+                      )}
+                    </tbody>
+                  </table>
+                </div>
+              </div>
+            </div>
+          )}
       {/* ======================================================== */}
       {/* TAB 1: SISWA (PESERTA DIDIK)                             */}
       {/* ======================================================== */}
@@ -3334,6 +4127,9 @@ export default function AdminManagementPanel({
           />
         </div>
       )}
+
+        </main>
+      </div>
 
       {/* ======================================================== */}
       {/* MODAL: KELOLA SISWA KELAS (DUAL-LISTBOX & MULTI-ASSIGN)  */}

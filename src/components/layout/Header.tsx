@@ -12,9 +12,15 @@ interface HeaderProps {
   };
   activeYear?: string | null;
   activeSemester?: string | null;
+  onToggleMobileMenu?: () => void;
 }
 
-export default function Header({ user, activeYear, activeSemester }: HeaderProps) {
+export default function Header({
+  user,
+  activeYear,
+  activeSemester,
+  onToggleMobileMenu,
+}: HeaderProps) {
   const router = useRouter();
   const [loggingOut, setLoggingOut] = useState(false);
 
@@ -24,7 +30,6 @@ export default function Header({ user, activeYear, activeSemester }: HeaderProps
       await fetch("/api/auth/logout", { method: "POST" });
     } finally {
       router.push("/login");
-      router.refresh();
     }
   };
 
@@ -42,11 +47,21 @@ export default function Header({ user, activeYear, activeSemester }: HeaderProps
   };
 
   return (
-    <header className="sticky top-0 z-40 w-full bg-white/95 backdrop-blur-md border-b border-slate-200 px-4 sm:px-6 py-3 shadow-sm">
-      <div className="max-w-7xl mx-auto flex items-center justify-between gap-4">
-        {/* Left: Branding */}
+    <header className="sticky top-0 z-30 w-full bg-white/95 backdrop-blur-md border-b border-slate-200 px-4 sm:px-6 py-3 shadow-xs">
+      <div className="w-full flex items-center justify-between gap-4">
+        {/* Left: Branding & Mobile Menu Toggle */}
         <div className="flex items-center gap-3">
-          <div className="flex items-center justify-center w-9 h-9 rounded-xl bg-gradient-to-tr from-[#0D274C] to-[#163B6E] shadow-sm shadow-[#0D274C]/20 border border-[#0D274C]/30">
+          {onToggleMobileMenu && (
+            <button
+              type="button"
+              onClick={onToggleMobileMenu}
+              className="lg:hidden p-2 -ml-1 text-slate-600 hover:text-slate-900 hover:bg-slate-100 rounded-xl transition cursor-pointer"
+              title="Buka Menu Sidebar"
+            >
+              <ShieldCheck className="w-5 h-5 text-[#0D274C]" />
+            </button>
+          )}
+          <div className="flex items-center justify-center w-9 h-9 rounded-xl bg-gradient-to-tr from-[#0D274C] to-[#163B6E] shadow-sm shadow-[#0D274C]/20 border border-[#0D274C]/30 shrink-0">
             <ShieldCheck className="w-5 h-5 text-white" />
           </div>
           <div>
