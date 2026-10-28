@@ -268,18 +268,24 @@ export async function POST(req: NextRequest) {
           }
         }
 
-        // Uniqueness checks for NIS (Optional)
-        if (row.nis) {
-          if (dbNis.has(row.nis)) {
-            errors.push(`NIS '${row.nis}' sudah terdaftar untuk siswa lain`);
-          } else if (seenNis.has(row.nis)) {
-            errors.push(`NIS duplikat di berkas: ${row.nis}`);
+        // NIS checks (Mandatory for Student)
+        if (importType === "student") {
+          if (row.nis) {
+            if (dbNis.has(row.nis)) {
+              errors.push(`NIS '${row.nis}' sudah terdaftar untuk siswa lain`);
+            } else if (seenNis.has(row.nis)) {
+              errors.push(`NIS duplikat di berkas: ${row.nis}`);
+            } else {
+              seenNis.add(row.nis);
+            }
           } else {
-            seenNis.add(row.nis);
+            if (!errors.some((e) => e.includes("NIS"))) {
+              errors.push("NIS wajib diisi (*)");
+            }
           }
         }
 
-        // Uniqueness checks for NISN (Optional)
+        // Uniqueness checks for NISN (Optional for Student)
         if (row.nisn) {
           if (dbNisn.has(row.nisn)) {
             errors.push(`NISN '${row.nisn}' sudah terdaftar`);
@@ -290,14 +296,20 @@ export async function POST(req: NextRequest) {
           }
         }
 
-        // Uniqueness checks for NIP (Optional)
-        if (row.nip) {
-          if (dbNip.has(row.nip)) {
-            errors.push(`NIP '${row.nip}' sudah terdaftar untuk guru lain`);
-          } else if (seenNip.has(row.nip)) {
-            errors.push(`NIP duplikat di berkas: ${row.nip}`);
+        // NIP checks (Mandatory for Teacher)
+        if (importType === "teacher") {
+          if (row.nip) {
+            if (dbNip.has(row.nip)) {
+              errors.push(`NIP '${row.nip}' sudah terdaftar untuk guru lain`);
+            } else if (seenNip.has(row.nip)) {
+              errors.push(`NIP duplikat di berkas: ${row.nip}`);
+            } else {
+              seenNip.add(row.nip);
+            }
           } else {
-            seenNip.add(row.nip);
+            if (!errors.some((e) => e.includes("NIP"))) {
+              errors.push("NIP wajib diisi (*)");
+            }
           }
         }
 

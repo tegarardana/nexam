@@ -22,17 +22,18 @@ describe("Bulk Import User (XLSX) Validation & Normalization", () => {
     expect(res.success).toBe(true);
   });
 
-  it("should validate student row with ONLY mandatory (*) fields filled", () => {
-    // Only displayName, username, and password provided
+  it("should validate student row with ONLY mandatory (*) fields filled (displayName, username, password, nis)", () => {
+    // Only displayName, username, password, and nis provided
     const row = {
       displayName: "Bela Safitri",
       username: "siswa.bela",
       password: "Password123!",
+      nis: "202601002",
     };
     const res = bulkStudentRowSchema.safeParse(row);
     expect(res.success).toBe(true);
     if (res.success) {
-      expect(res.data.nis).toBeUndefined();
+      expect(res.data.nis).toBe("202601002");
       expect(res.data.nisn).toBeUndefined();
       expect(res.data.gender).toBeUndefined();
       expect(res.data.email).toBeUndefined();
@@ -41,11 +42,21 @@ describe("Bulk Import User (XLSX) Validation & Normalization", () => {
   });
 
   it("should fail student row when mandatory (*) fields are missing or invalid", () => {
+    // Missing NIS
+    const noNis = bulkStudentRowSchema.safeParse({
+      displayName: "Bela Safitri",
+      username: "siswa.bela",
+      password: "Password123!",
+      nis: "",
+    });
+    expect(noNis.success).toBe(false);
+
     // Missing password
     const noPass = bulkStudentRowSchema.safeParse({
       displayName: "Citra",
       username: "siswa.citra",
       password: "",
+      nis: "202601003",
     });
     expect(noPass.success).toBe(false);
 
@@ -54,6 +65,7 @@ describe("Bulk Import User (XLSX) Validation & Normalization", () => {
       displayName: "Citra",
       username: "siswa.citra",
       password: "123",
+      nis: "202601003",
     });
     expect(shortPass.success).toBe(false);
 
@@ -62,6 +74,7 @@ describe("Bulk Import User (XLSX) Validation & Normalization", () => {
       displayName: "A",
       username: "siswa.citra",
       password: "Password123!",
+      nis: "202601003",
     });
     expect(noName.success).toBe(false);
 
@@ -70,6 +83,7 @@ describe("Bulk Import User (XLSX) Validation & Normalization", () => {
       displayName: "Citra",
       username: "siswa citra",
       password: "Password123!",
+      nis: "202601003",
     });
     expect(spaceUsername.success).toBe(false);
   });
@@ -90,22 +104,33 @@ describe("Bulk Import User (XLSX) Validation & Normalization", () => {
     expect(res.success).toBe(true);
   });
 
-  it("should validate teacher row with ONLY mandatory (*) fields filled", () => {
+  it("should validate teacher row with ONLY mandatory (*) fields filled (displayName, username, password, nip)", () => {
     const row = {
       displayName: "Dewi Sartika",
       username: "guru.dewi",
       password: "GuruPassword123!",
+      nip: "199002022015012002",
     };
     const res = bulkTeacherRowSchema.safeParse(row);
     expect(res.success).toBe(true);
     if (res.success) {
-      expect(res.data.nip).toBeUndefined();
+      expect(res.data.nip).toBe("199002022015012002");
       expect(res.data.nuptk).toBeUndefined();
       expect(res.data.title).toBeUndefined();
       expect(res.data.gender).toBeUndefined();
       expect(res.data.email).toBeUndefined();
       expect(res.data.position).toBe("Guru"); // default
     }
+  });
+
+  it("should fail teacher row when NIP is missing", () => {
+    const noNip = bulkTeacherRowSchema.safeParse({
+      displayName: "Dewi Sartika",
+      username: "guru.dewi",
+      password: "GuruPassword123!",
+      nip: "",
+    });
+    expect(noNip.success).toBe(false);
   });
 
   it("should validate bulk import request schema", () => {
@@ -138,7 +163,7 @@ describe("Bulk Import User (XLSX) Validation & Normalization", () => {
       "Nama Lengkap *",
       "Username *",
       "Password *",
-      "NIS",
+      "NIS *",
       "NISN",
       "Jenis Kelamin",
       "Email",
@@ -147,7 +172,7 @@ describe("Bulk Import User (XLSX) Validation & Normalization", () => {
 
     const sampleRows = [
       ["Ahmad Fauzan", "siswa.ahmad", "Pass123!", "202601001", "0081234561", "L", "ahmad@sch.id", "X RPL 1"],
-      ["Bela Safitri", "siswa.bela", "Pass123!", "", "", "P", "", ""],
+      ["Bela Safitri", "siswa.bela", "Pass123!", "202601002", "", "P", "", ""],
     ];
 
     const ws = XLSX.utils.aoa_to_sheet([headers, ...sampleRows]);
@@ -167,8 +192,8 @@ describe("Bulk Import User (XLSX) Validation & Normalization", () => {
     expect(parsedRows.length).toBe(2);
     expect(parsedRows[0]["Nama Lengkap *"]).toBe("Ahmad Fauzan");
     expect(parsedRows[0]["Username *"]).toBe("siswa.ahmad");
-    expect(String(parsedRows[0]["NIS"])).toBe("202601001");
+    expect(String(parsedRows[0]["NIS *"])).toBe("202601001");
     expect(parsedRows[1]["Nama Lengkap *"]).toBe("Bela Safitri");
-    expect(parsedRows[1]["NIS"]).toBe("");
+    expect(String(parsedRows[1]["NIS *"])).toBe("202601002");
   });
 });

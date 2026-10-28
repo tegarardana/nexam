@@ -133,7 +133,7 @@ export const updateUserSchema = z.object({
   homeroomClassId: z.string().uuid().optional().nullable().or(z.literal("")),
 });
 
-// Bulk template for students: Mandatory(*) are displayName, username, password. Others are optional.
+// Bulk template for students: Mandatory(*) are displayName, username, password, nis. Others are optional.
 export const bulkStudentRowSchema = z.object({
   displayName: z.string().min(2, "Nama lengkap minimal 2 karakter").trim(),
   username: z
@@ -143,14 +143,14 @@ export const bulkStudentRowSchema = z.object({
     .regex(/^[a-zA-Z0-9._-]+$/, "Username hanya boleh huruf, angka, titik, atau strip")
     .trim(),
   password: z.string().min(6, "Password minimal 6 karakter"),
-  nis: z.string().trim().optional().nullable().or(z.literal("")),
+  nis: z.string().min(1, "NIS wajib diisi (*)").trim(),
   nisn: z.string().trim().optional().nullable().or(z.literal("")),
   gender: z.enum(["L", "P", "Laki-laki", "Perempuan"]).optional().nullable().or(z.literal("")),
   email: z.string().email("Format email tidak valid").optional().nullable().or(z.literal("")),
   className: z.string().trim().optional().nullable().or(z.literal("")),
 });
 
-// Bulk template for teachers: Mandatory(*) are displayName, username, password. Others are optional.
+// Bulk template for teachers: Mandatory(*) are displayName, username, password, nip. Others are optional.
 export const bulkTeacherRowSchema = z.object({
   displayName: z.string().min(2, "Nama lengkap minimal 2 karakter").trim(),
   username: z
@@ -160,7 +160,7 @@ export const bulkTeacherRowSchema = z.object({
     .regex(/^[a-zA-Z0-9._-]+$/, "Username hanya boleh huruf, angka, titik, atau strip")
     .trim(),
   password: z.string().min(6, "Password minimal 6 karakter"),
-  nip: z.string().trim().optional().nullable().or(z.literal("")),
+  nip: z.string().min(1, "NIP wajib diisi (*)").trim(),
   nuptk: z.string().trim().optional().nullable().or(z.literal("")),
   title: z.string().trim().optional().nullable().or(z.literal("")),
   position: z.string().trim().optional().default("Guru").or(z.literal("")),

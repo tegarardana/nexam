@@ -90,7 +90,7 @@ describe("Validation Schemas (Zod)", () => {
     expect(invalidUsername.success).toBe(false);
   });
 
-  it("should validate student bulk import rows (NIS/NISN optional, username/displayName/password mandatory)", () => {
+  it("should validate student bulk import rows (NIS/username/displayName/password mandatory (*), NISN optional)", () => {
     const valid = bulkStudentRowSchema.safeParse({
       nis: "202501005",
       nisn: "0089991234",
@@ -101,16 +101,17 @@ describe("Validation Schemas (Zod)", () => {
     });
     expect(valid.success).toBe(true);
 
-    // NIS is optional (not mandatory)
+    // NIS is mandatory (*)
     const missingNis = bulkStudentRowSchema.safeParse({
       username: "siswa.tanpa.nis",
       displayName: "Tanpa NIS",
       password: "Password123!",
     });
-    expect(missingNis.success).toBe(true);
+    expect(missingNis.success).toBe(false);
 
     // Username / displayName / password are mandatory (*)
     const missingPassword = bulkStudentRowSchema.safeParse({
+      nis: "202501006",
       username: "siswa.tanpa.pass",
       displayName: "Tanpa Password",
       password: "",
@@ -118,7 +119,7 @@ describe("Validation Schemas (Zod)", () => {
     expect(missingPassword.success).toBe(false);
   });
 
-  it("should validate teacher bulk import rows (NIP optional, username/displayName/password mandatory)", () => {
+  it("should validate teacher bulk import rows (NIP/username/displayName/password mandatory (*), NUPTK optional)", () => {
     const valid = bulkTeacherRowSchema.safeParse({
       nip: "198001012005011003",
       username: "guru.dewi",
@@ -128,16 +129,17 @@ describe("Validation Schemas (Zod)", () => {
     });
     expect(valid.success).toBe(true);
 
-    // NIP is optional (not mandatory)
+    // NIP is mandatory (*)
     const missingNip = bulkTeacherRowSchema.safeParse({
       username: "guru.tanpa.nip",
       displayName: "Tanpa NIP",
       password: "Password123!",
     });
-    expect(missingNip.success).toBe(true);
+    expect(missingNip.success).toBe(false);
 
     // Mandatory field check
     const missingUsername = bulkTeacherRowSchema.safeParse({
+      nip: "198001012005011004",
       username: "",
       displayName: "Dewi Sartika",
       password: "Password123!",

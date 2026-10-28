@@ -1480,7 +1480,7 @@ export default function AdminManagementPanel({
         "Nama Lengkap *",
         "Username *",
         "Password *",
-        "NIS",
+        "NIS *",
         "NISN",
         "Jenis Kelamin",
         "Email",
@@ -1501,7 +1501,7 @@ export default function AdminManagementPanel({
           "Bela Safitri",
           "siswa.bela",
           "SiswaPass123!",
-          "",
+          "202601002",
           "",
           "P",
           "",
@@ -1517,7 +1517,7 @@ export default function AdminManagementPanel({
         ["Nama Lengkap *", "MANDATORY (Wajib)", "Nama lengkap siswa, minimal 2 karakter."],
         ["Username *", "MANDATORY (Wajib)", "Username akun login siswa (minimal 3 karakter, huruf/angka/titik/strip, tanpa spasi, wajib unik)."],
         ["Password *", "MANDATORY (Wajib)", "Kata sandi login awal siswa (minimal 6 karakter)."],
-        ["NIS", "OPSIONAL", "Nomor Induk Siswa. Boleh dikosongkan jika belum ada. Jika diisi, wajib unik."],
+        ["NIS *", "MANDATORY (Wajib)", "Nomor Induk Siswa. Wajib diisi dan wajib unik."],
         ["NISN", "OPSIONAL", "Nomor Induk Siswa Nasional. Boleh dikosongkan. Jika diisi, wajib unik."],
         ["Jenis Kelamin", "OPSIONAL", "Isi 'L' untuk Laki-laki atau 'P' untuk Perempuan. Boleh dikosongkan."],
         ["Email", "OPSIONAL", "Alamat email aktif siswa. Boleh dikosongkan."],
@@ -1539,7 +1539,7 @@ export default function AdminManagementPanel({
         "Nama Lengkap *",
         "Username *",
         "Password *",
-        "NIP",
+        "NIP *",
         "NUPTK",
         "Gelar",
         "Jabatan",
@@ -1562,7 +1562,7 @@ export default function AdminManagementPanel({
           "Dewi Sartika",
           "guru.dewi",
           "GuruPass123!",
-          "",
+          "199002022015012002",
           "",
           "S.Pd.",
           "Wali Kelas",
@@ -1579,7 +1579,7 @@ export default function AdminManagementPanel({
         ["Nama Lengkap *", "MANDATORY (Wajib)", "Nama lengkap guru (tanpa gelar), minimal 2 karakter."],
         ["Username *", "MANDATORY (Wajib)", "Username akun login guru (minimal 3 karakter, huruf/angka/titik/strip, tanpa spasi, wajib unik)."],
         ["Password *", "MANDATORY (Wajib)", "Kata sandi login awal guru (minimal 6 karakter)."],
-        ["NIP", "OPSIONAL", "Nomor Induk Pegawai. Boleh dikosongkan. Jika diisi, wajib unik."],
+        ["NIP *", "MANDATORY (Wajib)", "Nomor Induk Pegawai. Wajib diisi dan wajib unik."],
         ["NUPTK", "OPSIONAL", "Nomor Unik Pendidik dan Tenaga Kependidikan. Boleh dikosongkan."],
         ["Gelar", "OPSIONAL", "Gelar akademik, misal: 'S.Pd.', 'M.Kom.'."],
         ["Jabatan", "OPSIONAL", "Jabatan (Guru, Wali Kelas, Kepala Sekolah, Wakil Kepala Sekolah, Bimbingan Konseling). Default: 'Guru'."],
@@ -4357,16 +4357,28 @@ export default function AdminManagementPanel({
                       <li>
                         Kolom bertanda bintang (<strong className="text-red-500 font-bold">*</strong>) adalah data{" "}
                         <strong className="text-slate-900">Mandatory (Wajib Diisi)</strong>:{" "}
-                        <code className="text-slate-800 bg-emerald-100/60 px-1 py-0.5 rounded">Nama Lengkap *</code>,{" "}
-                        <code className="text-slate-800 bg-emerald-100/60 px-1 py-0.5 rounded">Username *</code>, dan{" "}
-                        <code className="text-slate-800 bg-emerald-100/60 px-1 py-0.5 rounded">Password *</code>.
+                        {bulkImportType === "student" ? (
+                          <>
+                            <code className="text-slate-800 bg-emerald-100/60 px-1 py-0.5 rounded">Nama Lengkap *</code>,{" "}
+                            <code className="text-slate-800 bg-emerald-100/60 px-1 py-0.5 rounded">Username *</code>,{" "}
+                            <code className="text-slate-800 bg-emerald-100/60 px-1 py-0.5 rounded">Password *</code>, dan{" "}
+                            <code className="text-slate-800 bg-emerald-100/60 px-1 py-0.5 rounded">NIS *</code>.
+                          </>
+                        ) : (
+                          <>
+                            <code className="text-slate-800 bg-emerald-100/60 px-1 py-0.5 rounded">Nama Lengkap *</code>,{" "}
+                            <code className="text-slate-800 bg-emerald-100/60 px-1 py-0.5 rounded">Username *</code>,{" "}
+                            <code className="text-slate-800 bg-emerald-100/60 px-1 py-0.5 rounded">Password *</code>, dan{" "}
+                            <code className="text-slate-800 bg-emerald-100/60 px-1 py-0.5 rounded">NIP *</code>.
+                          </>
+                        )}
                       </li>
                       <li>
                         Kolom lainnya bersifat <strong className="text-slate-900">Opsional</strong> (
                         {bulkImportType === "student"
-                          ? "NIS, NISN, Jenis Kelamin, Email, Kelas"
-                          : "NIP, NUPTK, Gelar, Jabatan, Jenis Kelamin, Email"}
-                        ) dan <em>boleh dikosongkan</em> jika belum ada.
+                          ? "NISN, Jenis Kelamin, Email, Kelas"
+                          : "NUPTK, Gelar, Jabatan, Jenis Kelamin, Email"}
+                        ) dan <em>boleh dikosongkan</em> jika data belum lengkap.
                       </li>
                       <li>Jangan mengubah atau menghapus teks baris pertama (nama kolom header).</li>
                     </ul>
