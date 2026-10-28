@@ -17,6 +17,7 @@ import {
   ImageIcon,
   Trash2,
   Edit3,
+  Pencil,
   ArrowLeft,
   Upload,
   ChevronRight,
@@ -118,6 +119,7 @@ export default function QuestionBankPageContent({
 
   // Question Form inside Active Bank
   const [showAddQuestionForm, setShowAddQuestionForm] = useState(false);
+  const [editingQuestionId, setEditingQuestionId] = useState<string | null>(null);
   const [bankQuestions, setBankQuestions] = useState<any[]>([]);
   const [loadingQuestions, setLoadingQuestions] = useState(false);
   const [qType, setQType] = useState<"single_choice" | "multi_select" | "true_false" | "short_answer" | "essay">("single_choice");
@@ -379,6 +381,7 @@ export default function QuestionBankPageContent({
     setActiveBank(bank);
     setView("manage_questions");
     setShowAddQuestionForm(false);
+    setEditingQuestionId(null);
     setLoadingQuestions(true);
     try {
       const res = await fetch(`/api/questions?questionBankId=${bank.id}`);
@@ -390,6 +393,90 @@ export default function QuestionBankPageContent({
       console.error(err);
     } finally {
       setLoadingQuestions(false);
+    }
+  };
+
+  const handleOpenAddQuestion = () => {
+    setEditingQuestionId(null);
+    setQType("single_choice");
+    setQDifficulty("medium");
+    setQPoints(1);
+    setQText("");
+    setQInstructions("");
+    setQRubric("");
+    setQImageUrl("");
+    setQAnswerKey("");
+    setQOptions([
+      { label: "A", text: "", isCorrect: true },
+      { label: "B", text: "", isCorrect: false },
+      { label: "C", text: "", isCorrect: false },
+      { label: "D", text: "", isCorrect: false },
+    ]);
+    setShowAddQuestionForm(true);
+  };
+
+  const handleOpenEditQuestion = (q: any) => {
+    setEditingQuestionId(q.id);
+    setQType(q.type || "single_choice");
+    setQDifficulty(q.difficulty || "medium");
+    const version = q.versions?.[0] || {};
+    setQPoints(version.gradingConfig?.points ?? 1);
+    setQText(version.content?.text || "");
+    setQInstructions(version.content?.instructions || "");
+    setQRubric(version.content?.rubric || version.explanation || "");
+    setQImageUrl(version.content?.imageUrl || "");
+
+    if (q.type === "single_choice" || q.type === "multi_select") {
+      if (version.options && version.options.length > 0) {
+        setQOptions(
+          version.options.map((opt: any, idx: number) => ({
+            label: opt.label || String.fromCharCode(65 + idx),
+            text: opt.content?.text || opt.text || "",
+            isCorrect: Boolean(opt.isCorrect),
+          }))
+        );
+      } else {
+        setQOptions([
+          { label: "A", text: "", isCorrect: true },
+          { label: "B", text: "", isCorrect: false },
+          { label: "C", text: "", isCorrect: false },
+          { label: "D", text: "", isCorrect: false },
+        ]);
+      }
+    } else if (q.type === "true_false") {
+      const correctOpt = version.options?.find((o: any) => o.isCorrect);
+      setQAnswerKey(correctOpt ? correctOpt.label : (version.gradingConfig?.answerKey || "Benar"));
+    } else if (q.type === "short_answer") {
+      setQAnswerKey(version.gradingConfig?.answerKey || "");
+    } else if (q.type === "essay") {
+      setQRubric(version.content?.rubric || version.explanation || "");
+    }
+
+    setShowAddQuestionForm(true);
+    setTimeout(() => {
+      const formEl = document.getElementById("question-editor-form");
+      if (formEl) {
+        formEl.scrollIntoView({ behavior: "smooth" });
+      }
+    }, 50);
+  };
+
+  const handleDeleteQuestion = async (questionId: string) => {
+    if (!confirm("Apakah Anda yakin ingin menghapus butir soal ini?")) return;
+    try {
+      const res = await fetch(`/api/questions/${questionId}`, { method: "DELETE" });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error || "Gagal menghapus butir soal");
+      if (activeBank) {
+        const refreshRes = await fetch(`/api/questions?questionBankId=${activeBank.id}`);
+        const refreshData = await refreshRes.json();
+        if (refreshData.success) {
+          setBankQuestions(refreshData.data || []);
+        }
+        fetchBanks();
+      }
+    } catch (err: any) {
+      alert(err.message);
     }
   };
 
@@ -416,7 +503,7 @@ export default function QuestionBankPageContent({
     }
   };
 
-  // Save Question inside Active Bank
+  // Save Question inside Active Bank (Create or Update)
   const handleSaveQuestion = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!activeBank) return;
@@ -448,7 +535,7 @@ export default function QuestionBankPageContent({
         type: qType,
         difficulty: qDifficulty,
         status: "published",
-        points: qPoints,
+        points: Number(qPoints) > 0 ? Number(qPoints) : 1,
         content: {
           text: qText,
           instructions: qInstructions || undefined,
@@ -459,23 +546,28 @@ export default function QuestionBankPageContent({
         gradingConfig,
       };
 
-      const res = await fetch("/api/questions", {
-        method: "POST",
+      const url = editingQuestionId ? `/api/questions/${editingQuestionId}` : "/api/questions";
+      const method = editingQuestionId ? "PUT" : "POST";
+
+      const res = await fetch(url, {
+        method,
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify(payload),
       });
 
       const resData = await res.json();
       if (!res.ok) {
-        throw new Error(resData.error || "Gagal menyimpan soal");
+        throw new Error(resData.error || (editingQuestionId ? "Gagal memperbarui butir soal" : "Gagal menyimpan soal"));
       }
 
       setShowAddQuestionForm(false);
+      setEditingQuestionId(null);
       setQText("");
       setQInstructions("");
       setQRubric("");
       setQImageUrl("");
       setQAnswerKey("");
+      setQPoints(1);
       setQOptions([
         { label: "A", text: "", isCorrect: true },
         { label: "B", text: "", isCorrect: false },
@@ -1659,7 +1751,7 @@ export default function QuestionBankPageContent({
                 <span>Impor Butir Soal</span>
               </button>
               <button
-                onClick={() => setShowAddQuestionForm(true)}
+                onClick={handleOpenAddQuestion}
                 className="px-4 py-2.5 rounded-xl bg-[#65C443] hover:bg-[#52a835] text-white text-xs font-bold shadow-sm flex items-center gap-2 cursor-pointer"
               >
                 <Plus className="w-4 h-4" />
@@ -1693,27 +1785,35 @@ export default function QuestionBankPageContent({
             })}
           </div>
 
-          {/* Inline Add Question Form */}
+          {/* Inline Add/Edit Question Form */}
           {showAddQuestionForm && (
             <form
+              id="question-editor-form"
               onSubmit={handleSaveQuestion}
               className="p-6 rounded-2xl bg-white border border-slate-200 shadow-sm space-y-4 text-xs text-slate-800"
             >
               <div className="flex items-center justify-between border-b border-slate-200 pb-3">
                 <h3 className="font-bold text-slate-900 text-sm flex items-center gap-2">
                   <BookOpen className="w-4 h-4 text-[#0D274C]" />
-                  <span>Input Butir Soal Baru ({activeBank.code})</span>
+                  <span>
+                    {editingQuestionId
+                      ? `Edit Butir Soal (${activeBank.code})`
+                      : `Input Butir Soal Baru (${activeBank.code})`}
+                  </span>
                 </h3>
                 <button
                   type="button"
-                  onClick={() => setShowAddQuestionForm(false)}
-                  className="text-slate-400 hover:text-slate-600 text-xs font-semibold"
+                  onClick={() => {
+                    setShowAddQuestionForm(false);
+                    setEditingQuestionId(null);
+                  }}
+                  className="text-slate-400 hover:text-slate-600 text-xs font-semibold cursor-pointer"
                 >
                   Batal
                 </button>
               </div>
 
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+              <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
                 <div>
                   <label className="block text-slate-700 mb-1 font-medium">Tipe Soal *</label>
                   <select
@@ -1740,6 +1840,17 @@ export default function QuestionBankPageContent({
                     <option value="medium">Sedang (Medium)</option>
                     <option value="hard">Sukar / HOTS (Hard)</option>
                   </select>
+                </div>
+
+                <div>
+                  <label className="block text-slate-700 mb-1 font-medium">Poin / Bobot Soal *</label>
+                  <input
+                    type="number"
+                    min={1}
+                    value={qPoints}
+                    onChange={(e) => setQPoints(Math.max(1, parseInt(e.target.value) || 1))}
+                    className="w-full px-3.5 py-2.5 rounded-xl bg-white border border-slate-300 text-slate-900 focus:outline-none focus:border-[#65C443] focus:ring-1 focus:ring-[#65C443]"
+                  />
                 </div>
               </div>
 
@@ -1892,7 +2003,10 @@ export default function QuestionBankPageContent({
               <div className="pt-3 flex items-center justify-end gap-2 border-t border-slate-200">
                 <button
                   type="button"
-                  onClick={() => setShowAddQuestionForm(false)}
+                  onClick={() => {
+                    setShowAddQuestionForm(false);
+                    setEditingQuestionId(null);
+                  }}
                   className="px-4 py-2 rounded-xl bg-slate-100 hover:bg-slate-200 text-slate-700 font-medium transition cursor-pointer"
                 >
                   Batal
@@ -1902,7 +2016,9 @@ export default function QuestionBankPageContent({
                   disabled={questionSubmitting}
                   className="px-5 py-2 rounded-xl bg-[#65C443] hover:bg-[#57b237] disabled:opacity-50 text-white font-medium transition cursor-pointer shadow-sm"
                 >
-                  {questionSubmitting ? "Menyimpan..." : "Simpan Butir Soal"}
+                  {questionSubmitting
+                    ? (editingQuestionId ? "Memperbarui..." : "Menyimpan...")
+                    : (editingQuestionId ? "Simpan Perubahan Soal" : "Simpan Butir Soal")}
                 </button>
               </div>
             </form>
@@ -1945,7 +2061,7 @@ export default function QuestionBankPageContent({
                   </button>
                   <button
                     type="button"
-                    onClick={() => setShowAddQuestionForm(true)}
+                    onClick={handleOpenAddQuestion}
                     className="px-3.5 py-2 rounded-xl bg-[#65C443] hover:bg-[#52a835] text-white text-xs font-semibold flex items-center gap-1.5 transition cursor-pointer shadow-sm"
                   >
                     <Plus className="w-4 h-4" />
@@ -1962,7 +2078,7 @@ export default function QuestionBankPageContent({
                       key={q.id}
                       className="p-5 rounded-2xl bg-white border border-slate-200 shadow-sm space-y-3 text-xs"
                     >
-                      <div className="flex items-start justify-between">
+                      <div className="flex items-start justify-between gap-3">
                         <div className="flex items-center gap-2">
                           <span className="font-bold text-slate-400">#{qIdx + 1}</span>
                           <span className="px-2 py-0.5 rounded bg-slate-100 text-slate-700 text-[10px] font-mono uppercase font-semibold border border-slate-200">
@@ -1972,9 +2088,28 @@ export default function QuestionBankPageContent({
                             {q.difficulty}
                           </span>
                         </div>
-                        <span className="text-slate-500 font-mono text-[11px]">
-                          Poin: {version?.gradingConfig?.points || 1}
-                        </span>
+                        <div className="flex items-center gap-1.5 shrink-0">
+                          <span className="text-slate-500 font-mono text-[11px] mr-1.5">
+                            Poin: {version?.gradingConfig?.points || 1}
+                          </span>
+                          <button
+                            type="button"
+                            onClick={() => handleOpenEditQuestion(q)}
+                            className="p-1 px-2.5 rounded-lg bg-slate-100 hover:bg-[#0D274C] hover:text-white text-slate-700 transition cursor-pointer flex items-center gap-1 text-[11px] font-semibold border border-slate-200 shadow-2xs"
+                            title="Edit Butir Soal"
+                          >
+                            <Pencil className="w-3.5 h-3.5" />
+                            <span>Edit</span>
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() => handleDeleteQuestion(q.id)}
+                            className="p-1 px-2 rounded-lg bg-rose-50 hover:bg-rose-600 hover:text-white text-rose-700 transition cursor-pointer flex items-center gap-1 text-[11px] font-semibold border border-rose-200 shadow-2xs"
+                            title="Hapus Butir Soal"
+                          >
+                            <Trash2 className="w-3.5 h-3.5" />
+                          </button>
+                        </div>
                       </div>
 
                       <p className="text-slate-900 text-xs leading-relaxed whitespace-pre-wrap font-medium">

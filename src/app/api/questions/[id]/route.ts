@@ -79,7 +79,7 @@ export async function PUT(
       );
     }
 
-    const { subjectId, categoryId, type, difficulty, status, content, options, gradingConfig, explanation, points } = parsed.data;
+    const { subjectId, categoryId, questionBankId, type, difficulty, status, content, options, gradingConfig, explanation, points } = parsed.data;
 
     const result = await prisma.$transaction(async (tx) => {
       // 1. Update question metadata
@@ -88,6 +88,7 @@ export async function PUT(
         data: {
           subjectId: subjectId || null,
           categoryId: categoryId || null,
+          ...(questionBankId ? { questionBankId } : {}),
           type,
           difficulty,
           status,
