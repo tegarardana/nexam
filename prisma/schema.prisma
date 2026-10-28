@@ -1,0 +1,774 @@
+datasource db {
+  provider = "postgresql"
+}
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+// -------------------------------------------------------------
+// Identity and Access Management
+// -------------------------------------------------------------
+
+model User {
+  id           String    @id @default(uuid()) @db.Uuid
+  username     String    @unique
+  displayName  String    @map("display_name")
+  passwordHash String    @map("password_hash")
+  rawPassword  String?   @map("raw_password") // Plain password storage for CBT exam login cards & credential export
+  email        String?   @unique
+  
+  // Specific identity numbers for School CBT
+  nis          String?   @unique // Nomor Induk Siswa
+  nisn         String?   @unique // Nomor Induk Siswa Nasional
+  nip          String?   @unique // Nomor Induk Pegawai (Guru/Staf)
+  nuptk        String?   // NUPTK (Guru)
+  gender       String?   // 'L' | 'P' (Laki-laki / Perempuan)
+  title        String?   // Gelar akademik guru (e.g. 'S.Pd., M.Kom.')
+  position     String?   @default("Guru") // Jabatan (Guru, Kepala Sekolah, Wakil Kepala Sekolah, Bimbingan Konseling, Wali Kelas)
+
+  isActive     Boolean   @default(true) @map("is_active")
+  lastLoginAt  DateTime? @map("last_login_at") @db.Timestamptz
+  createdAt    DateTime  @default(now()) @map("created_at") @db.Timestamptz
+  updatedAt    DateTime  @default(now()) @updatedAt @map("updated_at") @db.Timestamptz
+  createdById  String?   @map("created_by") @db.Uuid
+  archivedAt   DateTime? @map("archived_at") @db.Timestamptz
+
+  createdBy          User?               @relation("UserCreatedBy", fields: [createdById], references: [id])
+  createdUsers       User[]              @relation("UserCreatedBy")
+  userRoles          UserRole[]
+  userSessions       UserSession[]
+  studentEnrollments StudentEnrollment[] @relation("StudentEnrollments")
+  teacherAssignments TeacherAssignment[] @relation("TeacherAssignments")
+  assignedTeachers   TeacherAssignment[] @relation("TeacherAssignedBy")
+  homeroomClasses    ClassGroup[]        @relation("ClassHomeroomTeacher")
+  auditLogs                  AuditLog[]
+  importJobs                 ImportJob[]
+  settingsUpdated            SystemSetting[]     @relation("SettingUpdatedBy")
+  questionsCreated           Question[]          @relation("QuestionCreatedBy")
+  questionVersionsCreated    QuestionVersion[]   @relation("QuestionVersionCreatedBy")
+  questionBanksTeaching      QuestionBank[]      @relation("QuestionBankTeacher")
+  questionBanksCreated       QuestionBank[]      @relation("QuestionBankCreatedBy")
+  examinationsCreated        Examination[]       @relation("ExaminationCreatedBy")
+  proctorAssignments         ExaminationProctorAssignment[] @relation("ProctorUser")
+  examinationParticipants    ExaminationParticipant[] @relation("ParticipantStudent")
+  examinationAttempts        ExaminationAttempt[]    @relation("StudentAttempts")
+  examinationResults         ExaminationResult[]     @relation("StudentResults")
+  gradingRecordsGraded       GradingRecord[]         @relation("TeacherGradedRecords")
+  resultPublications         ResultPublication[]     @relation("ResultPublishedBy")
+  resultsFinalized           ExaminationResult[]     @relation("ResultFinalizedBy")
+  proctorEvents              ExaminationEvent[]      @relation("EventActor")
+
+  @@map("users")
+}
+
+model Role {
+  id          String   @id @default(uuid()) @db.Uuid
+  name        String   @unique
+  description String?
+  createdAt   DateTime @default(now()) @map("created_at") @db.Timestamptz
+
+  userRoles       UserRole[]
+  rolePermissions RolePermission[]
+
+  @@map("roles")
+}
+
+model UserRole {
+  userId     String   @map("user_id") @db.Uuid
+  roleId     String   @map("role_id") @db.Uuid
+  grantedAt  DateTime @default(now()) @map("granted_at") @db.Timestamptz
+  grantedById String?  @map("granted_by") @db.Uuid
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+  role Role @relation(fields: [roleId], references: [id], onDelete: Cascade)
+
+  @@id([userId, roleId])
+  @@map("user_roles")
+}
+
+model Permission {
+  id          String  @id @default(uuid()) @db.Uuid
+  name        String  @unique
+  description String?
+  module      String
+
+  rolePermissions RolePermission[]
+
+  @@map("permissions")
+}
+
+model RolePermission {
+  roleId       String @map("role_id") @db.Uuid
+  permissionId String @map("permission_id") @db.Uuid
+
+  role       Role       @relation(fields: [roleId], references: [id], onDelete: Cascade)
+  permission Permission @relation(fields: [permissionId], references: [id], onDelete: Cascade)
+
+  @@id([roleId, permissionId])
+  @@map("role_permissions")
+}
+
+model UserSession {
+  id             String    @id @default(uuid()) @db.Uuid
+  userId         String    @map("user_id") @db.Uuid
+  tokenHash      String    @unique @map("token_hash")
+  expiresAt      DateTime  @map("expires_at") @db.Timestamptz
+  invalidatedAt  DateTime? @map("invalidated_at") @db.Timestamptz
+  ipAddress      String?   @map("ip_address")
+  userAgent      String?   @map("user_agent")
+  createdAt      DateTime  @default(now()) @map("created_at") @db.Timestamptz
+  lastActiveAt   DateTime  @default(now()) @map("last_active_at") @db.Timestamptz
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+  @@index([expiresAt])
+  @@map("user_sessions")
+}
+
+// -------------------------------------------------------------
+// Academic Structure
+// -------------------------------------------------------------
+
+model AcademicYear {
+  id        String   @id @default(uuid()) @db.Uuid
+  name      String   @unique
+  startDate DateTime @map("start_date") @db.Date
+  endDate   DateTime @map("end_date") @db.Date
+  status    String   @default("draft") // draft | active | archived
+  createdAt DateTime @default(now()) @map("created_at") @db.Timestamptz
+  updatedAt DateTime @default(now()) @updatedAt @map("updated_at") @db.Timestamptz
+
+  semesters          Semester[]
+  classGroups        ClassGroup[]
+  studentEnrollments StudentEnrollment[]
+  subjectOfferings   SubjectOffering[]
+  examinations       Examination[]
+
+  @@map("academic_years")
+}
+
+model Semester {
+  id             String   @id @default(uuid()) @db.Uuid
+  academicYearId String   @map("academic_year_id") @db.Uuid
+  name           String   // Ganjil | Genap
+  startDate      DateTime @map("start_date") @db.Date
+  endDate        DateTime @map("end_date") @db.Date
+  status         String   @default("draft") // draft | active | archived
+  notes          String?
+  createdAt      DateTime @default(now()) @map("created_at") @db.Timestamptz
+  updatedAt      DateTime @default(now()) @updatedAt @map("updated_at") @db.Timestamptz
+
+  academicYear     AcademicYear      @relation(fields: [academicYearId], references: [id], onDelete: Cascade)
+  subjectOfferings SubjectOffering[]
+  examinations     Examination[]
+
+  @@unique([academicYearId, name])
+  @@map("semesters")
+}
+
+model Major {
+  id          String    @id @default(uuid()) @db.Uuid
+  name        String
+  code        String    @unique
+  description String?
+  isActive    Boolean   @default(true) @map("is_active")
+  createdAt   DateTime  @default(now()) @map("created_at") @db.Timestamptz
+  updatedAt   DateTime  @default(now()) @updatedAt @map("updated_at") @db.Timestamptz
+  archivedAt  DateTime? @map("archived_at") @db.Timestamptz
+
+  classGroups ClassGroup[]
+  subjects    Subject[]
+
+  @@map("majors")
+}
+
+model ClassGroup {
+  id                String   @id @default(uuid()) @db.Uuid
+  name              String   // e.g., 'X RPL 1'
+  gradeLevel        Int      @map("grade_level") @db.SmallInt // 10, 11, 12, 13
+  majorId           String?  @map("major_id") @db.Uuid
+  academicYearId    String   @map("academic_year_id") @db.Uuid
+  homeroomTeacherId String?  @map("homeroom_teacher_id") @db.Uuid
+  isActive          Boolean  @default(true) @map("is_active")
+  createdAt         DateTime @default(now()) @map("created_at") @db.Timestamptz
+  updatedAt         DateTime @default(now()) @updatedAt @map("updated_at") @db.Timestamptz
+
+  major              Major?              @relation(fields: [majorId], references: [id], onDelete: SetNull)
+  academicYear       AcademicYear        @relation(fields: [academicYearId], references: [id], onDelete: Cascade)
+  homeroomTeacher    User?               @relation("ClassHomeroomTeacher", fields: [homeroomTeacherId], references: [id], onDelete: SetNull)
+  studentEnrollments StudentEnrollment[]
+  subjectOfferings   SubjectOffering[]
+  examinationParticipants ExaminationParticipant[]
+
+  @@unique([name, academicYearId])
+  @@map("class_groups")
+}
+
+model StudentEnrollment {
+  id             String   @id @default(uuid()) @db.Uuid
+  studentId      String   @map("student_id") @db.Uuid
+  classGroupId   String   @map("class_group_id") @db.Uuid
+  academicYearId String   @map("academic_year_id") @db.Uuid
+  enrolledAt     DateTime @default(now()) @map("enrolled_at") @db.Date
+  status         String   @default("active") // active | transferred | graduated | withdrawn
+  notes          String?
+  createdAt      DateTime @default(now()) @map("created_at") @db.Timestamptz
+  updatedAt      DateTime @default(now()) @updatedAt @map("updated_at") @db.Timestamptz
+
+  student      User         @relation("StudentEnrollments", fields: [studentId], references: [id], onDelete: Cascade)
+  classGroup   ClassGroup   @relation(fields: [classGroupId], references: [id], onDelete: Cascade)
+  academicYear AcademicYear @relation(fields: [academicYearId], references: [id], onDelete: Cascade)
+
+  @@unique([studentId, academicYearId])
+  @@index([studentId])
+  @@index([classGroupId])
+  @@index([academicYearId])
+  @@map("student_enrollments")
+}
+
+model SubjectCategory {
+  id          String    @id @default(uuid()) @db.Uuid
+  name        String    @unique
+  code        String?   @unique
+  description String?
+  createdAt   DateTime  @default(now()) @map("created_at") @db.Timestamptz
+  updatedAt   DateTime  @default(now()) @updatedAt @map("updated_at") @db.Timestamptz
+
+  subjects    Subject[]
+
+  @@map("subject_categories")
+}
+
+model Subject {
+  id          String    @id @default(uuid()) @db.Uuid
+  name        String
+  code        String    @unique
+  description String?
+  category    String?   // Free-text or fallback
+  categoryId  String?   @map("category_id") @db.Uuid
+  majorId     String?   @map("major_id") @db.Uuid
+  isActive    Boolean   @default(true) @map("is_active")
+  createdAt   DateTime  @default(now()) @map("created_at") @db.Timestamptz
+  updatedAt   DateTime  @default(now()) @updatedAt @map("updated_at") @db.Timestamptz
+  archivedAt  DateTime? @map("archived_at") @db.Timestamptz
+
+  subjectCategory  SubjectCategory?  @relation(fields: [categoryId], references: [id], onDelete: SetNull)
+  major            Major?            @relation(fields: [majorId], references: [id], onDelete: SetNull)
+  subjectOfferings SubjectOffering[]
+  questionCategories QuestionCategory[]
+  questionBanks      QuestionBank[]
+  questions          Question[]
+  examinations       Examination[]
+
+  @@map("subjects")
+}
+
+model SubjectOffering {
+  id             String   @id @default(uuid()) @db.Uuid
+  subjectId      String   @map("subject_id") @db.Uuid
+  classGroupId   String   @map("class_group_id") @db.Uuid
+  semesterId     String   @map("semester_id") @db.Uuid
+  academicYearId String   @map("academic_year_id") @db.Uuid
+  createdAt      DateTime @default(now()) @map("created_at") @db.Timestamptz
+
+  subject            Subject             @relation(fields: [subjectId], references: [id], onDelete: Cascade)
+  classGroup         ClassGroup          @relation(fields: [classGroupId], references: [id], onDelete: Cascade)
+  semester           Semester            @relation(fields: [semesterId], references: [id], onDelete: Cascade)
+  academicYear       AcademicYear        @relation(fields: [academicYearId], references: [id], onDelete: Cascade)
+  teacherAssignments TeacherAssignment[]
+
+  @@unique([subjectId, classGroupId, semesterId])
+  @@map("subject_offerings")
+}
+
+model TeacherAssignment {
+  id                String   @id @default(uuid()) @db.Uuid
+  teacherId         String   @map("teacher_id") @db.Uuid
+  subjectOfferingId String   @map("subject_offering_id") @db.Uuid
+  assignedAt        DateTime @default(now()) @map("assigned_at") @db.Timestamptz
+  assignedById      String?  @map("assigned_by") @db.Uuid
+
+  teacher         User            @relation("TeacherAssignments", fields: [teacherId], references: [id], onDelete: Cascade)
+  assignedBy      User?           @relation("TeacherAssignedBy", fields: [assignedById], references: [id])
+  subjectOffering SubjectOffering @relation(fields: [subjectOfferingId], references: [id], onDelete: Cascade)
+
+  @@unique([teacherId, subjectOfferingId])
+  @@map("teacher_assignments")
+}
+
+// -------------------------------------------------------------
+// Platform Operations & Audit
+// -------------------------------------------------------------
+
+model AuditLog {
+  id          String   @id @default(uuid()) @db.Uuid
+  actorId     String?  @map("actor_id") @db.Uuid
+  action      String
+  entityType  String   @map("entity_type")
+  entityId    String?  @map("entity_id")
+  beforeValue Json?    @map("before_value")
+  afterValue  Json?    @map("after_value")
+  ipAddress   String?  @map("ip_address")
+  timestamp   DateTime @default(now()) @db.Timestamptz
+
+  actor User? @relation(fields: [actorId], references: [id], onDelete: SetNull)
+
+  @@index([actorId])
+  @@index([entityType, entityId])
+  @@index([timestamp(sort: Desc)])
+  @@map("audit_logs")
+}
+
+model ImportJob {
+  id             String    @id @default(uuid()) @db.Uuid
+  initiatedById  String    @map("initiated_by") @db.Uuid
+  type           String    // users | students | teachers | enrollments
+  status         String    @default("pending") // pending | validating | preview | confirmed | completed | failed
+  rowCount       Int?      @map("row_count")
+  errorCount     Int?      @map("error_count")
+  storageKey     String?   @map("storage_key")
+  resultSummary  Json?     @map("result_summary")
+  createdAt      DateTime  @default(now()) @map("created_at") @db.Timestamptz
+  completedAt    DateTime? @map("completed_at") @db.Timestamptz
+
+  initiatedBy User @relation(fields: [initiatedById], references: [id], onDelete: Cascade)
+
+  @@map("import_jobs")
+}
+
+model SystemSetting {
+  key         String   @id
+  value       String
+  description String?
+  updatedAt   DateTime @default(now()) @updatedAt @map("updated_at") @db.Timestamptz
+  updatedById String?  @map("updated_by") @db.Uuid
+
+  updatedBy User? @relation("SettingUpdatedBy", fields: [updatedById], references: [id], onDelete: SetNull)
+
+  @@map("system_settings")
+}
+
+// -------------------------------------------------------------
+// Phase 2: Question Bank Models
+// -------------------------------------------------------------
+
+model QuestionCategory {
+  id         String    @id @default(uuid()) @db.Uuid
+  name       String
+  parentId   String?   @map("parent_id") @db.Uuid
+  subjectId  String?   @map("subject_id") @db.Uuid
+  createdAt  DateTime  @default(now()) @map("created_at") @db.Timestamptz
+
+  parent     QuestionCategory?  @relation("QuestionCategoryHierarchy", fields: [parentId], references: [id], onDelete: SetNull)
+  children   QuestionCategory[] @relation("QuestionCategoryHierarchy")
+  subject    Subject?           @relation(fields: [subjectId], references: [id], onDelete: SetNull)
+  questions  Question[]
+
+  @@map("question_categories")
+}
+
+model Question {
+  id          String    @id @default(uuid()) @db.Uuid
+  subjectId      String?   @map("subject_id") @db.Uuid
+  categoryId     String?   @map("category_id") @db.Uuid
+  questionBankId String?   @map("question_bank_id") @db.Uuid
+  type           String    // single_choice | multi_select | true_false | short_answer | essay | image_based
+  difficulty     String?   // easy | medium | hard
+  status         String    @default("draft") // draft | published | archived
+  createdById    String    @map("created_by") @db.Uuid
+  createdAt      DateTime  @default(now()) @map("created_at") @db.Timestamptz
+  updatedAt      DateTime  @default(now()) @updatedAt @map("updated_at") @db.Timestamptz
+  archivedAt     DateTime? @map("archived_at") @db.Timestamptz
+
+  subject              Subject?              @relation(fields: [subjectId], references: [id], onDelete: SetNull)
+  category             QuestionCategory?     @relation(fields: [categoryId], references: [id], onDelete: SetNull)
+  questionBank         QuestionBank?         @relation(fields: [questionBankId], references: [id], onDelete: Cascade)
+  createdBy            User                  @relation("QuestionCreatedBy", fields: [createdById], references: [id])
+  versions             QuestionVersion[]
+  media                QuestionMedia[]
+  examinationQuestions ExaminationQuestion[]
+
+  @@index([subjectId])
+  @@index([categoryId])
+  @@index([questionBankId])
+  @@index([type])
+  @@index([createdById])
+  @@map("questions")
+}
+
+model QuestionVersion {
+  id             String   @id @default(uuid()) @db.Uuid
+  questionId     String   @map("question_id") @db.Uuid
+  versionNumber  Int      @map("version_number")
+  content        Json     // { text: string, instructions?: string, rubric?: string, imagePrompt?: string }
+  gradingConfig  Json     @map("grading_config") // { points: number, answerKey?: any, caseSensitive?: boolean }
+  explanation    String?
+  isCurrent      Boolean  @default(true) @map("is_current")
+  createdById    String?  @map("created_by") @db.Uuid
+  createdAt      DateTime @default(now()) @map("created_at") @db.Timestamptz
+
+  question             Question              @relation(fields: [questionId], references: [id], onDelete: Cascade)
+  createdBy            User?                 @relation("QuestionVersionCreatedBy", fields: [createdById], references: [id])
+  options              QuestionOption[]
+  examinationQuestions ExaminationQuestion[]
+
+  @@unique([questionId, versionNumber])
+  @@index([questionId, isCurrent])
+  @@map("question_versions")
+}
+
+model QuestionOption {
+  id         String   @id @default(uuid()) @db.Uuid
+  versionId  String   @map("version_id") @db.Uuid
+  label      String   // 'A', 'B', 'C', 'D', 'Benar', 'Salah', etc.
+  content    Json     // { text: string, imageUrl?: string }
+  isCorrect  Boolean  @default(false) @map("is_correct")
+  sortOrder  Int      @default(0) @map("sort_order")
+
+  version QuestionVersion @relation(fields: [versionId], references: [id], onDelete: Cascade)
+
+  @@index([versionId])
+  @@map("question_options")
+}
+
+model QuestionMedia {
+  id          String   @id @default(uuid()) @db.Uuid
+  questionId  String   @map("question_id") @db.Uuid
+  fileKey     String   @map("file_key")
+  fileName    String   @map("file_name")
+  mimeType    String   @map("mime_type")
+  fileSize    Int      @map("file_size")
+  storagePath String   @map("storage_path")
+  uploadedAt  DateTime @default(now()) @map("uploaded_at") @db.Timestamptz
+
+  question Question @relation(fields: [questionId], references: [id], onDelete: Cascade)
+
+  @@index([questionId])
+  @@map("question_media")
+}
+
+model QuestionBank {
+  id                          String    @id @default(uuid()) @db.Uuid
+  code                        String    @unique
+  title                       String
+  subjectId                   String    @map("subject_id") @db.Uuid
+  gradeLevel                  Int       @map("grade_level") // 10, 11, 12, 13
+  teacherId                   String?   @map("teacher_id") @db.Uuid
+  totalQuestions              Int       @default(40) @map("total_questions")
+
+  // Tipe Soal Breakdown & Bobot Nilai (%)
+  singleChoiceCount           Int       @default(0) @map("single_choice_count")
+  singleChoiceWeight          Float     @default(0) @map("single_choice_weight")
+
+  complexMultipleChoiceCount  Int       @default(0) @map("complex_multiple_choice_count")
+  complexMultipleChoiceWeight Float     @default(0) @map("complex_multiple_choice_weight")
+
+  trueFalseCount              Int       @default(0) @map("true_false_count")
+  trueFalseWeight             Float     @default(0) @map("true_false_weight")
+
+  shortAnswerCount            Int       @default(0) @map("short_answer_count")
+  shortAnswerWeight           Float     @default(0) @map("short_answer_weight")
+
+  essayCount                  Int       @default(0) @map("essay_count")
+  essayWeight                 Float     @default(0) @map("essay_weight")
+
+  status                      String    @default("draft") // draft | active | archived
+  createdById                 String    @map("created_by") @db.Uuid
+  createdAt                   DateTime  @default(now()) @map("created_at") @db.Timestamptz
+  updatedAt                   DateTime  @default(now()) @updatedAt @map("updated_at") @db.Timestamptz
+
+  subject                     Subject   @relation(fields: [subjectId], references: [id], onDelete: Cascade)
+  teacher                     User?     @relation("QuestionBankTeacher", fields: [teacherId], references: [id], onDelete: SetNull)
+  createdBy                   User      @relation("QuestionBankCreatedBy", fields: [createdById], references: [id])
+  questions                   Question[]
+
+  @@index([subjectId])
+  @@index([gradeLevel])
+  @@index([teacherId])
+  @@map("question_banks")
+}
+
+// -------------------------------------------------------------
+// Phase 2: Examination Configuration Models
+// -------------------------------------------------------------
+
+model Examination {
+  id              String    @id @default(uuid()) @db.Uuid
+  title           String
+  description     String?
+  subjectId       String?   @map("subject_id") @db.Uuid
+  academicYearId  String    @map("academic_year_id") @db.Uuid
+  semesterId      String    @map("semester_id") @db.Uuid
+  durationMinutes Int       @map("duration_minutes")
+  scheduledStart  DateTime  @map("scheduled_start") @db.Timestamptz
+  scheduledEnd    DateTime  @map("scheduled_end") @db.Timestamptz
+  status          String    @default("draft") // draft | ready | scheduled | in_progress | closed | grading | finalized | archived
+  totalPoints     Decimal   @default(100.0) @map("total_points") @db.Decimal(6, 2)
+  passingScore    Decimal?  @map("passing_score") @db.Decimal(5, 2)
+  createdById     String    @map("created_by") @db.Uuid
+  createdAt       DateTime  @default(now()) @map("created_at") @db.Timestamptz
+  updatedAt       DateTime  @default(now()) @updatedAt @map("updated_at") @db.Timestamptz
+  publishedAt     DateTime? @map("published_at") @db.Timestamptz
+
+  subject            Subject?                       @relation(fields: [subjectId], references: [id], onDelete: SetNull)
+  academicYear       AcademicYear                   @relation(fields: [academicYearId], references: [id])
+  semester           Semester                       @relation(fields: [semesterId], references: [id])
+  createdBy          User                           @relation("ExaminationCreatedBy", fields: [createdById], references: [id])
+  questions          ExaminationQuestion[]
+  participants       ExaminationParticipant[]
+  policySettings     ExaminationPolicySetting?
+  proctorAssignments ExaminationProctorAssignment[]
+  attempts           ExaminationAttempt[]
+  results            ExaminationResult[]
+  publications       ResultPublication[]
+
+  @@index([academicYearId])
+  @@index([semesterId])
+  @@index([subjectId])
+  @@index([status])
+  @@index([scheduledStart, scheduledEnd])
+  @@map("examinations")
+}
+
+model ExaminationQuestion {
+  id                String   @id @default(uuid()) @db.Uuid
+  examinationId     String   @map("examination_id") @db.Uuid
+  questionId        String   @map("question_id") @db.Uuid
+  questionVersionId String   @map("question_version_id") @db.Uuid // Immutable version snapshot
+  sequenceOrder     Int      @map("sequence_order")
+  points            Decimal  @default(1.0) @db.Decimal(5, 2)
+  isOptional        Boolean  @default(false) @map("is_optional")
+
+  examination     Examination         @relation(fields: [examinationId], references: [id], onDelete: Cascade)
+  question        Question            @relation(fields: [questionId], references: [id], onDelete: Cascade)
+  questionVersion QuestionVersion     @relation(fields: [questionVersionId], references: [id], onDelete: Cascade)
+  answers         ExaminationAnswer[]
+  gradingRecords  GradingRecord[]
+
+  @@unique([examinationId, questionId])
+  @@index([examinationId, sequenceOrder])
+  @@map("examination_questions")
+}
+
+model ExaminationParticipant {
+  id            String   @id @default(uuid()) @db.Uuid
+  examinationId String   @map("examination_id") @db.Uuid
+  studentId     String   @map("student_id") @db.Uuid
+  classGroupId  String?  @map("class_group_id") @db.Uuid
+  token         String?  // Optional individual exam access token
+  assignedAt    DateTime @default(now()) @map("assigned_at") @db.Timestamptz
+  status        String   @default("eligible") // eligible | exempt | disqualified
+
+  examination Examination @relation(fields: [examinationId], references: [id], onDelete: Cascade)
+  student     User        @relation("ParticipantStudent", fields: [studentId], references: [id], onDelete: Cascade)
+  classGroup  ClassGroup? @relation(fields: [classGroupId], references: [id], onDelete: SetNull)
+
+  @@unique([examinationId, studentId])
+  @@index([examinationId])
+  @@index([studentId])
+  @@index([classGroupId])
+  @@map("examination_participants")
+}
+
+model ExaminationPolicySetting {
+  id                  String   @id @default(uuid()) @db.Uuid
+  examinationId       String   @unique @map("examination_id") @db.Uuid
+  randomizeQuestions  Boolean  @default(true) @map("randomize_questions")
+  randomizeOptions    Boolean  @default(true) @map("randomize_options")
+  allowReview         Boolean  @default(true) @map("allow_review")
+  maxTabSwitches      Int      @default(3) @map("max_tab_switches")
+  maxWindowBlurs      Int      @default(3) @map("max_window_blurs")
+  fullScreenRequired  Boolean  @default(true) @map("full_screen_required")
+  blockOnViolation    Boolean  @default(true) @map("block_on_violation")
+  autoSubmitOnTime    Boolean  @default(true) @map("auto_submit_on_time")
+  showInstantScore    Boolean  @default(false) @map("show_instant_score")
+  tokenRequired       Boolean  @default(false) @map("token_required")
+  globalToken         String?  @map("global_token")
+
+  // Phase 4: Policy modes & anti-cheat parameters
+  mode                String   @default("standard") // practice | standard | strict | custom
+  warnThreshold       Int      @default(1) @map("warn_threshold")
+  blockThreshold      Int      @default(3) @map("block_threshold")
+  heartbeatIntervalS  Int      @default(30) @map("heartbeat_interval_s")
+  customRules         Json?    @map("custom_rules")
+
+  examination Examination @relation(fields: [examinationId], references: [id], onDelete: Cascade)
+
+  @@map("examination_policy_settings")
+}
+
+model ExaminationProctorAssignment {
+  id            String   @id @default(uuid()) @db.Uuid
+  examinationId String   @map("examination_id") @db.Uuid
+  proctorId     String   @map("proctor_id") @db.Uuid
+  roomName      String?  @map("room_name")
+  assignedAt    DateTime @default(now()) @map("assigned_at") @db.Timestamptz
+
+  examination Examination @relation(fields: [examinationId], references: [id], onDelete: Cascade)
+  proctor     User        @relation("ProctorUser", fields: [proctorId], references: [id], onDelete: Cascade)
+
+  @@unique([examinationId, proctorId])
+  @@index([examinationId])
+  @@index([proctorId])
+  @@map("examination_proctor_assignments")
+}
+
+// -------------------------------------------------------------
+// Phase 3: Examination Engine Models
+// -------------------------------------------------------------
+
+model ExaminationAttempt {
+  id                    String    @id @default(uuid()) @db.Uuid
+  examinationId         String    @map("examination_id") @db.Uuid
+  studentId             String    @map("student_id") @db.Uuid
+  attemptNumber         Int       @default(1) @map("attempt_number") @db.SmallInt
+  status                String    @default("not_started") // not_started | in_progress | warning | blocked | submitted | grading_pending | completed | expired
+
+  // Timer fields - Server authoritative
+  startedAt             DateTime? @map("started_at") @db.Timestamptz
+  deadlineAt            DateTime? @map("deadline_at") @db.Timestamptz
+  submittedAt           DateTime? @map("submitted_at") @db.Timestamptz
+
+  // Connection tracking
+  lastHeartbeat         DateTime? @map("last_heartbeat") @db.Timestamptz
+  connectionStatus      String    @default("unknown") @map("connection_status") // connected | disconnected | unknown
+
+  // Randomization snapshot for this attempt
+  questionOrder         Json?     @map("question_order") // array of question IDs in display order
+  optionOrders          Json?     @map("option_orders")  // map of question ID -> shuffled option IDs
+
+  // Anti-cheat counters
+  incidentCount         Int       @default(0) @map("incident_count") @db.SmallInt
+  incidentCountResetAt  DateTime? @map("incident_count_reset_at") @db.Timestamptz
+
+  createdAt             DateTime  @default(now()) @map("created_at") @db.Timestamptz
+  updatedAt             DateTime  @default(now()) @updatedAt @map("updated_at") @db.Timestamptz
+
+  examination           Examination           @relation(fields: [examinationId], references: [id], onDelete: Cascade)
+  student               User                  @relation("StudentAttempts", fields: [studentId], references: [id], onDelete: Cascade)
+  answers               ExaminationAnswer[]
+  gradingRecords        GradingRecord[]
+  result                ExaminationResult?
+  events                ExaminationEvent[]
+
+  @@unique([examinationId, studentId, attemptNumber])
+  @@index([studentId])
+  @@index([examinationId, status])
+  @@map("examination_attempts")
+}
+
+model ExaminationAnswer {
+  id                     String    @id @default(uuid()) @db.Uuid
+  attemptId              String    @map("attempt_id") @db.Uuid
+  examinationQuestionId  String    @map("examination_question_id") @db.Uuid
+  answerValue            Json      @map("answer_value") // Type-specific payload
+  answerSequence         Int       @default(0) @map("answer_sequence")
+  isDoubtful             Boolean   @default(false) @map("is_doubtful") // Siswa ragu-ragu
+  savedAt                DateTime  @default(now()) @map("saved_at") @db.Timestamptz
+
+  attempt                ExaminationAttempt    @relation(fields: [attemptId], references: [id], onDelete: Cascade)
+  examinationQuestion    ExaminationQuestion   @relation(fields: [examinationQuestionId], references: [id], onDelete: Cascade)
+
+  @@unique([attemptId, examinationQuestionId])
+  @@index([attemptId])
+  @@map("examination_answers")
+}
+
+model GradingRecord {
+  id                     String    @id @default(uuid()) @db.Uuid
+  attemptId              String    @map("attempt_id") @db.Uuid
+  examinationQuestionId  String    @map("examination_question_id") @db.Uuid
+  questionType           String    @map("question_type")
+  rawScore               Decimal?  @map("raw_score") @db.Decimal(6, 2)
+  maxScore               Decimal   @map("max_score") @db.Decimal(6, 2)
+  gradingMethod          String    @map("grading_method") // auto | manual
+  gradingStatus          String    @default("pending") @map("grading_status") // pending | draft | finalized
+  gradedById             String?   @map("graded_by") @db.Uuid
+  gradedAt               DateTime? @map("graded_at") @db.Timestamptz
+  teacherFeedback        String?   @map("teacher_feedback")
+  rubricData             Json?     @map("rubric_data")
+  autoGradedAt           DateTime? @map("auto_graded_at") @db.Timestamptz
+  createdAt              DateTime  @default(now()) @map("created_at") @db.Timestamptz
+  updatedAt              DateTime  @default(now()) @updatedAt @map("updated_at") @db.Timestamptz
+
+  attempt                ExaminationAttempt    @relation(fields: [attemptId], references: [id], onDelete: Cascade)
+  examinationQuestion    ExaminationQuestion   @relation(fields: [examinationQuestionId], references: [id], onDelete: Cascade)
+  gradedBy               User?                 @relation("TeacherGradedRecords", fields: [gradedById], references: [id])
+
+  @@unique([attemptId, examinationQuestionId])
+  @@index([attemptId])
+  @@index([attemptId, gradingStatus])
+  @@map("grading_records")
+}
+
+model ExaminationResult {
+  id                     String    @id @default(uuid()) @db.Uuid
+  attemptId              String    @unique @map("attempt_id") @db.Uuid
+  studentId              String    @map("student_id") @db.Uuid
+  examinationId          String    @map("examination_id") @db.Uuid
+  totalScore             Decimal   @map("total_score") @db.Decimal(6, 2)
+  maxScore               Decimal   @map("max_score") @db.Decimal(6, 2)
+  percentage             Decimal   @map("percentage") @db.Decimal(5, 2)
+  objectiveScore         Decimal?  @map("objective_score") @db.Decimal(6, 2)
+  essayScore             Decimal?  @map("essay_score") @db.Decimal(6, 2)
+  isProvisional          Boolean   @default(true) @map("is_provisional")
+  finalizedAt            DateTime? @map("finalized_at") @db.Timestamptz
+  finalizedById          String?   @map("finalized_by") @db.Uuid
+  lastModifiedAt         DateTime? @map("last_modified_at") @db.Timestamptz
+  lastModifiedById       String?   @map("last_modified_by") @db.Uuid
+  modificationReason     String?   @map("modification_reason")
+  createdAt              DateTime  @default(now()) @map("created_at") @db.Timestamptz
+  updatedAt              DateTime  @default(now()) @updatedAt @map("updated_at") @db.Timestamptz
+
+  attempt                ExaminationAttempt    @relation(fields: [attemptId], references: [id], onDelete: Cascade)
+  student                User                  @relation("StudentResults", fields: [studentId], references: [id], onDelete: Cascade)
+  examination            Examination           @relation(fields: [examinationId], references: [id], onDelete: Cascade)
+  finalizedBy            User?                 @relation("ResultFinalizedBy", fields: [finalizedById], references: [id])
+
+  @@index([examinationId])
+  @@index([studentId])
+  @@map("examination_results")
+}
+
+model ResultPublication {
+  id                     String    @id @default(uuid()) @db.Uuid
+  examinationId          String    @map("examination_id") @db.Uuid
+  publishedById          String    @map("published_by") @db.Uuid
+  publishedAt            DateTime  @default(now()) @map("published_at") @db.Timestamptz
+  scope                  String    @default("all") // all | class | individual
+  notes                  String?
+
+  examination            Examination           @relation(fields: [examinationId], references: [id], onDelete: Cascade)
+  publishedBy            User                  @relation("ResultPublishedBy", fields: [publishedById], references: [id], onDelete: Cascade)
+
+  @@index([examinationId])
+  @@map("result_publications")
+}
+
+// -------------------------------------------------------------
+// Phase 4: Anti-Cheat & Live Proctoring Models
+// -------------------------------------------------------------
+
+model ExaminationEvent {
+  id                String    @id @default(uuid()) @db.Uuid
+  attemptId         String    @map("attempt_id") @db.Uuid
+  clientEventId     String?   @map("client_event_id")
+  eventType         String    @map("event_type") // focus_loss | visibility_change | fullscreen_exit | fullscreen_attempt | page_unload | network_disconnect | heartbeat_missed | session_conflict | manual_warning | manual_block | manual_unlock | manual_disqualify | time_extended
+  actorId           String?   @map("actor_id") @db.Uuid
+  clientTimestamp   DateTime? @map("client_timestamp") @db.Timestamptz
+  serverTimestamp   DateTime  @default(now()) @map("server_timestamp") @db.Timestamptz
+  metadata          Json?     @map("metadata")
+  interventionNote  String?   @map("intervention_note")
+
+  attempt           ExaminationAttempt @relation(fields: [attemptId], references: [id], onDelete: Cascade)
+  actor             User?              @relation("EventActor", fields: [actorId], references: [id], onDelete: SetNull)
+
+  @@unique([attemptId, clientEventId])
+  @@index([attemptId])
+  @@index([attemptId, eventType])
+  @@index([serverTimestamp])
+  @@map("examination_events")
+}
+

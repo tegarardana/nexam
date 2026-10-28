@@ -1,0 +1,129 @@
+@import "tailwindcss";
+
+@theme {
+  --color-primary: #65C443;
+  --color-primary-hover: #52a835;
+  --color-primary-dark: #3e8427;
+  --color-secondary: #0D274C;
+  --color-cisco-navy: #0D274C;
+  --color-netacad-green: #65C443;
+  --color-background: #F8FAFC;
+  --color-surface: #FFFFFF;
+  --color-border: #E2E8F0;
+  --color-text-main: #0F172A;
+  --color-text-muted: #64748B;
+}
+
+@layer base {
+  :root {
+    --bg-primary: #F8FAFC;
+    --bg-secondary: #FFFFFF;
+    --bg-card: #FFFFFF;
+    --border-subtle: #E2E8F0;
+    --border-glow: rgba(101, 196, 67, 0.3);
+    --accent-primary: #65C443;
+    --accent-navy: #0D274C;
+    --accent-green: #65C443;
+    --text-primary: #0F172A;
+    --text-secondary: #64748B;
+  }
+}
+
+body {
+  background-color: #F8FAFC;
+  color: #0F172A;
+  font-feature-settings: "cv02", "cv03", "cv04", "cv11";
+  overflow-x: hidden;
+}
+
+/* Cisco NetAcad Glass & Card Utilities (Light Mode) */
+.glass-panel {
+  background: rgba(255, 255, 255, 0.95);
+  backdrop-filter: blur(12px);
+  -webkit-backdrop-filter: blur(12px);
+  border: 1px solid #E2E8F0;
+  box-shadow: 0 1px 3px 0 rgba(0, 0, 0, 0.04);
+}
+
+.glass-panel-hover {
+  transition: all 0.2s cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+.glass-panel-hover:hover {
+  background: #FFFFFF;
+  border-color: #CBD5E1;
+  transform: translateY(-2px);
+  box-shadow: 0 10px 25px -5px rgba(13, 39, 76, 0.08), 0 0 12px -3px rgba(101, 196, 67, 0.15);
+}
+
+/* Cisco NetAcad Button Accents */
+.btn-primary {
+  background-color: #65C443;
+  color: #FFFFFF;
+  transition: all 0.15s ease-in-out;
+}
+.btn-primary:hover {
+  background-color: #52a835;
+}
+
+.btn-secondary {
+  background-color: #0D274C;
+  color: #FFFFFF;
+  transition: all 0.15s ease-in-out;
+}
+.btn-secondary:hover {
+  background-color: #163B6E;
+}
+
+/* Cisco NetAcad Badge Accents */
+.badge-active {
+  background-color: rgba(101, 196, 67, 0.12);
+  color: #2e7d18;
+  border: 1px solid rgba(101, 196, 67, 0.3);
+}
+
+/* Gradient accents */
+.gradient-text {
+  background: linear-gradient(135deg, #0D274C 0%, #163B6E 50%, #65C443 100%);
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+}
+
+.gradient-border {
+  position: relative;
+  border-radius: 0.75rem;
+  background: linear-gradient(135deg, rgba(101, 196, 67, 0.4), rgba(13, 39, 76, 0.1), rgba(0, 0, 0, 0.05));
+  padding: 1px;
+}
+
+.gradient-border > * {
+  border-radius: calc(0.75rem - 1px);
+}
+
+/* Subtle background glowing orbs */
+.bg-glow-orb {
+  position: absolute;
+  border-radius: 9999px;
+  filter: blur(80px);
+  pointer-events: none;
+  opacity: 0.12;
+}
+
+/* Custom scrollbars (Light Mode) */
+::-webkit-scrollbar {
+  width: 6px;
+  height: 6px;
+}
+
+::-webkit-scrollbar-track {
+  background: #F1F5F9;
+}
+
+::-webkit-scrollbar-thumb {
+  background: #CBD5E1;
+  border-radius: 3px;
+}
+
+::-webkit-scrollbar-thumb:hover {
+  background: #65C443;
+}
