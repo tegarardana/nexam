@@ -118,7 +118,8 @@ export async function POST(req: NextRequest) {
     });
 
     // 6. Set HTTP-only Cookie
-    const isProd = process.env.NODE_ENV === "production";
+    // Gunakan secure: true hanya jika koneksi menggunakan HTTPS agar test VPS via HTTP tetap dapat menyimpan session cookie
+    const isHttps = req.headers.get("x-forwarded-proto") === "https" || req.url.startsWith("https:");
     const response = NextResponse.json({
       success: true,
       user: {
@@ -135,7 +136,7 @@ export async function POST(req: NextRequest) {
       name: SESSION_COOKIE_NAME,
       value: token,
       httpOnly: true,
-      secure: isProd,
+      secure: isHttps,
       sameSite: "lax",
       path: "/",
       maxAge: SESSION_DURATION_HOURS * 3600,
