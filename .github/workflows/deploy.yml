@@ -1,0 +1,18 @@
+name: Auto Deploy to VPS (Self-Hosted)
+
+on:
+  push:
+    branches:
+      - experiment
+  workflow_dispatch:
+
+jobs:
+  deploy:
+    name: Deploy to Local VPS
+    runs-on: self-hosted
+    steps:
+      - name: Run Local Deploy Script
+        run: |
+          cd ~/nexam
+          chmod +x scripts/deploy.sh
+          ./scripts/deploy.sh
