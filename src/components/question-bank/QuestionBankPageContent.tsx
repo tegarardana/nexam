@@ -29,6 +29,8 @@ import {
   FileUp,
   AlertTriangle,
 } from "lucide-react";
+import { RichTextEditor } from "@/components/ui/RichTextEditor";
+import { RichTextRenderer } from "@/components/ui/RichTextRenderer";
 
 interface Subject {
   id: string;
@@ -507,6 +509,21 @@ export default function QuestionBankPageContent({
   const handleSaveQuestion = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!activeBank) return;
+
+    const stripHtml = (html: string) => html.replace(/<[^>]*>/g, "").trim();
+    if (!stripHtml(qText) && !qText.includes("<img") && !qText.includes("katex")) {
+      alert("Isi Pertanyaan / Kasus Soal wajib diisi.");
+      return;
+    }
+
+    if (qType === "single_choice" || qType === "multi_select") {
+      for (const o of qOptions) {
+        if (!stripHtml(o.text) && !o.text.includes("<img") && !o.text.includes("katex")) {
+          alert(`Teks untuk opsi ${o.label} tidak boleh kosong.`);
+          return;
+        }
+      }
+    }
 
     setQuestionSubmitting(true);
     try {
@@ -1855,14 +1872,12 @@ export default function QuestionBankPageContent({
               </div>
 
               <div>
-                <label className="block text-slate-700 mb-1 font-medium">Isi Pertanyaan / Kasus Soal *</label>
-                <textarea
-                  required
-                  rows={3}
+                <label className="block text-slate-700 mb-1.5 font-medium">Isi Pertanyaan / Kasus Soal *</label>
+                <RichTextEditor
                   value={qText}
-                  onChange={(e) => setQText(e.target.value)}
-                  placeholder="Ketik narasi pertanyaan atau kasus soal di sini..."
-                  className="w-full px-3.5 py-2.5 rounded-xl bg-white border border-slate-300 text-slate-900 placeholder:text-slate-400 focus:outline-none focus:border-[#65C443] focus:ring-1 focus:ring-[#65C443]"
+                  onChange={setQText}
+                  placeholder="Ketik narasi pertanyaan atau kasus soal di sini... (Mendukung rumus Matematika/KaTeX, tabel, list, format teks)"
+                  minHeight="min-h-[140px]"
                 />
               </div>
 
@@ -1916,44 +1931,72 @@ export default function QuestionBankPageContent({
 
               {/* Options Section */}
               {(qType === "single_choice" || qType === "multi_select") && (
-                <div className="space-y-2.5">
-                  <label className="block text-slate-700 font-medium">
-                    Pilihan Jawaban (Centang opsi yang benar):
-                  </label>
-                  {qOptions.map((opt, idx) => (
-                    <div key={idx} className="flex items-center gap-2.5">
-                      <input
-                        type={qType === "single_choice" ? "radio" : "checkbox"}
-                        name="correctOption"
-                        checked={opt.isCorrect}
-                        onChange={(e) => {
-                          if (qType === "single_choice") {
-                            setQOptions(
-                              qOptions.map((o, i) => ({ ...o, isCorrect: i === idx }))
-                            );
-                          } else {
+                <div className="space-y-3">
+                  <div>
+                    <label className="block text-slate-700 font-medium">
+                      Pilihan Jawaban (Centang opsi yang benar & format teks masing-masing opsi):
+                    </label>
+                    <p className="text-xs text-slate-500 mt-0.5">
+                      Setiap opsi jawaban dapat memiliki format teks, rumus matematika, maupun tabel yang berbeda-beda.
+                    </p>
+                  </div>
+                  <div className="space-y-3">
+                    {qOptions.map((opt, idx) => (
+                      <div
+                        key={idx}
+                        className={`p-3 rounded-xl border transition-all ${
+                          opt.isCorrect
+                            ? "border-emerald-300 bg-emerald-50/40"
+                            : "border-slate-200 bg-white"
+                        }`}
+                      >
+                        <div className="flex items-center justify-between pb-2 mb-2 border-b border-slate-100">
+                          <label className="flex items-center gap-2 cursor-pointer select-none">
+                            <input
+                              type={qType === "single_choice" ? "radio" : "checkbox"}
+                              name="correctOption"
+                              checked={opt.isCorrect}
+                              onChange={(e) => {
+                                if (qType === "single_choice") {
+                                  setQOptions(
+                                    qOptions.map((o, i) => ({ ...o, isCorrect: i === idx }))
+                                  );
+                                } else {
+                                  const updated = [...qOptions];
+                                  updated[idx].isCorrect = e.target.checked;
+                                  setQOptions(updated);
+                                }
+                              }}
+                              className="w-4 h-4 rounded text-[#65C443] accent-[#65C443] cursor-pointer"
+                            />
+                            <span className="font-bold text-slate-800 text-sm">
+                              Opsi {opt.label}
+                            </span>
+                          </label>
+                          {opt.isCorrect ? (
+                            <span className="text-[11px] font-semibold px-2 py-0.5 rounded-full bg-emerald-100 text-emerald-800 flex items-center gap-1">
+                              <CheckCircle2 className="w-3 h-3 text-[#65C443]" />
+                              Kunci Jawaban Benar
+                            </span>
+                          ) : (
+                            <span className="text-[11px] text-slate-400">Pilihan salah</span>
+                          )}
+                        </div>
+
+                        <RichTextEditor
+                          compact
+                          value={opt.text}
+                          onChange={(val: string) => {
                             const updated = [...qOptions];
-                            updated[idx].isCorrect = e.target.checked;
+                            updated[idx].text = val;
                             setQOptions(updated);
-                          }
-                        }}
-                        className="w-4 h-4 rounded text-[#65C443] accent-[#65C443]"
-                      />
-                      <span className="w-6 text-center font-bold text-slate-600">{opt.label}.</span>
-                      <input
-                        required
-                        type="text"
-                        value={opt.text}
-                        onChange={(e) => {
-                          const updated = [...qOptions];
-                          updated[idx].text = e.target.value;
-                          setQOptions(updated);
-                        }}
-                        placeholder={`Teks opsi jawaban ${opt.label}...`}
-                        className="flex-1 px-3 py-2 rounded-lg bg-white border border-slate-300 text-slate-900 placeholder:text-slate-400 focus:outline-none focus:border-[#65C443] focus:ring-1 focus:ring-[#65C443]"
-                      />
-                    </div>
-                  ))}
+                          }}
+                          placeholder={`Ketik teks opsi jawaban ${opt.label}...`}
+                          minHeight="min-h-[50px]"
+                        />
+                      </div>
+                    ))}
+                  </div>
                 </div>
               )}
 
@@ -2112,9 +2155,10 @@ export default function QuestionBankPageContent({
                         </div>
                       </div>
 
-                      <p className="text-slate-900 text-xs leading-relaxed whitespace-pre-wrap font-medium">
-                        {version?.content?.text}
-                      </p>
+                      <RichTextRenderer
+                        content={version?.content?.text || ""}
+                        className="text-slate-900 text-xs leading-relaxed font-medium"
+                      />
 
                       {version?.content?.imageUrl && (
                         <div className="rounded-xl overflow-hidden border border-slate-200 max-w-sm">
@@ -2137,11 +2181,16 @@ export default function QuestionBankPageContent({
                                   : "bg-slate-50 border-slate-200 text-slate-700"
                               }`}
                             >
-                              <span className="w-5 h-5 rounded-full flex items-center justify-center bg-white border border-slate-200 text-slate-700 text-[10px] font-bold">
+                              <span className="w-5 h-5 shrink-0 rounded-full flex items-center justify-center bg-white border border-slate-200 text-slate-700 text-[10px] font-bold">
                                 {opt.label}
                               </span>
-                              <span className="truncate">{opt.content?.text || opt.text}</span>
-                              {opt.isCorrect && <CheckCircle2 className="w-3.5 h-3.5 text-[#65C443] ml-auto" />}
+                              <div className="flex-1 overflow-hidden">
+                                <RichTextRenderer
+                                  asInline
+                                  content={opt.content?.text || opt.text || ""}
+                                />
+                              </div>
+                              {opt.isCorrect && <CheckCircle2 className="w-3.5 h-3.5 shrink-0 text-[#65C443] ml-auto" />}
                             </div>
                           ))}
                         </div>

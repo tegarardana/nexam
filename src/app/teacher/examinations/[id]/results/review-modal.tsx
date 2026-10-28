@@ -18,6 +18,7 @@ import {
   AlertCircle,
   MessageSquare,
 } from "lucide-react";
+import { RichTextRenderer } from "@/components/ui/RichTextRenderer";
 
 interface ReviewModalProps {
   isOpen: boolean;
@@ -462,9 +463,10 @@ export default function StudentReviewModal({
 
                   {/* Question Content / Stimulus */}
                   <div className="space-y-3">
-                    <div className="text-sm font-semibold text-slate-900 leading-relaxed whitespace-pre-wrap">
-                      {currentQuestion.content?.text || "Pertanyaan"}
-                    </div>
+                    <RichTextRenderer
+                      content={currentQuestion.content?.text || "Pertanyaan"}
+                      className="text-sm font-semibold text-slate-900 leading-relaxed"
+                    />
                   </div>
 
                   {/* Rendering Options for Objective Questions */}
@@ -496,12 +498,15 @@ export default function StudentReviewModal({
                               key={opt.id}
                               className={`p-3.5 rounded-xl border text-xs flex items-start justify-between gap-3 transition ${borderBg}`}
                             >
-                              <div className="flex items-start gap-2.5">
+                              <div className="flex items-start gap-2.5 flex-1 overflow-hidden">
                                 <span className="w-6 h-6 rounded-lg bg-slate-100 text-slate-700 font-bold font-mono flex items-center justify-center shrink-0">
                                   {opt.label}
                                 </span>
-                                <div className="text-slate-800 pt-0.5 leading-relaxed">
-                                  {opt.content?.text || "-"}
+                                <div className="text-slate-800 pt-0.5 leading-relaxed flex-1 overflow-hidden">
+                                  <RichTextRenderer
+                                    asInline
+                                    content={opt.content?.text || "-"}
+                                  />
                                 </div>
                               </div>
 

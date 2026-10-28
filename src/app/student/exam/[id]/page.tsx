@@ -28,6 +28,7 @@ import {
   Camera,
   Copy,
 } from "lucide-react";
+import { RichTextRenderer } from "@/components/ui/RichTextRenderer";
 
 interface QuestionOption {
   id: string;
@@ -1278,9 +1279,10 @@ export default function StudentExamPage() {
                 )}
 
                 {/* Question Prompt */}
-                <div className="text-slate-900 text-sm sm:text-base leading-relaxed font-normal whitespace-pre-wrap">
-                  {currentQuestion.content.text}
-                </div>
+                <RichTextRenderer
+                  content={currentQuestion.content.text || ""}
+                  className="text-slate-900 text-sm sm:text-base leading-relaxed font-normal"
+                />
 
                 {/* Optional Instructions */}
                 {currentQuestion.content.instructions && (
@@ -1317,8 +1319,11 @@ export default function StudentExamPage() {
                             >
                               {opt.label}
                             </span>
-                            <div className="flex-1 pt-0.5 leading-relaxed">
-                              {opt.content.text}
+                            <div className="flex-1 pt-0.5 leading-relaxed overflow-hidden">
+                              <RichTextRenderer
+                                asInline
+                                content={opt.content.text || ""}
+                              />
                               {opt.content.imageUrl && (
                                 // eslint-disable-next-line @next/next/no-img-element
                                 <img
@@ -1379,7 +1384,12 @@ export default function StudentExamPage() {
                             <span className="font-mono font-bold text-xs shrink-0 mt-0.5 text-slate-800">
                               {opt.label}.
                             </span>
-                            <div className="flex-1 pt-0.5 leading-relaxed">{opt.content.text}</div>
+                            <div className="flex-1 pt-0.5 leading-relaxed overflow-hidden">
+                              <RichTextRenderer
+                                asInline
+                                content={opt.content.text || ""}
+                              />
+                            </div>
                           </button>
                         );
                       })}
