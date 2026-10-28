@@ -2151,7 +2151,7 @@ export default function AdminManagementPanel({
                 className="flex items-center gap-1.5 px-3.5 py-2 rounded-xl bg-white hover:bg-slate-50 text-slate-700 text-xs font-semibold border border-slate-200 shadow-xs transition cursor-pointer"
               >
                 <FileSpreadsheet className="w-3.5 h-3.5 text-[#0D274C]" />
-                <span>Impor Excel Siswa</span>
+                <span>Impor Data Siswa</span>
               </button>
               <button
                 onClick={() => {
@@ -2381,7 +2381,7 @@ export default function AdminManagementPanel({
                 className="flex items-center gap-1.5 px-3.5 py-2 rounded-xl bg-white hover:bg-slate-50 text-slate-700 text-xs font-semibold border border-slate-200 shadow-xs transition cursor-pointer"
               >
                 <FileSpreadsheet className="w-3.5 h-3.5 text-[#0D274C]" />
-                <span>Impor Excel Guru</span>
+                <span>Impor Data Guru</span>
               </button>
               <button
                 onClick={() => {
