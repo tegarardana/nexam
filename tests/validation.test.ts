@@ -90,7 +90,7 @@ describe("Validation Schemas (Zod)", () => {
     expect(invalidUsername.success).toBe(false);
   });
 
-  it("should validate student bulk import rows (NIS mandatory, NISN optional)", () => {
+  it("should validate student bulk import rows (NIS/NISN optional, username/displayName/password mandatory)", () => {
     const valid = bulkStudentRowSchema.safeParse({
       nis: "202501005",
       nisn: "0089991234",
@@ -101,15 +101,24 @@ describe("Validation Schemas (Zod)", () => {
     });
     expect(valid.success).toBe(true);
 
+    // NIS is optional (not mandatory)
     const missingNis = bulkStudentRowSchema.safeParse({
       username: "siswa.tanpa.nis",
       displayName: "Tanpa NIS",
       password: "Password123!",
     });
-    expect(missingNis.success).toBe(false);
+    expect(missingNis.success).toBe(true);
+
+    // Username / displayName / password are mandatory (*)
+    const missingPassword = bulkStudentRowSchema.safeParse({
+      username: "siswa.tanpa.pass",
+      displayName: "Tanpa Password",
+      password: "",
+    });
+    expect(missingPassword.success).toBe(false);
   });
 
-  it("should validate teacher bulk import rows (NIP mandatory)", () => {
+  it("should validate teacher bulk import rows (NIP optional, username/displayName/password mandatory)", () => {
     const valid = bulkTeacherRowSchema.safeParse({
       nip: "198001012005011003",
       username: "guru.dewi",
@@ -119,12 +128,21 @@ describe("Validation Schemas (Zod)", () => {
     });
     expect(valid.success).toBe(true);
 
+    // NIP is optional (not mandatory)
     const missingNip = bulkTeacherRowSchema.safeParse({
       username: "guru.tanpa.nip",
       displayName: "Tanpa NIP",
       password: "Password123!",
     });
-    expect(missingNip.success).toBe(false);
+    expect(missingNip.success).toBe(true);
+
+    // Mandatory field check
+    const missingUsername = bulkTeacherRowSchema.safeParse({
+      username: "",
+      displayName: "Dewi Sartika",
+      password: "Password123!",
+    });
+    expect(missingUsername.success).toBe(false);
   });
 
   it("should validate subject categories and subject linking", () => {

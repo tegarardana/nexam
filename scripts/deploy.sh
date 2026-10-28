@@ -33,3 +33,4 @@ else
 fi
 
 echo "=== [$(date '+%Y-%m-%d %H:%M:%S')] Deploy Berhasil Diselesaikan! ==="
+

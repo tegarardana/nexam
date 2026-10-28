@@ -133,23 +133,47 @@ export const updateUserSchema = z.object({
   homeroomClassId: z.string().uuid().optional().nullable().or(z.literal("")),
 });
 
-// Bulk template for students: nis, nisn, username, displayName, password, email
+// Bulk template for students: Mandatory(*) are displayName, username, password. Others are optional.
 export const bulkStudentRowSchema = z.object({
-  nis: z.string().min(1, "NIS wajib diisi").trim(),
-  nisn: z.string().optional().nullable().or(z.literal("")),
-  username: z.string().min(3, "Username minimal 3 karakter").trim(),
   displayName: z.string().min(2, "Nama lengkap minimal 2 karakter").trim(),
+  username: z
+    .string()
+    .min(3, "Username minimal 3 karakter")
+    .max(50, "Username maksimal 50 karakter")
+    .regex(/^[a-zA-Z0-9._-]+$/, "Username hanya boleh huruf, angka, titik, atau strip")
+    .trim(),
   password: z.string().min(6, "Password minimal 6 karakter"),
-  email: z.string().email().optional().nullable().or(z.literal("")),
+  nis: z.string().trim().optional().nullable().or(z.literal("")),
+  nisn: z.string().trim().optional().nullable().or(z.literal("")),
+  gender: z.enum(["L", "P", "Laki-laki", "Perempuan"]).optional().nullable().or(z.literal("")),
+  email: z.string().email("Format email tidak valid").optional().nullable().or(z.literal("")),
+  className: z.string().trim().optional().nullable().or(z.literal("")),
 });
 
-// Bulk template for teachers: nip, username, displayName, email, password
+// Bulk template for teachers: Mandatory(*) are displayName, username, password. Others are optional.
 export const bulkTeacherRowSchema = z.object({
-  nip: z.string().min(1, "NIP wajib diisi").trim(),
-  username: z.string().min(3, "Username minimal 3 karakter").trim(),
   displayName: z.string().min(2, "Nama lengkap minimal 2 karakter").trim(),
-  email: z.string().email().optional().nullable().or(z.literal("")),
+  username: z
+    .string()
+    .min(3, "Username minimal 3 karakter")
+    .max(50, "Username maksimal 50 karakter")
+    .regex(/^[a-zA-Z0-9._-]+$/, "Username hanya boleh huruf, angka, titik, atau strip")
+    .trim(),
   password: z.string().min(6, "Password minimal 6 karakter"),
+  nip: z.string().trim().optional().nullable().or(z.literal("")),
+  nuptk: z.string().trim().optional().nullable().or(z.literal("")),
+  title: z.string().trim().optional().nullable().or(z.literal("")),
+  position: z.string().trim().optional().default("Guru").or(z.literal("")),
+  gender: z.enum(["L", "P", "Laki-laki", "Perempuan"]).optional().nullable().or(z.literal("")),
+  email: z.string().email("Format email tidak valid").optional().nullable().or(z.literal("")),
+});
+
+// Bulk import request payload
+export const bulkImportUsersSchema = z.object({
+  rows: z.array(z.record(z.string(), z.any())).min(1, "Data baris tidak boleh kosong"),
+  preview: z.boolean().default(true),
+  importType: z.enum(["student", "teacher"]),
+  academicYearId: z.string().uuid("ID tahun ajaran tidak valid").optional().nullable(),
 });
 
 export type CreateUserInput = z.infer<typeof createUserSchema>;
@@ -160,3 +184,4 @@ export type UpdateTeacherDutyInput = z.infer<typeof updateTeacherDutySchema>;
 export type BulkUserActionInput = z.infer<typeof bulkUserActionSchema>;
 export type BulkStudentRow = z.infer<typeof bulkStudentRowSchema>;
 export type BulkTeacherRow = z.infer<typeof bulkTeacherRowSchema>;
+export type BulkImportUsersInput = z.infer<typeof bulkImportUsersSchema>;

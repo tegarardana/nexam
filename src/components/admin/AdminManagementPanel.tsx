@@ -43,6 +43,7 @@ import {
   ShieldCheck,
 } from "lucide-react";
 import TeacherExaminationPanel from "@/components/teacher/TeacherExaminationPanel";
+import * as XLSX from "xlsx";
 
 interface AdminStats {
   totalStudents: number;
@@ -238,6 +239,9 @@ export default function AdminManagementPanel({
   const [showBulkModal, setShowBulkModal] = useState(false);
   const [bulkImportType, setBulkImportType] = useState<"student" | "teacher">("student");
   const [bulkCsvText, setBulkCsvText] = useState("");
+  const [bulkExcelFile, setBulkExcelFile] = useState<File | null>(null);
+  const [bulkExcelFileName, setBulkExcelFileName] = useState("");
+  const [bulkExcelRows, setBulkExcelRows] = useState<any[]>([]);
   const [bulkPreviewData, setBulkPreviewData] = useState<any | null>(null);
   const [bulkLoading, setBulkLoading] = useState(false);
   const [bulkError, setBulkError] = useState<string | null>(null);
@@ -1467,14 +1471,183 @@ export default function AdminManagementPanel({
     return result;
   };
 
+  // Download Excel Template for Siswa or Guru
+  const handleDownloadExcelTemplate = (type: "student" | "teacher") => {
+    const wb = XLSX.utils.book_new();
+
+    if (type === "student") {
+      const headers = [
+        "Nama Lengkap *",
+        "Username *",
+        "Password *",
+        "NIS",
+        "NISN",
+        "Jenis Kelamin",
+        "Email",
+        "Kelas",
+      ];
+      const sampleRows = [
+        [
+          "Ahmad Fauzan Pratama",
+          "siswa.ahmad",
+          "SiswaPass123!",
+          "202601001",
+          "0081234561",
+          "L",
+          "ahmad.fauzan@siswa.sch.id",
+          "X RPL 1",
+        ],
+        [
+          "Bela Safitri",
+          "siswa.bela",
+          "SiswaPass123!",
+          "",
+          "",
+          "P",
+          "",
+          "",
+        ],
+      ];
+      const wsData = XLSX.utils.aoa_to_sheet([headers, ...sampleRows]);
+
+      const guideData = [
+        ["PANDUAN PENGISIAN TEMPLATE EXCEL DATA SISWA NEXAM CBT"],
+        [""],
+        ["Kolom", "Sifat", "Keterangan Aturan"],
+        ["Nama Lengkap *", "MANDATORY (Wajib)", "Nama lengkap siswa, minimal 2 karakter."],
+        ["Username *", "MANDATORY (Wajib)", "Username akun login siswa (minimal 3 karakter, huruf/angka/titik/strip, tanpa spasi, wajib unik)."],
+        ["Password *", "MANDATORY (Wajib)", "Kata sandi login awal siswa (minimal 6 karakter)."],
+        ["NIS", "OPSIONAL", "Nomor Induk Siswa. Boleh dikosongkan jika belum ada. Jika diisi, wajib unik."],
+        ["NISN", "OPSIONAL", "Nomor Induk Siswa Nasional. Boleh dikosongkan. Jika diisi, wajib unik."],
+        ["Jenis Kelamin", "OPSIONAL", "Isi 'L' untuk Laki-laki atau 'P' untuk Perempuan. Boleh dikosongkan."],
+        ["Email", "OPSIONAL", "Alamat email aktif siswa. Boleh dikosongkan."],
+        ["Kelas", "OPSIONAL", "Nama rombel/kelas siswa saat ini (contoh: 'X RPL 1'). Boleh dikosongkan."],
+        [""],
+        ["Catatan Penting:"],
+        ["1. Kolom dengan tanda bintang (*) wajib terisi. Data tidak akan bisa diimpor jika kolom bertanda (*) kosong."],
+        ["2. Kolom tanpa tanda bintang boleh dikosongkan jika data belum lengkap."],
+        ["3. Jangan mengubah atau menghapus teks baris pertama (header kolom)."],
+        ["4. Pastikan file disimpan dengan format .xlsx sebelum diunggah kembali ke aplikasi."],
+      ];
+      const wsGuide = XLSX.utils.aoa_to_sheet(guideData);
+
+      XLSX.utils.book_append_sheet(wb, wsData, "Template Siswa");
+      XLSX.utils.book_append_sheet(wb, wsGuide, "Panduan Pengisian");
+      XLSX.writeFile(wb, "template_impor_siswa_nexam.xlsx");
+    } else {
+      const headers = [
+        "Nama Lengkap *",
+        "Username *",
+        "Password *",
+        "NIP",
+        "NUPTK",
+        "Gelar",
+        "Jabatan",
+        "Jenis Kelamin",
+        "Email",
+      ];
+      const sampleRows = [
+        [
+          "Ahmad Fauzi",
+          "guru.ahmad",
+          "GuruPass123!",
+          "198501012010011001",
+          "1234567890123456",
+          "M.Pd.",
+          "Guru",
+          "L",
+          "ahmad.fauzi@sekolah.sch.id",
+        ],
+        [
+          "Dewi Sartika",
+          "guru.dewi",
+          "GuruPass123!",
+          "",
+          "",
+          "S.Pd.",
+          "Wali Kelas",
+          "P",
+          "",
+        ],
+      ];
+      const wsData = XLSX.utils.aoa_to_sheet([headers, ...sampleRows]);
+
+      const guideData = [
+        ["PANDUAN PENGISIAN TEMPLATE EXCEL DATA GURU NEXAM CBT"],
+        [""],
+        ["Kolom", "Sifat", "Keterangan Aturan"],
+        ["Nama Lengkap *", "MANDATORY (Wajib)", "Nama lengkap guru (tanpa gelar), minimal 2 karakter."],
+        ["Username *", "MANDATORY (Wajib)", "Username akun login guru (minimal 3 karakter, huruf/angka/titik/strip, tanpa spasi, wajib unik)."],
+        ["Password *", "MANDATORY (Wajib)", "Kata sandi login awal guru (minimal 6 karakter)."],
+        ["NIP", "OPSIONAL", "Nomor Induk Pegawai. Boleh dikosongkan. Jika diisi, wajib unik."],
+        ["NUPTK", "OPSIONAL", "Nomor Unik Pendidik dan Tenaga Kependidikan. Boleh dikosongkan."],
+        ["Gelar", "OPSIONAL", "Gelar akademik, misal: 'S.Pd.', 'M.Kom.'."],
+        ["Jabatan", "OPSIONAL", "Jabatan (Guru, Wali Kelas, Kepala Sekolah, Wakil Kepala Sekolah, Bimbingan Konseling). Default: 'Guru'."],
+        ["Jenis Kelamin", "OPSIONAL", "Isi 'L' untuk Laki-laki atau 'P' untuk Perempuan. Boleh dikosongkan."],
+        ["Email", "OPSIONAL", "Alamat email aktif guru. Boleh dikosongkan."],
+        [""],
+        ["Catatan Penting:"],
+        ["1. Kolom dengan tanda bintang (*) wajib terisi. Data tidak akan bisa diimpor jika kolom bertanda (*) kosong."],
+        ["2. Kolom tanpa tanda bintang boleh dikosongkan jika data belum lengkap."],
+        ["3. Jangan mengubah atau menghapus teks baris pertama (header kolom)."],
+        ["4. Pastikan file disimpan dengan format .xlsx sebelum diunggah kembali ke aplikasi."],
+      ];
+      const wsGuide = XLSX.utils.aoa_to_sheet(guideData);
+
+      XLSX.utils.book_append_sheet(wb, wsData, "Template Guru");
+      XLSX.utils.book_append_sheet(wb, wsGuide, "Panduan Pengisian");
+      XLSX.writeFile(wb, "template_impor_guru_nexam.xlsx");
+    }
+  };
+
+  // Handle Excel File Selected
+  const handleExcelFileSelected = async (file: File) => {
+    setBulkError(null);
+    setBulkExcelFileName(file.name);
+    setBulkExcelFile(file);
+    try {
+      const isExcel = file.name.endsWith(".xlsx") || file.name.endsWith(".xls");
+      if (isExcel) {
+        const buffer = await file.arrayBuffer();
+        const wb = XLSX.read(buffer, { type: "array" });
+        const firstSheetName = wb.SheetNames[0];
+        const sheet = wb.Sheets[firstSheetName];
+        const jsonRows: any[] = XLSX.utils.sheet_to_json(sheet, { defval: "" });
+
+        if (jsonRows.length === 0) {
+          setBulkError("Berkas Excel kosong atau baris data tidak terbaca.");
+          setBulkExcelRows([]);
+          return;
+        }
+        setBulkExcelRows(jsonRows);
+      } else {
+        const text = await file.text();
+        const rows = parseCsv(text);
+        if (rows.length === 0) {
+          setBulkError("Berkas CSV kosong atau format header tidak sesuai.");
+          setBulkExcelRows([]);
+          return;
+        }
+        setBulkExcelRows(rows);
+      }
+    } catch (err: any) {
+      setBulkError("Gagal membaca berkas: " + err.message);
+      setBulkExcelRows([]);
+    }
+  };
+
   // Bulk Preview
   const handleBulkPreview = async () => {
     setBulkError(null);
     setBulkLoading(true);
     try {
-      const parsedRows = parseCsv(bulkCsvText);
-      if (parsedRows.length === 0) {
-        setBulkError("Format CSV tidak valid atau baris data kosong.");
+      let rowsToValidate = bulkExcelRows;
+      if (rowsToValidate.length === 0 && bulkCsvText.trim()) {
+        rowsToValidate = parseCsv(bulkCsvText);
+      }
+
+      if (rowsToValidate.length === 0) {
+        setBulkError("Silakan pilih berkas Excel (.xlsx) atau tempel data terlebih dahulu.");
         setBulkLoading(false);
         return;
       }
@@ -1483,7 +1656,7 @@ export default function AdminManagementPanel({
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
-          rows: parsedRows,
+          rows: rowsToValidate,
           preview: true,
           importType: bulkImportType,
           academicYearId: activeYear?.id,
@@ -1507,13 +1680,17 @@ export default function AdminManagementPanel({
     setBulkError(null);
     setBulkLoading(true);
     try {
-      const parsedRows = parseCsv(bulkCsvText);
+      let rowsToCommit = bulkExcelRows;
+      if (rowsToCommit.length === 0 && bulkCsvText.trim()) {
+        rowsToCommit = parseCsv(bulkCsvText);
+      }
+
       const activeYear = years.find((y: any) => y.status === "active");
       const res = await fetch("/api/users/bulk", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
-          rows: parsedRows,
+          rows: rowsToCommit,
           preview: false,
           importType: bulkImportType,
           academicYearId: activeYear?.id,
@@ -1526,6 +1703,9 @@ export default function AdminManagementPanel({
         alert(json.message);
         setShowBulkModal(false);
         setBulkCsvText("");
+        setBulkExcelRows([]);
+        setBulkExcelFileName("");
+        setBulkExcelFile(null);
         setBulkPreviewData(null);
         if (bulkImportType === "student") fetchStudents();
         else fetchTeachers();
@@ -1962,13 +2142,16 @@ export default function AdminManagementPanel({
                 onClick={() => {
                   setBulkImportType("student");
                   setBulkCsvText("");
+                  setBulkExcelRows([]);
+                  setBulkExcelFileName("");
+                  setBulkExcelFile(null);
                   setBulkPreviewData(null);
                   setShowBulkModal(true);
                 }}
                 className="flex items-center gap-1.5 px-3.5 py-2 rounded-xl bg-white hover:bg-slate-50 text-slate-700 text-xs font-semibold border border-slate-200 shadow-xs transition cursor-pointer"
               >
-                <Upload className="w-3.5 h-3.5 text-[#0D274C]" />
-                <span>Impor CSV Siswa</span>
+                <FileSpreadsheet className="w-3.5 h-3.5 text-[#0D274C]" />
+                <span>Impor Excel Siswa</span>
               </button>
               <button
                 onClick={() => {
@@ -2189,13 +2372,16 @@ export default function AdminManagementPanel({
                 onClick={() => {
                   setBulkImportType("teacher");
                   setBulkCsvText("");
+                  setBulkExcelRows([]);
+                  setBulkExcelFileName("");
+                  setBulkExcelFile(null);
                   setBulkPreviewData(null);
                   setShowBulkModal(true);
                 }}
                 className="flex items-center gap-1.5 px-3.5 py-2 rounded-xl bg-white hover:bg-slate-50 text-slate-700 text-xs font-semibold border border-slate-200 shadow-xs transition cursor-pointer"
               >
-                <Upload className="w-3.5 h-3.5 text-[#0D274C]" />
-                <span>Impor CSV Guru</span>
+                <FileSpreadsheet className="w-3.5 h-3.5 text-[#0D274C]" />
+                <span>Impor Excel Guru</span>
               </button>
               <button
                 onClick={() => {
@@ -4104,71 +4290,193 @@ export default function AdminManagementPanel({
           <div
             className="w-full max-w-2xl rounded-2xl p-6 bg-white border border-slate-200 shadow-2xl relative max-h-[90vh] flex flex-col space-y-4 text-slate-800"
           >
-            <div>
-              <h3 className="text-lg font-bold text-slate-900">
-                Impor Data {bulkImportType === "student" ? "Siswa" : "Guru"} Massal (CSV)
-              </h3>
-              <p className="text-xs text-slate-500 mt-1">
-                {bulkImportType === "student"
-                  ? "Format kolom wajib: nis, nisn, username, displayName, password, email (penempatan kelas tidak wajib di awal)."
-                  : "Format kolom wajib: nip, username, displayName, email, password."}
-              </p>
+            {/* Header */}
+            <div className="flex items-start justify-between border-b border-slate-100 pb-3">
+              <div>
+                <h3 className="text-lg font-bold text-slate-900 flex items-center gap-2">
+                  <FileSpreadsheet className="w-5 h-5 text-emerald-600" />
+                  <span>Impor Data {bulkImportType === "student" ? "Siswa" : "Guru"} Massal (Excel)</span>
+                </h3>
+                <p className="text-xs text-slate-500 mt-0.5">
+                  Unggah berkas spreadsheet Excel (.xlsx) untuk mendaftarkan akun {bulkImportType === "student" ? "siswa" : "guru"} secara massal.
+                </p>
+              </div>
+              <button
+                onClick={() => {
+                  setShowBulkModal(false);
+                  setBulkPreviewData(null);
+                  setBulkError(null);
+                  setBulkExcelRows([]);
+                  setBulkExcelFileName("");
+                  setBulkExcelFile(null);
+                }}
+                className="text-slate-400 hover:text-slate-600 p-1.5 rounded-lg hover:bg-slate-100 transition cursor-pointer"
+                title="Tutup"
+              >
+                ✕
+              </button>
             </div>
 
             {bulkError && (
-              <div className="p-3 rounded-lg bg-red-500/10 border border-red-500/20 text-red-300 text-xs">
-                {bulkError}
+              <div className="p-3 rounded-xl bg-red-50 border border-red-200 text-red-600 text-xs flex items-center gap-2">
+                <AlertTriangle className="w-4 h-4 shrink-0" />
+                <span>{bulkError}</span>
               </div>
             )}
 
             {!bulkPreviewData ? (
-              <div className="space-y-3 flex-1 flex flex-col">
-                <div className="flex items-center justify-between text-xs">
-                  <span className="text-slate-500">Contoh format header CSV:</span>
-                  <button
-                    onClick={() => {
-                      if (bulkImportType === "student") {
-                        setBulkCsvText(
-                          "nis,nisn,username,displayName,password,email\n202601001,0081234561,siswa.ahmad,Ahmad Fauzan,Password123!,ahmad@siswa.sch.id\n202601002,0081234562,siswa.bela,Bela Safitri,Password123!,bela@siswa.sch.id"
-                        );
-                      } else {
-                        setBulkCsvText(
-                          "nip,username,displayName,email,password\n198501012010011001,guru.ahmad,Ahmad Fauzi M.Pd,ahmad@sekolah.sch.id,GuruPassword123!\n199002022015012002,guru.dewi,Dewi Sartika S.Pd,dewi@sekolah.sch.id,GuruPassword123!"
-                        );
-                      }
-                    }}
-                    className="text-emerald-600 hover:underline cursor-pointer font-medium"
-                  >
-                    Muat Contoh Data
-                  </button>
+              <div className="space-y-4 flex-1 flex flex-col overflow-y-auto pr-1">
+                {/* Template Download & Guide Banner */}
+                <div className="p-4 rounded-xl bg-gradient-to-r from-emerald-50/80 via-teal-50/50 to-slate-50 border border-emerald-200/80 space-y-3">
+                  <div className="flex items-center justify-between gap-3">
+                    <div>
+                      <h4 className="text-xs font-bold text-emerald-900 flex items-center gap-1.5">
+                        <Sparkles className="w-3.5 h-3.5 text-emerald-600" />
+                        <span>Unduh Template Resmi (.xlsx)</span>
+                      </h4>
+                      <p className="text-[11px] text-emerald-700 mt-0.5">
+                        Gunakan berkas template Excel yang sudah dilengkapi contoh data dan panduan format.
+                      </p>
+                    </div>
+                    <button
+                      type="button"
+                      onClick={() => handleDownloadExcelTemplate(bulkImportType)}
+                      className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-semibold shadow-xs transition shrink-0 cursor-pointer"
+                    >
+                      <Download className="w-3.5 h-3.5" />
+                      <span>Unduh Template .xlsx</span>
+                    </button>
+                  </div>
+
+                  <div className="pt-2 border-t border-emerald-200/60 text-[11px] text-slate-700 space-y-1">
+                    <p className="font-semibold text-emerald-950 flex items-center gap-1">
+                      <Info className="w-3.5 h-3.5 text-emerald-600" />
+                      <span>Petunjuk Penggunaan Template:</span>
+                    </p>
+                    <ul className="list-disc list-inside space-y-0.5 text-slate-600 pl-1">
+                      <li>
+                        Kolom bertanda bintang (<strong className="text-red-500 font-bold">*</strong>) adalah data{" "}
+                        <strong className="text-slate-900">Mandatory (Wajib Diisi)</strong>:{" "}
+                        <code className="text-slate-800 bg-emerald-100/60 px-1 py-0.5 rounded">Nama Lengkap *</code>,{" "}
+                        <code className="text-slate-800 bg-emerald-100/60 px-1 py-0.5 rounded">Username *</code>, dan{" "}
+                        <code className="text-slate-800 bg-emerald-100/60 px-1 py-0.5 rounded">Password *</code>.
+                      </li>
+                      <li>
+                        Kolom lainnya bersifat <strong className="text-slate-900">Opsional</strong> (
+                        {bulkImportType === "student"
+                          ? "NIS, NISN, Jenis Kelamin, Email, Kelas"
+                          : "NIP, NUPTK, Gelar, Jabatan, Jenis Kelamin, Email"}
+                        ) dan <em>boleh dikosongkan</em> jika belum ada.
+                      </li>
+                      <li>Jangan mengubah atau menghapus teks baris pertama (nama kolom header).</li>
+                    </ul>
+                  </div>
                 </div>
 
-                <textarea
-                  rows={8}
-                  value={bulkCsvText}
-                  onChange={(e) => setBulkCsvText(e.target.value)}
-                  placeholder="Tempelkan isi berkas CSV di sini..."
-                  className="w-full flex-1 p-3 rounded-xl bg-white border border-slate-300 text-xs text-slate-900 font-mono placeholder:text-slate-400 focus:outline-none focus:border-[#65C443] focus:ring-1 focus:ring-[#65C443]"
-                />
+                {/* File Upload Box */}
+                <div className="space-y-2">
+                  <label className="text-xs font-bold text-slate-700 flex items-center justify-between">
+                    <span>Pilih Berkas Excel (.xlsx / .xls)</span>
+                    {bulkExcelRows.length > 0 && (
+                      <span className="text-[11px] text-emerald-600 font-semibold">
+                        ✓ {bulkExcelRows.length} baris data terbaca
+                      </span>
+                    )}
+                  </label>
 
-                <div className="flex items-center justify-end gap-2 pt-2 border-t border-slate-200">
+                  <div className="border-2 border-dashed border-slate-300 hover:border-emerald-500 rounded-2xl p-6 text-center transition bg-slate-50/50 hover:bg-emerald-50/20">
+                    <input
+                      type="file"
+                      id="bulk-excel-file-input"
+                      accept=".xlsx,.xls,.csv"
+                      onChange={(e) => {
+                        const file = e.target.files?.[0];
+                        if (file) handleExcelFileSelected(file);
+                      }}
+                      className="hidden"
+                    />
+
+                    {bulkExcelFileName ? (
+                      <div className="flex flex-col items-center justify-center space-y-2">
+                        <div className="w-10 h-10 rounded-xl bg-emerald-100 text-emerald-700 flex items-center justify-center">
+                          <FileSpreadsheet className="w-5 h-5" />
+                        </div>
+                        <div className="text-xs font-bold text-slate-800">{bulkExcelFileName}</div>
+                        <div className="text-[11px] text-slate-500">
+                          {bulkExcelRows.length} baris data siap divalidasi
+                        </div>
+                        <label
+                          htmlFor="bulk-excel-file-input"
+                          className="mt-1 text-xs text-emerald-600 hover:text-emerald-700 font-semibold hover:underline cursor-pointer"
+                        >
+                          Ganti Berkas Excel
+                        </label>
+                      </div>
+                    ) : (
+                      <label
+                        htmlFor="bulk-excel-file-input"
+                        className="flex flex-col items-center justify-center cursor-pointer space-y-2"
+                      >
+                        <div className="w-12 h-12 rounded-2xl bg-slate-100 text-slate-500 flex items-center justify-center group-hover:scale-105 transition">
+                          <Upload className="w-6 h-6 text-[#0D274C]" />
+                        </div>
+                        <span className="text-xs font-bold text-slate-800">
+                          Klik untuk Memilih Berkas Excel (.xlsx)
+                        </span>
+                        <span className="text-[11px] text-slate-500">
+                          Mendukung format .xlsx, .xls, atau .csv hasil ekspor
+                        </span>
+                      </label>
+                    )}
+                  </div>
+                </div>
+
+                {/* Alternative: Raw CSV/Text toggle */}
+                <details className="text-xs text-slate-600">
+                  <summary className="cursor-pointer text-slate-500 hover:text-slate-800 font-medium select-none">
+                    Atau tempel data teks / CSV langsung
+                  </summary>
+                  <div className="mt-2 space-y-2">
+                    <textarea
+                      rows={4}
+                      value={bulkCsvText}
+                      onChange={(e) => setBulkCsvText(e.target.value)}
+                      placeholder="Tempel teks CSV dengan baris header di sini..."
+                      className="w-full p-3 rounded-xl bg-white border border-slate-300 text-xs text-slate-900 font-mono placeholder:text-slate-400 focus:outline-none focus:border-[#65C443] focus:ring-1 focus:ring-[#65C443]"
+                    />
+                  </div>
+                </details>
+
+                <div className="flex items-center justify-end gap-2 pt-3 border-t border-slate-200">
                   <button
+                    type="button"
                     onClick={() => setShowBulkModal(false)}
                     className="px-4 py-2 rounded-xl bg-slate-100 hover:bg-slate-200 text-slate-700 text-xs font-medium cursor-pointer transition"
                   >
                     Batal
                   </button>
                   <button
+                    type="button"
                     onClick={handleBulkPreview}
-                    disabled={bulkLoading || !bulkCsvText.trim()}
-                    className="px-4 py-2 rounded-xl bg-[#65C443] hover:bg-[#57b237] disabled:opacity-50 text-white text-xs font-semibold shadow-sm transition cursor-pointer"
+                    disabled={bulkLoading || (bulkExcelRows.length === 0 && !bulkCsvText.trim())}
+                    className="inline-flex items-center gap-1.5 px-4 py-2 rounded-xl bg-[#65C443] hover:bg-[#57b237] disabled:opacity-50 text-white text-xs font-semibold shadow-sm transition cursor-pointer"
                   >
-                    {bulkLoading ? "Memvalidasi..." : "Pratinjau Data"}
+                    {bulkLoading ? (
+                      <>
+                        <RefreshCw className="w-3.5 h-3.5 animate-spin" />
+                        <span>Memvalidasi...</span>
+                      </>
+                    ) : (
+                      <>
+                        <Eye className="w-3.5 h-3.5" />
+                        <span>Pratinjau & Validasi Data</span>
+                      </>
+                    )}
                   </button>
                 </div>
               </div>
             ) : (
-              <div className="space-y-4 flex-1 flex flex-col">
+              <div className="space-y-4 flex-1 flex flex-col overflow-hidden">
                 <div className="p-3 rounded-xl bg-slate-50 border border-slate-200 text-xs flex items-center justify-between text-slate-700">
                   <span>
                     Total Baris: <strong>{bulkPreviewData.totalRows}</strong> | Siap Impor:{" "}
@@ -4188,31 +4496,41 @@ export default function AdminManagementPanel({
 
                 <div className="flex-1 overflow-y-auto max-h-60 rounded-xl border border-slate-200 bg-white">
                   <table className="w-full text-left text-xs">
-                    <thead className="bg-slate-50 text-slate-700 font-semibold uppercase tracking-wider border-b border-slate-200">
+                    <thead className="bg-slate-50 text-slate-700 font-semibold uppercase tracking-wider border-b border-slate-200 sticky top-0">
                       <tr>
                         <th className="py-2 px-3">Baris</th>
                         <th className="py-2 px-3">
                           {bulkImportType === "student" ? "NIS" : "NIP"}
                         </th>
-                        <th className="py-2 px-3">Nama</th>
+                        <th className="py-2 px-3">Nama Lengkap</th>
                         <th className="py-2 px-3">Username</th>
+                        <th className="py-2 px-3">
+                          {bulkImportType === "student" ? "Kelas" : "Jabatan"}
+                        </th>
                         <th className="py-2 px-3">Status Validasi</th>
                       </tr>
                     </thead>
                     <tbody className="divide-y divide-slate-100 font-mono">
                       {bulkPreviewData.rows.map((r: any) => (
                         <tr key={r.rowNumber} className={r.errors?.length ? "bg-red-50/50" : "hover:bg-slate-50/80"}>
-                          <td className="py-2 px-3 text-slate-500">#{r.rowNumber}</td>
+                          <td className="py-2 px-3 text-slate-500 font-mono">#{r.rowNumber}</td>
                           <td className="py-2 px-3 text-slate-900 font-bold">{r.nis || r.nip || "-"}</td>
                           <td className="py-2 px-3 text-slate-800 font-sans font-medium">{r.displayName}</td>
-                          <td className="py-2 px-3 text-slate-500">@{r.username}</td>
+                          <td className="py-2 px-3 text-slate-600">@{r.username}</td>
+                          <td className="py-2 px-3 text-slate-600 font-sans">
+                            {bulkImportType === "student"
+                              ? r.className || <span className="text-slate-400 italic">Belum ditempatkan</span>
+                              : r.position || "Guru"}
+                          </td>
                           <td className="py-2 px-3">
                             {r.errors?.length ? (
-                              <span className="text-red-600 font-sans text-[11px]">
-                                {r.errors.join(", ")}
+                              <span className="text-red-600 font-sans text-[11px] font-medium">
+                                ⚠ {r.errors.join(", ")}
                               </span>
                             ) : (
-                              <span className="text-emerald-600 font-sans text-[11px]">Siap</span>
+                              <span className="inline-flex items-center gap-1 text-emerald-600 font-sans text-[11px] font-semibold">
+                                <CheckCircle2 className="w-3.5 h-3.5" /> Siap
+                              </span>
                             )}
                           </td>
                         </tr>
@@ -4223,17 +4541,29 @@ export default function AdminManagementPanel({
 
                 <div className="flex items-center justify-end gap-2 pt-2 border-t border-slate-200">
                   <button
+                    type="button"
                     onClick={() => setBulkPreviewData(null)}
                     className="px-4 py-2 rounded-xl bg-slate-100 hover:bg-slate-200 text-slate-700 text-xs font-medium cursor-pointer transition"
                   >
-                    Kembali Edit
+                    Kembali Ganti Berkas
                   </button>
                   <button
+                    type="button"
                     onClick={handleBulkCommit}
                     disabled={!bulkPreviewData.canCommit || bulkLoading}
-                    className="px-4 py-2 rounded-xl bg-[#65C443] hover:bg-[#52a835] disabled:opacity-50 text-white text-xs font-semibold shadow-sm transition cursor-pointer"
+                    className="inline-flex items-center gap-1.5 px-4 py-2 rounded-xl bg-[#65C443] hover:bg-[#52a835] disabled:opacity-50 text-white text-xs font-semibold shadow-sm transition cursor-pointer"
                   >
-                    {bulkLoading ? "Menyimpan ke Database..." : "Eksekusi Impor Data"}
+                    {bulkLoading ? (
+                      <>
+                        <RefreshCw className="w-3.5 h-3.5 animate-spin" />
+                        <span>Menyimpan ke Database...</span>
+                      </>
+                    ) : (
+                      <>
+                        <CheckCircle2 className="w-3.5 h-3.5" />
+                        <span>Eksekusi Impor Data</span>
+                      </>
+                    )}
                   </button>
                 </div>
               </div>
