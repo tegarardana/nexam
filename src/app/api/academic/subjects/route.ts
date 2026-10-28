@@ -24,7 +24,14 @@ export async function GET(req: NextRequest) {
         subjectCategory: true,
         major: { select: { id: true, name: true, code: true } },
         _count: {
-          select: { subjectOfferings: true },
+          select: {
+            subjectOfferings: true,
+            questionBanks: {
+              where: {
+                status: { not: "archived" },
+              },
+            },
+          },
         },
       },
     });
