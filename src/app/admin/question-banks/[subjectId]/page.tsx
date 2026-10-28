@@ -2,7 +2,7 @@ import React from "react";
 import { redirect, notFound } from "next/navigation";
 import { getCurrentSession } from "@/lib/auth/session";
 import prisma from "@/lib/prisma";
-import Header from "@/components/layout/Header";
+import AdminQuestionBankShell from "@/components/admin/AdminQuestionBankShell";
 import QuestionBankPageContent from "@/components/question-bank/QuestionBankPageContent";
 
 export const dynamic = "force-dynamic";
@@ -55,22 +55,19 @@ export default async function AdminQuestionBankPage({ params }: PageProps) {
   }
 
   return (
-    <div className="min-h-screen bg-[#F8FAFC] flex flex-col">
-      <Header
-        user={session.user}
-        activeYear={activeYear?.name}
-        activeSemester={activeYear?.semesters[0]?.name}
+    <AdminQuestionBankShell
+      user={session.user}
+      activeYear={activeYear?.name}
+      activeSemester={activeYear?.semesters[0]?.name}
+      subjectName={subject.name}
+    >
+      <QuestionBankPageContent
+        subject={subject}
+        isAdmin={true}
+        teachers={teachers}
+        backUrl="/admin?tab=question_banks"
+        backLabel="Kembali"
       />
-
-      <main className="flex-1 max-w-7xl w-full mx-auto p-4 sm:p-6 lg:p-8">
-        <QuestionBankPageContent
-          subject={subject}
-          isAdmin={true}
-          teachers={teachers}
-          backUrl="/admin"
-          backLabel="Kembali ke Panel Admin"
-        />
-      </main>
-    </div>
+    </AdminQuestionBankShell>
   );
 }
