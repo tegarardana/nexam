@@ -633,9 +633,36 @@ export default function QuestionBankPageContent({
     }
   };
 
-  // CSV Question Parser
-  const parseCsvQuestions = (text: string) => {
+  // CSV / Spreadsheet Question Parser
+  const parseCsvQuestions = (text: string, defaultType?: string) => {
     if (!text || !text.trim()) return [];
+
+    // Support multi-section text split by "# Sheet:"
+    if (text.includes("# Sheet:")) {
+      const sections = text.split(/(?=# Sheet:)/g);
+      let combined: any[] = [];
+      for (const sec of sections) {
+        const firstLine = sec.trim().split("\n")[0] || "";
+        const sLower = firstLine.toLowerCase();
+        let secDefaultType: string | undefined = undefined;
+        if (sLower.includes("kompleks") || sLower.includes("multi")) {
+          secDefaultType = "multi_select";
+        } else if (sLower.includes("tunggal") || sLower.includes("pg") || sLower.includes("pilihan ganda")) {
+          secDefaultType = "single_choice";
+        } else if (sLower.includes("benar") || sLower.includes("salah") || sLower.includes("bs")) {
+          secDefaultType = "true_false";
+        } else if (sLower.includes("singkat") || sLower.includes("isian") || sLower.includes("short")) {
+          secDefaultType = "short_answer";
+        } else if (sLower.includes("uraian") || sLower.includes("esai") || sLower.includes("essay")) {
+          secDefaultType = "essay";
+        }
+        const contentLines = sec.trim().split("\n").slice(1).join("\n");
+        if (contentLines.trim()) {
+          combined = combined.concat(parseCsvQuestions(contentLines, secDefaultType));
+        }
+      }
+      if (combined.length > 0) return combined;
+    }
 
     // Support direct JSON array as well
     if (text.trim().startsWith("[")) {
@@ -644,7 +671,7 @@ export default function QuestionBankPageContent({
         if (Array.isArray(jsonArr)) {
           return jsonArr.map((item: any, idx: number) => ({
             id: `json-${idx}`,
-            type: item.type || "single_choice",
+            type: item.type || defaultType || "single_choice",
             text: item.text || item.content?.text || "",
             difficulty: item.difficulty || "medium",
             points: Number(item.points) || 1,
@@ -682,7 +709,8 @@ export default function QuestionBankPageContent({
     }
     if (currentLine.trim()) lines.push(currentLine);
 
-    if (lines.length < 2) return [];
+    const validLines = lines.filter((l) => !l.trim().startsWith("#"));
+    if (validLines.length < 2) return [];
 
     const parseLine = (line: string): string[] => {
       const cells: string[] = [];
@@ -709,13 +737,13 @@ export default function QuestionBankPageContent({
       return cells;
     };
 
-    const headerCells = parseLine(lines[0]).map((h) =>
+    const headerCells = parseLine(validLines[0]).map((h) =>
       h.toLowerCase().replace(/[^a-z0-9]/g, "")
     );
     const parsed: any[] = [];
 
-    for (let lIdx = 1; lIdx < lines.length; lIdx++) {
-      const row = lines[lIdx];
+    for (let lIdx = 1; lIdx < validLines.length; lIdx++) {
+      const row = validLines[lIdx];
       if (!row.trim()) continue;
       const values = parseLine(row);
       const rowObj: Record<string, string> = {};
@@ -724,10 +752,26 @@ export default function QuestionBankPageContent({
       });
 
       const getVal = (keys: string[]) => {
+        // 1. Exact normalized match first across all keys
         for (const k of keys) {
           const cleanK = k.replace(/[^a-z0-9]/g, "");
-          const found = Object.keys(rowObj).find((rk) => rk.includes(cleanK));
-          if (found && rowObj[found]) return rowObj[found];
+          if (!cleanK) continue;
+          const found = Object.keys(rowObj).find((rk) => rk === cleanK);
+          if (found && rowObj[found] !== undefined && rowObj[found] !== "") {
+            return String(rowObj[found]).trim();
+          }
+        }
+        // 2. Strict fuzzy match ONLY for keys >= 4 chars to prevent short keys (e.g. "e")
+        // from accidentally matching column headers like "kodetipesoal"
+        for (const k of keys) {
+          const cleanK = k.replace(/[^a-z0-9]/g, "");
+          if (cleanK.length < 4) continue;
+          const found = Object.keys(rowObj).find(
+            (rk) => rk.includes(cleanK) || (rk.length >= 4 && cleanK.includes(rk))
+          );
+          if (found && rowObj[found] !== undefined && rowObj[found] !== "") {
+            return String(rowObj[found]).trim();
+          }
         }
         return "";
       };
@@ -737,7 +781,7 @@ export default function QuestionBankPageContent({
         getVal(["kodetipesoal", "tipesoal", "tipe", "type", "kode"])
       ).trim().toLowerCase();
 
-      let type = "single_choice";
+      let type = defaultType || "single_choice";
       if (rawType === "1" || rawType === "pg" || rawType.includes("tunggal")) {
         type = "single_choice";
       } else if (rawType === "2" || rawType.includes("kompleks") || rawType.includes("multi")) {
@@ -750,18 +794,22 @@ export default function QuestionBankPageContent({
         type = "essay";
       }
 
-      const questionText = getVal(["pertanyaan", "text", "soal", "question"]);
+      const questionText = getVal(["pertanyaan", "pernyataan", "text", "soal", "question"]);
       if (!questionText) continue;
 
-      const optA = getVal(["opsia", "a"]);
-      const optB = getVal(["opsib", "b"]);
-      const optC = getVal(["opsic", "c"]);
-      const optD = getVal(["opsid", "d"]);
-      const optE = getVal(["opsie", "e"]);
-      const answerKey = getVal(["kunci", "jawaban", "kuncijawaban", "key", "answer"]);
-      const points = Number(getVal(["poin", "bobot", "points"])) || 1;
+      const optA = getVal(["opsia", "pilihana", "jawaban_a", "a"]);
+      const optB = getVal(["opsib", "pilihanb", "jawaban_b", "b"]);
+      const optC = getVal(["opsic", "pilihanc", "jawaban_c", "c"]);
+      const optD = getVal(["opsid", "pilihand", "jawaban_d", "d"]);
+      const optE = getVal(["opsie", "pilihane", "jawaban_e", "e"]);
+      const optF = getVal(["opsif", "pilihanf", "jawaban_f", "f"]);
+      const optG = getVal(["opsig", "pilihang", "jawaban_g", "g"]);
+      const optH = getVal(["opsih", "pilihanh", "jawaban_h", "h"]);
+
+      const answerKey = getVal(["kuncijawaban", "kunci", "jawaban", "key", "answer"]);
+      const points = Number(getVal(["poin", "bobot", "points", "skor"])) || 1;
       const difficultyRaw = String(
-        getVal(["kesulitan", "tingkat", "tingkatkesulitan", "difficulty"])
+        getVal(["tingkatkesulitan", "kesulitan", "tingkat", "difficulty"])
       ).toLowerCase().trim();
       let difficulty = "medium";
       if (difficultyRaw === "1" || difficultyRaw.includes("mudah") || difficultyRaw.includes("easy")) difficulty = "easy";
@@ -771,21 +819,53 @@ export default function QuestionBankPageContent({
       const explanation = getVal(["pembahasan", "penjelasan", "explanation", "rubrik", "rubric"]);
 
       const options: any[] = [];
-      if (type === "single_choice" || type === "multi_select") {
+      if (type === "single_choice") {
         const correctKeys = answerKey
           .toUpperCase()
           .split(/[,;\s]+/)
           .map((k) => k.trim())
           .filter(Boolean);
 
-        const rawOpts = [
+        // Single choice: strictly A-D, and E only if explicitly filled with non-empty text
+        const candidateOpts = [
+          { label: "A", text: optA },
+          { label: "B", text: optB },
+          { label: "C", text: optC },
+          { label: "D", text: optD },
+        ];
+        if (optE && optE.trim().length > 0) {
+          candidateOpts.push({ label: "E", text: optE });
+        }
+
+        const rawOpts = candidateOpts.filter((o) => o.text.trim().length > 0);
+        rawOpts.forEach((o, idx) => {
+          options.push({
+            label: o.label,
+            text: o.text,
+            isCorrect: correctKeys.includes(o.label),
+            sortOrder: idx,
+          });
+        });
+      } else if (type === "multi_select") {
+        const correctKeys = answerKey
+          .toUpperCase()
+          .split(/[,;\s]+/)
+          .map((k) => k.trim())
+          .filter(Boolean);
+
+        // Complex multiple choice: supports dynamic options A through H
+        const candidateOpts = [
           { label: "A", text: optA },
           { label: "B", text: optB },
           { label: "C", text: optC },
           { label: "D", text: optD },
           { label: "E", text: optE },
-        ].filter((o) => o.text.trim().length > 0);
+          { label: "F", text: optF },
+          { label: "G", text: optG },
+          { label: "H", text: optH },
+        ];
 
+        const rawOpts = candidateOpts.filter((o) => o.text.trim().length > 0);
         rawOpts.forEach((o, idx) => {
           options.push({
             label: o.label,
@@ -815,7 +895,7 @@ export default function QuestionBankPageContent({
       }
 
       parsed.push({
-        id: `row-${lIdx}`,
+        id: `row-${Math.random().toString(36).substring(2, 7)}-${lIdx}`,
         type,
         text: questionText,
         difficulty,
@@ -832,25 +912,26 @@ export default function QuestionBankPageContent({
     return parsed;
   };
 
-  // Download Excel (.xlsx) Template with 2 Sheets (Template Soal + Panduan Lengkap)
+  // Download Excel (.xlsx) Template with Multi-Sheets (Per Tipe Soal + Universal + Panduan)
   const downloadExcelTemplate = () => {
-    // Sheet 1: Template Soal
-    const templateHeaders = [
-      "Kode Tipe Soal",
-      "Pertanyaan",
-      "Opsi A",
-      "Opsi B",
-      "Opsi C",
-      "Opsi D",
-      "Opsi E",
-      "Kunci Jawaban",
-      "Poin",
-      "Tingkat Kesulitan",
-      "URL Gambar",
-      "Pembahasan",
-    ];
+    const wb = XLSX.utils.book_new();
 
-    const sampleRows = [
+    // Sheet 1: PG Tunggal
+    const wsPgTunggal = XLSX.utils.aoa_to_sheet([
+      [
+        "No",
+        "Pertanyaan",
+        "Opsi A",
+        "Opsi B",
+        "Opsi C",
+        "Opsi D",
+        "Opsi E (Opsional)",
+        "Kunci Jawaban (A-E)",
+        "Poin",
+        "Tingkat Kesulitan",
+        "URL Gambar",
+        "Pembahasan",
+      ],
       [
         1,
         "Manakah dari pernyataan berikut yang merupakan prinsip utama pemrograman berorientasi objek?",
@@ -858,7 +939,246 @@ export default function QuestionBankPageContent({
         "Kompilasi",
         "Interpretasi",
         "Normalisasi Data",
-        "Indexing",
+        "",
+        "A",
+        1,
+        "Mudah",
+        "",
+        "Enkapsulasi adalah salah satu pilar utama OOP bersama inheritance dan polymorphism.",
+      ],
+      [
+        2,
+        "Bahasa pemrograman manakah yang berjalan natively di dalam web browser tanpa plugin tambahan?",
+        "Python",
+        "JavaScript",
+        "C++",
+        "Ruby",
+        "PHP",
+        "B",
+        1,
+        "Mudah",
+        "",
+        "JavaScript dieksekusi natively oleh browser engine seperti V8 / SpiderMonkey.",
+      ],
+    ]);
+    wsPgTunggal["!cols"] = [
+      { wch: 6 },
+      { wch: 45 },
+      { wch: 20 },
+      { wch: 20 },
+      { wch: 20 },
+      { wch: 20 },
+      { wch: 20 },
+      { wch: 20 },
+      { wch: 10 },
+      { wch: 16 },
+      { wch: 25 },
+      { wch: 35 },
+    ];
+    XLSX.utils.book_append_sheet(wb, wsPgTunggal, "PG Tunggal");
+
+    // Sheet 2: PG Kompleks (Mendukung hingga Opsi H)
+    const wsPgKompleks = XLSX.utils.aoa_to_sheet([
+      [
+        "No",
+        "Pertanyaan",
+        "Opsi A",
+        "Opsi B",
+        "Opsi C",
+        "Opsi D",
+        "Opsi E",
+        "Opsi F",
+        "Opsi G",
+        "Opsi H",
+        "Kunci Jawaban (Contoh: A,C)",
+        "Poin",
+        "Tingkat Kesulitan",
+        "URL Gambar",
+        "Pembahasan",
+      ],
+      [
+        1,
+        "Pilihlah dua pilar utama dalam pemrograman berorientasi objek (OOP) di bawah ini:",
+        "Polymorphism",
+        "Procedural Flow",
+        "Inheritance",
+        "Waterfall Model",
+        "",
+        "",
+        "",
+        "",
+        "A,C",
+        2,
+        "Sedang",
+        "",
+        "Polymorphism dan Inheritance adalah pilar dasar OOP.",
+      ],
+      [
+        2,
+        "Manakah di antara bahasa pemrograman berikut yang memiliki sistem tipe data statis (statically typed)?",
+        "Python",
+        "TypeScript",
+        "Java",
+        "JavaScript",
+        "Rust",
+        "PHP",
+        "",
+        "",
+        "B,C,E",
+        3,
+        "Sedang",
+        "",
+        "TypeScript, Java, dan Rust memiliki type-checking saat waktu kompilasi.",
+      ],
+    ]);
+    wsPgKompleks["!cols"] = [
+      { wch: 6 },
+      { wch: 45 },
+      { wch: 18 },
+      { wch: 18 },
+      { wch: 18 },
+      { wch: 18 },
+      { wch: 18 },
+      { wch: 18 },
+      { wch: 18 },
+      { wch: 18 },
+      { wch: 25 },
+      { wch: 10 },
+      { wch: 16 },
+      { wch: 25 },
+      { wch: 35 },
+    ];
+    XLSX.utils.book_append_sheet(wb, wsPgKompleks, "PG Kompleks");
+
+    // Sheet 3: Benar Salah
+    const wsBenarSalah = XLSX.utils.aoa_to_sheet([
+      [
+        "No",
+        "Pernyataan / Soal",
+        "Kunci Jawaban (Benar / Salah)",
+        "Poin",
+        "Tingkat Kesulitan",
+        "URL Gambar",
+        "Pembahasan",
+      ],
+      [
+        1,
+        "Pada bahasa pemrograman Java, sebuah class dapat melakukan Multiple Inheritance secara langsung dari dua class induk sekaligus.",
+        "Salah",
+        1,
+        "Mudah",
+        "",
+        "Java tidak mendukung multiple inheritance antar class secara langsung, melainkan melalui interface.",
+      ],
+      [
+        2,
+        "Protokol HTTPS menggunakan enkripsi TLS/SSL untuk mengamankan pertukaran data antara client dan server.",
+        "Benar",
+        1,
+        "Mudah",
+        "",
+        "HTTPS mengenkripsi seluruh HTTP traffic melalui TLS.",
+      ],
+    ]);
+    wsBenarSalah["!cols"] = [
+      { wch: 6 },
+      { wch: 55 },
+      { wch: 28 },
+      { wch: 10 },
+      { wch: 16 },
+      { wch: 25 },
+      { wch: 35 },
+    ];
+    XLSX.utils.book_append_sheet(wb, wsBenarSalah, "Benar Salah");
+
+    // Sheet 4: Isian Singkat
+    const wsIsianSingkat = XLSX.utils.aoa_to_sheet([
+      [
+        "No",
+        "Pertanyaan",
+        "Kunci Jawaban Teks Singkat",
+        "Poin",
+        "Tingkat Kesulitan",
+        "URL Gambar",
+        "Pembahasan",
+      ],
+      [
+        1,
+        "Keyword apakah di JavaScript/TypeScript yang digunakan untuk mendeklarasikan variabel yang nilainya konstan tidak dapat di-reassign?",
+        "const",
+        2,
+        "Sedang",
+        "",
+        "Keyword const membuat binding variabel tidak dapat di-reassign.",
+      ],
+    ]);
+    wsIsianSingkat["!cols"] = [
+      { wch: 6 },
+      { wch: 55 },
+      { wch: 25 },
+      { wch: 10 },
+      { wch: 16 },
+      { wch: 25 },
+      { wch: 35 },
+    ];
+    XLSX.utils.book_append_sheet(wb, wsIsianSingkat, "Isian Singkat");
+
+    // Sheet 5: Uraian (Esai)
+    const wsUraian = XLSX.utils.aoa_to_sheet([
+      [
+        "No",
+        "Pertanyaan",
+        "Rubrik / Pedoman Penilaian",
+        "Poin",
+        "Tingkat Kesulitan",
+        "URL Gambar",
+        "Pembahasan",
+      ],
+      [
+        1,
+        "Jelaskan perbedaan mendasar antara Abstract Class dan Interface dalam perancangan arsitektur perangkat lunak!",
+        "Kriteria: memaparkan keberadaan method konkret/state pada abstract class vs kontrak murni pada interface.",
+        4,
+        "Sulit",
+        "",
+        "Abstract class dapat memiliki default implementation dan state atribut konkret, sedangkan interface adalah kontrak method murni.",
+      ],
+    ]);
+    wsUraian["!cols"] = [
+      { wch: 6 },
+      { wch: 55 },
+      { wch: 40 },
+      { wch: 10 },
+      { wch: 16 },
+      { wch: 25 },
+      { wch: 35 },
+    ];
+    XLSX.utils.book_append_sheet(wb, wsUraian, "Uraian");
+
+    // Sheet 6: Semua Tipe (Universal)
+    const wsUniversal = XLSX.utils.aoa_to_sheet([
+      [
+        "Kode Tipe Soal",
+        "Pertanyaan",
+        "Opsi A",
+        "Opsi B",
+        "Opsi C",
+        "Opsi D",
+        "Opsi E",
+        "Kunci Jawaban",
+        "Poin",
+        "Tingkat Kesulitan",
+        "URL Gambar",
+        "Pembahasan",
+      ],
+      [
+        1,
+        "Manakah dari pernyataan berikut yang merupakan prinsip utama pemrograman berorientasi objek?",
+        "Enkapsulasi",
+        "Kompilasi",
+        "Interpretasi",
+        "Normalisasi Data",
+        "",
         "A",
         1,
         "Mudah",
@@ -872,7 +1192,7 @@ export default function QuestionBankPageContent({
         "Procedural Flow",
         "Inheritance",
         "Waterfall Model",
-        "Agile Loop",
+        "",
         "A,C",
         2,
         "Sedang",
@@ -895,7 +1215,7 @@ export default function QuestionBankPageContent({
       ],
       [
         4,
-        "Keyword apakah di JavaScript/TypeScript yang digunakan untuk mendeklarasikan variabel yang nilainya konstan tidak dapat di-reassign?",
+        "Keyword apakah di JavaScript/TypeScript yang digunakan untuk mendeklarasikan variabel konstan?",
         "",
         "",
         "",
@@ -915,70 +1235,51 @@ export default function QuestionBankPageContent({
         "",
         "",
         "",
-        "Kriteria: memaparkan keberadaan method konkret/state pada abstract class vs kontrak murni pada interface.",
+        "Kriteria: memaparkan keberadaan method konkret vs kontrak murni.",
         4,
         "Sulit",
         "",
-        "Abstract class dapat memiliki default implementation dan state atribut konkret, sedangkan interface adalah kontrak method murni.",
+        "Abstract class dapat memiliki implementasi konkret, interface adalah kontrak murni.",
       ],
-    ];
-
-    const wsTemplate = XLSX.utils.aoa_to_sheet([templateHeaders, ...sampleRows]);
-
-    // Set column widths for Sheet 1
-    wsTemplate["!cols"] = [
-      { wch: 16 }, // Kode Tipe Soal
-      { wch: 45 }, // Pertanyaan
-      { wch: 20 }, // Opsi A
-      { wch: 20 }, // Opsi B
-      { wch: 20 }, // Opsi C
-      { wch: 20 }, // Opsi D
-      { wch: 20 }, // Opsi E
-      { wch: 18 }, // Kunci Jawaban
-      { wch: 10 }, // Poin
-      { wch: 18 }, // Tingkat Kesulitan
-      { wch: 25 }, // URL Gambar
-      { wch: 35 }, // Pembahasan
-    ];
-
-    // Sheet 2: Panduan Penggunaan
-    const guideData = [
-      ["PANDUAN LENGKAP TEMPLATE IMPORT BUTIR SOAL - CBT NEXAM"],
-      [""],
-      ["1. DAFTAR KODE NUMERIK TIPE SOAL (KOLOM A):"],
-      ["Kode", "Tipe Soal", "Ketentuan Opsi Pilihan", "Format Kunci Jawaban"],
-      ["1", "Pilihan Ganda Tunggal", "Wajib isi Opsi A s.d. D (atau E)", "1 huruf kapital: A, B, C, D, atau E"],
-      ["2", "Pilihan Ganda Kompleks", "Wajib isi Opsi A s.d. D (atau E)", "Huruf dipisah koma (contoh: A,C atau B,D,E)"],
-      ["3", "Benar / Salah", "Kosongkan Opsi A s.d. E", "Tulis kata 'Benar' atau 'Salah'"],
-      ["4", "Isian Singkat", "Kosongkan Opsi A s.d. E", "Tulis kata kunci jawaban teks eksak (contoh: Fotosintesis)"],
-      ["5", "Uraian / Esai", "Kosongkan Opsi A s.d. E", "Tulis pedoman / kriteria penilaian (opsional)"],
-      [""],
-      ["2. PANDUAN KOLOM LAINNYA:"],
-      ["Kolom", "Deskripsi / Ketentuan"],
-      ["URL Gambar", "Fitur gambar tersedia universal untuk SEMUA tipe soal (1 s.d. 5). Isi URL gambar visual bila ada."],
-      ["Poin", "Bobot angka skor butir soal (contoh: 1, 2, 5). Default bernilai 1 jika dikosongkan."],
-      ["Tingkat Kesulitan", "Isi dengan 'Mudah', 'Sedang', atau 'Sulit' (atau angka 1 = Mudah, 2 = Sedang, 3 = Sulit)."],
-      ["Pembahasan", "Penjelasan kunci atau catatan pedoman koreksi untuk pengajar."],
-      [""],
-      ["3. LANGKAH-LANGKAH PENGGUNAAN:"],
-      ["Langkah 1", "Buka berkas ini di Microsoft Excel, Google Sheets, atau WPS Office."],
-      ["Langkah 2", "Masukkan butir-butir soal Anda pada sheet 'Template Soal' mulai dari baris 2."],
-      ["Langkah 3", "Simpan berkas Excel ini (.xlsx)."],
-      ["Langkah 4", "Pada panel Nexam, klik tombol 'Impor Soal', lalu pilih atau seret berkas ini."],
-      ["Langkah 5", "Periksa pratinjau soal, lalu klik 'Impor Butir Soal'."],
-    ];
-
-    const wsGuide = XLSX.utils.aoa_to_sheet(guideData);
-    wsGuide["!cols"] = [
+    ]);
+    wsUniversal["!cols"] = [
+      { wch: 16 },
+      { wch: 45 },
+      { wch: 20 },
+      { wch: 20 },
+      { wch: 20 },
+      { wch: 20 },
+      { wch: 20 },
+      { wch: 18 },
+      { wch: 10 },
       { wch: 18 },
       { wch: 25 },
       { wch: 35 },
-      { wch: 45 },
     ];
+    XLSX.utils.book_append_sheet(wb, wsUniversal, "Semua Tipe (Universal)");
 
-    // Create workbook with both sheets
-    const wb = XLSX.utils.book_new();
-    XLSX.utils.book_append_sheet(wb, wsTemplate, "Template Soal");
+    // Sheet 7: Panduan Penggunaan
+    const guideData = [
+      ["PANDUAN LENGKAP TEMPLATE IMPORT BUTIR SOAL - CBT NEXAM"],
+      [""],
+      ["1. STRUKTUR TEMPLATE (MULTI-SHEET / SATU DOKUMEN EXCEL):"],
+      ["Template ini telah dilengkapi dengan sheet terpisah untuk setiap tipe soal agar pengisian lebih rapi:"],
+      ["- Sheet 'PG Tunggal' : Khusus pilihan ganda dengan 1 jawaban benar (opsi A s.d. D, atau E)."],
+      ["- Sheet 'PG Kompleks': Khusus pilihan ganda dengan banyak jawaban benar. Mendukung opsi hingga Opsi H (A, B, C, D, E, F, G, H)."],
+      ["- Sheet 'Benar Salah': Khusus soal pernyataan benar/salah. Kunci cukup diisi 'Benar' atau 'Salah'."],
+      ["- Sheet 'Isian Singkat': Khusus pertanyaan dengan jawaban teks singkat."],
+      ["- Sheet 'Uraian': Khusus soal esai/uraian terbuka dengan rubrik penilaian."],
+      ["- Sheet 'Semua Tipe (Universal)': Format 1 sheet gabungan bagi Anda yang ingin mengisi semua tipe sekaligus dalam 1 lembar kerja."],
+      [""],
+      ["2. KETENTUAN PENGISIAN:"],
+      ["- Anda dapat mengisi soal di salah satu sheet atau beberapa sheet sekaligus. Saat diunggah, Nexam otomatis menggabungkan seluruh soal dari semua sheet!"],
+      ["- Kolom yang tidak diperlukan pada tipe tertentu (misalnya opsi pada Benar/Salah) tidak perlu diisi."],
+      ["- Kunci jawaban PG Kompleks ditulis dipisahkan koma, contoh: A,C atau A,C,D."],
+      ["- Tingkat Kesulitan: 'Mudah', 'Sedang', atau 'Sulit'."],
+      ["- URL Gambar: bersifat opsional, dapat diisi URL gambar visual."],
+    ];
+    const wsGuide = XLSX.utils.aoa_to_sheet(guideData);
+    wsGuide["!cols"] = [{ wch: 20 }, { wch: 60 }];
     XLSX.utils.book_append_sheet(wb, wsGuide, "Panduan Penggunaan");
 
     XLSX.writeFile(wb, `template_import_bank_soal_${activeBank?.code || "nexam"}.xlsx`);
@@ -1002,16 +1303,53 @@ export default function QuestionBankPageContent({
       if (isExcel) {
         const buffer = await file.arrayBuffer();
         const workbook = XLSX.read(buffer, { type: "array" });
-        const sheetName = workbook.SheetNames.includes("Template Soal")
-          ? "Template Soal"
-          : workbook.SheetNames[0];
-        const worksheet = workbook.Sheets[sheetName];
-        const rawCsv = XLSX.utils.sheet_to_csv(worksheet);
-        setImportRawText(rawCsv);
-        const parsed = parseCsvQuestions(rawCsv);
-        setParsedQuestions(parsed);
-        if (parsed.length === 0) {
-          setImportError("Tidak ada baris butir soal yang valid ditemukan pada sheet 'Template Soal'.");
+
+        let allParsed: any[] = [];
+        let combinedCsv = "";
+
+        // Filter out guide / instruction sheets
+        const relevantSheets = workbook.SheetNames.filter((name) => {
+          const lower = name.toLowerCase().trim();
+          return (
+            !lower.includes("panduan") &&
+            !lower.includes("petunjuk") &&
+            !lower.includes("guide") &&
+            !lower.includes("baca saya")
+          );
+        });
+
+        const sheetsToProcess = relevantSheets.length > 0 ? relevantSheets : workbook.SheetNames;
+
+        for (const sheetName of sheetsToProcess) {
+          const worksheet = workbook.Sheets[sheetName];
+          if (!worksheet) continue;
+          const rawCsv = XLSX.utils.sheet_to_csv(worksheet);
+          if (!rawCsv.trim()) continue;
+
+          // Detect default type from sheet name if applicable
+          const sLower = sheetName.toLowerCase().trim();
+          let defaultSheetType: string | undefined = undefined;
+          if (sLower.includes("kompleks") || sLower.includes("multi")) {
+            defaultSheetType = "multi_select";
+          } else if (sLower.includes("tunggal") || sLower.includes("pg") || sLower.includes("pilihan ganda")) {
+            defaultSheetType = "single_choice";
+          } else if (sLower.includes("benar") || sLower.includes("salah") || sLower === "bs") {
+            defaultSheetType = "true_false";
+          } else if (sLower.includes("singkat") || sLower.includes("isian") || sLower.includes("short")) {
+            defaultSheetType = "short_answer";
+          } else if (sLower.includes("uraian") || sLower.includes("esai") || sLower.includes("essay")) {
+            defaultSheetType = "essay";
+          }
+
+          const parsed = parseCsvQuestions(rawCsv, defaultSheetType);
+          allParsed = allParsed.concat(parsed);
+          combinedCsv += (combinedCsv ? "\n\n" : "") + `# Sheet: ${sheetName}\n` + rawCsv;
+        }
+
+        setImportRawText(combinedCsv);
+        setParsedQuestions(allParsed);
+        if (allParsed.length === 0) {
+          setImportError("Tidak ada baris butir soal yang valid ditemukan pada berkas Excel.");
         }
       } else {
         const text = await file.text();

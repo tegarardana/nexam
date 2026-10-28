@@ -141,9 +141,15 @@ export async function POST(
 
         if (normalizedType === "single_choice" || normalizedType === "multi_select") {
           if (item.options && item.options.length > 0) {
-            finalOptions = item.options.map((opt, idx) => ({
+            let validOpts = item.options.filter(
+              (opt) => typeof opt.text === "string" && opt.text.trim().length > 0
+            );
+            if (normalizedType === "single_choice" && validOpts.length > 5) {
+              validOpts = validOpts.slice(0, 5);
+            }
+            finalOptions = validOpts.map((opt, idx) => ({
               label: opt.label || String.fromCharCode(65 + idx),
-              text: opt.text || "",
+              text: opt.text.trim(),
               imageUrl: opt.imageUrl,
               isCorrect: !!opt.isCorrect,
               sortOrder: opt.sortOrder ?? idx,
