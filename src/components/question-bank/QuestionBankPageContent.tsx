@@ -1320,7 +1320,7 @@ export default function QuestionBankPageContent({
                           className="px-4 py-1.5 rounded-xl bg-[#65C443] hover:bg-[#57b237] active:bg-[#52a835] text-white font-medium text-xs flex items-center gap-1.5 transition cursor-pointer shadow-sm whitespace-nowrap"
                         >
                           <BookOpen className="w-3.5 h-3.5" />
-                          <span>Kelola Butir Soal ({actualCount})</span>
+                          <span>Kelola Butir Soal</span>
                           <ChevronRight className="w-3.5 h-3.5" />
                         </button>
                       </div>

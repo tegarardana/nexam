@@ -45,6 +45,9 @@ export async function GET(req: NextRequest, { params }: RouteParams) {
           },
         },
         questions: {
+          where: {
+            archivedAt: null,
+          },
           include: {
             versions: {
               where: { isCurrent: true },

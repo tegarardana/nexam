@@ -72,6 +72,9 @@ export async function GET(req: NextRequest) {
           },
         },
         questions: {
+          where: {
+            archivedAt: null,
+          },
           select: {
             id: true,
             type: true,
