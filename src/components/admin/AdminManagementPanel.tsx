@@ -2098,12 +2098,6 @@ export default function AdminManagementPanel({
         onToggleCollapse={() => setSidebarCollapsed(!sidebarCollapsed)}
         mobileOpen={mobileSidebarOpen}
         onCloseMobile={() => setMobileSidebarOpen(false)}
-        badgeCounts={{
-          students: initialStats.totalStudents,
-          teachers: initialStats.totalTeachers,
-          classes: initialStats.totalClasses,
-          majors: initialStats.totalMajors,
-        }}
       />
 
       {/* Main Content Area */}

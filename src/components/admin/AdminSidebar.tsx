@@ -51,12 +51,6 @@ interface AdminSidebarProps {
   onToggleCollapse: () => void;
   mobileOpen: boolean;
   onCloseMobile: () => void;
-  badgeCounts?: {
-    students?: number;
-    teachers?: number;
-    classes?: number;
-    majors?: number;
-  };
 }
 
 export default function AdminSidebar({
@@ -66,7 +60,6 @@ export default function AdminSidebar({
   onToggleCollapse,
   mobileOpen,
   onCloseMobile,
-  badgeCounts = {},
 }: AdminSidebarProps) {
   // Accordion state - Open by default for groups
   const [openAccordions, setOpenAccordions] = useState<Record<string, boolean>>({
@@ -218,97 +211,69 @@ export default function AdminSidebar({
                 <button
                   onClick={() => handleItemClick("majors")}
                   title={isCollapsed ? "Jurusan" : undefined}
-                  className={`w-full flex items-center justify-between px-3 py-2 rounded-xl text-xs font-semibold transition cursor-pointer group ${
+                  className={`w-full flex items-center gap-3 px-3 py-2 rounded-xl text-xs font-semibold transition cursor-pointer group ${
                     isTabActive("majors")
                       ? "bg-[#0D274C] text-white shadow-xs"
                       : "text-slate-600 hover:text-slate-900 hover:bg-slate-100"
                   }`}
                 >
-                  <span className="flex items-center gap-3 truncate">
-                    <Briefcase
-                      className={`w-4 h-4 shrink-0 ${
-                        isTabActive("majors") ? "text-[#65C443]" : "text-slate-400 group-hover:text-slate-700"
-                      }`}
-                    />
-                    {!isCollapsed && <span className="truncate">Jurusan</span>}
-                  </span>
-                  {!isCollapsed && badgeCounts.majors !== undefined && (
-                    <span className="text-[10px] font-bold px-1.5 py-0.2 rounded-full bg-slate-100 text-slate-600 border border-slate-200">
-                      {badgeCounts.majors}
-                    </span>
-                  )}
+                  <Briefcase
+                    className={`w-4 h-4 shrink-0 ${
+                      isTabActive("majors") ? "text-[#65C443]" : "text-slate-400 group-hover:text-slate-700"
+                    }`}
+                  />
+                  {!isCollapsed && <span className="truncate">Jurusan</span>}
                 </button>
 
                 <button
                   onClick={() => handleItemClick("students")}
                   title={isCollapsed ? "Siswa" : undefined}
-                  className={`w-full flex items-center justify-between px-3 py-2 rounded-xl text-xs font-semibold transition cursor-pointer group ${
+                  className={`w-full flex items-center gap-3 px-3 py-2 rounded-xl text-xs font-semibold transition cursor-pointer group ${
                     isTabActive("students")
                       ? "bg-[#0D274C] text-white shadow-xs"
                       : "text-slate-600 hover:text-slate-900 hover:bg-slate-100"
                   }`}
                 >
-                  <span className="flex items-center gap-3 truncate">
-                    <GraduationCap
-                      className={`w-4 h-4 shrink-0 ${
-                        isTabActive("students") ? "text-[#65C443]" : "text-slate-400 group-hover:text-slate-700"
-                      }`}
-                    />
-                    {!isCollapsed && <span className="truncate">Siswa</span>}
-                  </span>
-                  {!isCollapsed && badgeCounts.students !== undefined && (
-                    <span className="text-[10px] font-bold px-1.5 py-0.2 rounded-full bg-slate-100 text-slate-600 border border-slate-200">
-                      {badgeCounts.students}
-                    </span>
-                  )}
+                  <GraduationCap
+                    className={`w-4 h-4 shrink-0 ${
+                      isTabActive("students") ? "text-[#65C443]" : "text-slate-400 group-hover:text-slate-700"
+                    }`}
+                  />
+                  {!isCollapsed && <span className="truncate">Siswa</span>}
                 </button>
 
                 <button
                   onClick={() => handleItemClick("classes")}
                   title={isCollapsed ? "Kelas / Rombel" : undefined}
-                  className={`w-full flex items-center justify-between px-3 py-2 rounded-xl text-xs font-semibold transition cursor-pointer group ${
+                  className={`w-full flex items-center gap-3 px-3 py-2 rounded-xl text-xs font-semibold transition cursor-pointer group ${
                     isTabActive("classes")
                       ? "bg-[#0D274C] text-white shadow-xs"
                       : "text-slate-600 hover:text-slate-900 hover:bg-slate-100"
                   }`}
                 >
-                  <span className="flex items-center gap-3 truncate">
-                    <Layers
-                      className={`w-4 h-4 shrink-0 ${
-                        isTabActive("classes") ? "text-[#65C443]" : "text-slate-400 group-hover:text-slate-700"
-                      }`}
-                    />
-                    {!isCollapsed && <span className="truncate">Kelas / Rombel</span>}
-                  </span>
-                  {!isCollapsed && badgeCounts.classes !== undefined && (
-                    <span className="text-[10px] font-bold px-1.5 py-0.2 rounded-full bg-slate-100 text-slate-600 border border-slate-200">
-                      {badgeCounts.classes}
-                    </span>
-                  )}
+                  <Layers
+                    className={`w-4 h-4 shrink-0 ${
+                      isTabActive("classes") ? "text-[#65C443]" : "text-slate-400 group-hover:text-slate-700"
+                    }`}
+                  />
+                  {!isCollapsed && <span className="truncate">Kelas / Rombel</span>}
                 </button>
 
                 <button
                   onClick={() => handleItemClick("teachers")}
                   title={isCollapsed ? "Guru" : undefined}
-                  className={`w-full flex items-center justify-between px-3 py-2 rounded-xl text-xs font-semibold transition cursor-pointer group ${
+                  className={`w-full flex items-center gap-3 px-3 py-2 rounded-xl text-xs font-semibold transition cursor-pointer group ${
                     isTabActive("teachers")
                       ? "bg-[#0D274C] text-white shadow-xs"
                       : "text-slate-600 hover:text-slate-900 hover:bg-slate-100"
                   }`}
                 >
-                  <span className="flex items-center gap-3 truncate">
-                    <Award
-                      className={`w-4 h-4 shrink-0 ${
-                        isTabActive("teachers") ? "text-[#65C443]" : "text-slate-400 group-hover:text-slate-700"
-                      }`}
-                    />
-                    {!isCollapsed && <span className="truncate">Guru</span>}
-                  </span>
-                  {!isCollapsed && badgeCounts.teachers !== undefined && (
-                    <span className="text-[10px] font-bold px-1.5 py-0.2 rounded-full bg-slate-100 text-slate-600 border border-slate-200">
-                      {badgeCounts.teachers}
-                    </span>
-                  )}
+                  <Award
+                    className={`w-4 h-4 shrink-0 ${
+                      isTabActive("teachers") ? "text-[#65C443]" : "text-slate-400 group-hover:text-slate-700"
+                    }`}
+                  />
+                  {!isCollapsed && <span className="truncate">Guru</span>}
                 </button>
               </div>
             )}
