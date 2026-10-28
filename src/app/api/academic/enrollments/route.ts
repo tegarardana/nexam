@@ -10,11 +10,19 @@ export async function GET(req: NextRequest) {
 
   const { searchParams } = new URL(req.url);
   const classGroupId = searchParams.get("classGroupId");
-  const academicYearId = searchParams.get("academicYearId");
+  let academicYearId = searchParams.get("academicYearId");
   const unassigned = searchParams.get("unassigned") === "true";
 
   // If unassigned requested, return students without active enrollment in this academic year
-  if (unassigned && academicYearId) {
+  if (unassigned) {
+    if (!academicYearId) {
+      const activeYear = await prisma.academicYear.findFirst({
+        where: { status: "active" },
+        select: { id: true },
+      });
+      academicYearId = activeYear?.id || null;
+    }
+
     const unassignedStudents = await prisma.user.findMany({
       where: {
         archivedAt: null,
@@ -22,12 +30,16 @@ export async function GET(req: NextRequest) {
         userRoles: {
           some: { role: { name: "student" } },
         },
-        studentEnrollments: {
-          none: {
-            academicYearId,
-            status: "active",
-          },
-        },
+        ...(academicYearId
+          ? {
+              studentEnrollments: {
+                none: {
+                  academicYearId,
+                  status: "active",
+                },
+              },
+            }
+          : {}),
       },
       orderBy: { displayName: "asc" },
       select: {
@@ -86,11 +98,128 @@ export async function POST(req: NextRequest) {
 
   try {
     const body = await req.json();
+
+    // Support batch student placement (e.g., from ClassStudentsPageContent)
+    if (body.action === "batch_enroll" || Array.isArray(body.studentIds)) {
+      const studentIds: string[] = Array.isArray(body.studentIds) ? body.studentIds : [];
+      const classGroupId: string = body.classGroupId || body.targetClassGroupId;
+      let academicYearId: string | undefined = body.academicYearId || body.targetAcademicYearId;
+      const status: string = body.status || "active";
+      const notes: string | undefined = body.notes;
+
+      if (!classGroupId || studentIds.length === 0) {
+        return NextResponse.json(
+          { success: false, error: "Kelas dan daftar siswa wajib dipilih." },
+          { status: 400 }
+        );
+      }
+
+      if (!academicYearId) {
+        const classGroup = await prisma.classGroup.findUnique({
+          where: { id: classGroupId },
+          select: { academicYearId: true },
+        });
+        if (classGroup?.academicYearId) {
+          academicYearId = classGroup.academicYearId;
+        } else {
+          const activeYear = await prisma.academicYear.findFirst({
+            where: { status: "active" },
+            select: { id: true },
+          });
+          academicYearId = activeYear?.id;
+        }
+      }
+
+      if (!academicYearId) {
+        return NextResponse.json(
+          { success: false, error: "Tahun ajaran tidak ditemukan untuk kelas ini." },
+          { status: 400 }
+        );
+      }
+
+      const results = await prisma.$transaction(async (tx) => {
+        const records = [];
+        for (const studentId of studentIds) {
+          const enrollment = await tx.studentEnrollment.upsert({
+            where: {
+              studentId_academicYearId: {
+                studentId,
+                academicYearId: academicYearId!,
+              },
+            },
+            update: {
+              classGroupId,
+              status,
+              ...(notes !== undefined ? { notes } : {}),
+            },
+            create: {
+              studentId,
+              classGroupId,
+              academicYearId: academicYearId!,
+              status,
+              notes,
+            },
+            include: {
+              student: {
+                select: {
+                  id: true,
+                  username: true,
+                  displayName: true,
+                  nis: true,
+                },
+              },
+              classGroup: {
+                select: {
+                  id: true,
+                  name: true,
+                },
+              },
+            },
+          });
+          records.push(enrollment);
+        }
+        return records;
+      });
+
+      await logAudit({
+        actorId: auth.user.id,
+        action: "student_enrollment:batch_enroll",
+        entityType: "student_enrollments",
+        afterValue: {
+          count: results.length,
+          classGroupId,
+          academicYearId,
+          studentIds,
+        },
+      });
+
+      return NextResponse.json({
+        success: true,
+        message: `Berhasil menempatkan ${results.length} siswa ke dalam kelas.`,
+        data: results,
+        count: results.length,
+      });
+    }
+
+    // Single student placement
+    if (!body.academicYearId && body.classGroupId) {
+      const classGroup = await prisma.classGroup.findUnique({
+        where: { id: body.classGroupId },
+        select: { academicYearId: true },
+      });
+      if (classGroup?.academicYearId) {
+        body.academicYearId = classGroup.academicYearId;
+      }
+    }
+
     const parse = studentEnrollmentSchema.safeParse(body);
 
     if (!parse.success) {
+      const fieldErrors = parse.error.flatten().fieldErrors;
+      const firstErrorMessage =
+        Object.values(fieldErrors).flat()[0] || "Validation failed";
       return NextResponse.json(
-        { success: false, error: "Validation failed", details: parse.error.flatten().fieldErrors },
+        { success: false, error: firstErrorMessage, details: fieldErrors },
         { status: 400 }
       );
     }
@@ -246,7 +375,11 @@ export async function DELETE(req: NextRequest) {
     } else {
       try {
         const body = await req.json();
-        if (Array.isArray(body?.ids)) ids = body.ids;
+        if (Array.isArray(body?.ids)) {
+          ids = body.ids;
+        } else if (Array.isArray(body?.enrollmentIds)) {
+          ids = body.enrollmentIds;
+        }
       } catch {
         // empty body ok
       }

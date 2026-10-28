@@ -73,7 +73,7 @@ export default function ClassStudentsPageContent({ initialClassId }: ClassStuden
       // Fetch enrollments and unassigned students
       const [resE, resU] = await Promise.all([
         fetch(`/api/academic/enrollments?classGroupId=${initialClassId}`),
-        fetch(`/api/academic/enrollments?unassigned=true&academicYearId=${jsonClass.data.academicYear?.id || ""}`),
+        fetch(`/api/academic/enrollments?unassigned=true&academicYearId=${jsonClass.data.academicYearId || jsonClass.data.academicYear?.id || ""}`),
       ]);
 
       const jsonE = await resE.json();
@@ -122,7 +122,7 @@ export default function ClassStudentsPageContent({ initialClassId }: ClassStuden
         body: JSON.stringify({
           action: "batch_enroll",
           classGroupId: classData.id,
-          academicYearId: classData.academicYear?.id,
+          academicYearId: classData.academicYearId || classData.academicYear?.id,
           studentIds: selectedUnassignedIds,
         }),
       });

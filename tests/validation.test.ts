@@ -6,6 +6,7 @@ import {
   majorSchema,
   subjectCategorySchema,
   subjectSchema,
+  studentEnrollmentSchema,
 } from "../src/lib/validation/academic";
 import {
   createUserSchema,
@@ -256,6 +257,22 @@ describe("Validation Schemas (Zod)", () => {
       action: "suspend_forever",
     });
     expect(invalidAction.success).toBe(false);
+  });
+
+  it("should validate student enrollment schema", () => {
+    const valid = studentEnrollmentSchema.safeParse({
+      studentId: "123e4567-e89b-12d3-a456-426614174000",
+      classGroupId: "123e4567-e89b-12d3-a456-426614174001",
+      academicYearId: "123e4567-e89b-12d3-a456-426614174002",
+      status: "active",
+    });
+    expect(valid.success).toBe(true);
+
+    const missingStudent = studentEnrollmentSchema.safeParse({
+      classGroupId: "123e4567-e89b-12d3-a456-426614174001",
+      academicYearId: "123e4567-e89b-12d3-a456-426614174002",
+    });
+    expect(missingStudent.success).toBe(false);
   });
 });
 
