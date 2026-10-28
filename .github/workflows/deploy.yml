@@ -16,8 +16,9 @@ jobs:
           cd ~/nexam
           echo "=== Menarik perubahan terbaru dari git ==="
           git fetch origin experiment
-          git checkout experiment
-          git pull origin experiment
+          git checkout -f experiment
+          git reset --hard origin/experiment
 
           chmod +x scripts/deploy.sh
           ./scripts/deploy.sh
+

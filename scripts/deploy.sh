@@ -13,8 +13,8 @@ cd "${APP_DIR}"
 
 # 1. Pastikan branch experiment aktif dan tarik perubahan terbaru
 git fetch origin experiment
-git checkout experiment
-git pull origin experiment
+git checkout -f experiment
+git reset --hard origin/experiment
 
 # 2. Update dependencies
 npm install
