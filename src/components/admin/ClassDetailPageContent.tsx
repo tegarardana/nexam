@@ -338,14 +338,14 @@ export default function ClassDetailPageContent({ initialClassId }: ClassDetailPa
             <button
               type="button"
               onClick={() => openAssignModalForRole(roleTitle, holder)}
-              className="px-3 py-1.5 rounded-lg bg-gray-900 border border-gray-800 hover:border-indigo-500 hover:bg-gray-800 text-gray-300 hover:text-white transition text-xs font-semibold inline-flex items-center gap-1.5 cursor-pointer shrink-0 shadow-sm"
+              className="px-3 py-1.5 rounded-lg bg-slate-100 hover:bg-[#0D274C] hover:text-white border border-slate-200 text-slate-700 transition text-xs font-semibold inline-flex items-center gap-1.5 cursor-pointer shrink-0 shadow-2xs group/btn"
               title={`Atur atau ganti penugasan ${roleTitle}`}
             >
-              <Edit2 className="w-3.5 h-3.5 text-indigo-400" />
+              <Edit2 className="w-3.5 h-3.5 text-[#65C443] group-hover/btn:text-white" />
               <span>{isOccupied ? "Ubah" : "+ Tetapkan"}</span>
             </button>
           ) : (
-            <span className="text-[10px] text-emerald-400/80 font-semibold bg-emerald-500/10 px-2.5 py-1 rounded-full border border-emerald-500/20">
+            <span className="text-[10px] text-emerald-700 font-bold bg-emerald-50 px-2.5 py-1 rounded-full border border-emerald-200">
               Pengampu Utama
             </span>
           )}
@@ -361,31 +361,31 @@ export default function ClassDetailPageContent({ initialClassId }: ClassDetailPa
           <div className="overflow-hidden min-w-0 flex-1">
             <div
               className={`text-base font-bold truncate ${
-                isOccupied ? "text-white" : "text-gray-500 italic"
+                isOccupied ? "text-slate-900" : "text-slate-400 italic"
               }`}
             >
               {displayName}
             </div>
-            <div className="text-xs text-gray-400 font-mono mt-1 truncate flex items-center gap-2">
+            <div className="text-xs text-slate-500 font-mono mt-1 truncate flex items-center gap-2">
               <span>{idInfo}</span>
             </div>
           </div>
         </div>
 
         {/* Footer: Status Indicator */}
-        <div className="pt-3.5 mt-2 border-t border-gray-800/80 flex items-center justify-between text-[11px]">
-          <div className="flex items-center gap-2 text-gray-400">
+        <div className="pt-3.5 mt-2 border-t border-slate-100 flex items-center justify-between text-[11px]">
+          <div className="flex items-center gap-2 text-slate-500">
             <span
               className={`w-2.5 h-2.5 rounded-full ${
-                isOccupied ? "bg-emerald-400 ring-4 ring-emerald-400/20" : "bg-gray-600"
+                isOccupied ? "bg-[#65C443] ring-4 ring-[#65C443]/20" : "bg-slate-300"
               }`}
             />
-            <span className={isOccupied ? "text-gray-300 font-medium" : "text-gray-500"}>
+            <span className={isOccupied ? "text-slate-700 font-medium" : "text-slate-400"}>
               {isOccupied ? "Terisi" : "Belum Ditugaskan"}
             </span>
           </div>
           {holder?.genderCode && (
-            <span className="text-gray-500 text-[10px]">
+            <span className="text-slate-500 text-[10px]">
               {holder.genderCode === "L" ? "Laki-laki" : "Perempuan"}
             </span>
           )}
@@ -452,9 +452,9 @@ export default function ClassDetailPageContent({ initialClassId }: ClassDetailPa
 
   if (loading) {
     return (
-      <div className="flex-1 flex items-center justify-center py-24 text-gray-400 text-sm">
+      <div className="flex-1 flex items-center justify-center py-24 text-slate-500 text-sm">
         <div className="flex flex-col items-center gap-3">
-          <div className="w-8 h-8 border-2 border-indigo-500 border-t-transparent rounded-full animate-spin" />
+          <div className="w-8 h-8 border-2 border-[#65C443] border-t-transparent rounded-full animate-spin" />
           <span>Memuat informasi rincian kelas...</span>
         </div>
       </div>
@@ -464,13 +464,13 @@ export default function ClassDetailPageContent({ initialClassId }: ClassDetailPa
   if (error || !classData) {
     return (
       <div className="max-w-4xl mx-auto px-4 sm:px-6 py-12">
-        <div className="p-8 rounded-2xl bg-rose-500/10 border border-rose-500/20 text-center space-y-4">
-          <AlertCircle className="w-12 h-12 text-rose-400 mx-auto" />
-          <h2 className="text-lg font-bold text-white">Gagal Membuka Halaman Kelas</h2>
-          <p className="text-sm text-rose-300 max-w-md mx-auto">{error || "Data kelas tidak ditemukan."}</p>
+        <div className="p-8 rounded-2xl bg-rose-50 border border-rose-200 text-center space-y-4">
+          <AlertCircle className="w-12 h-12 text-rose-500 mx-auto" />
+          <h2 className="text-lg font-bold text-slate-900">Gagal Membuka Halaman Kelas</h2>
+          <p className="text-sm text-rose-600 max-w-md mx-auto">{error || "Data kelas tidak ditemukan."}</p>
           <Link
             href="/admin"
-            className="inline-flex items-center gap-2 px-4 py-2 rounded-xl bg-gray-900 border border-gray-700 text-gray-200 text-xs font-semibold hover:bg-gray-800 transition"
+            className="inline-flex items-center gap-2 px-4 py-2 rounded-xl bg-slate-900 border border-slate-800 text-white text-xs font-semibold hover:bg-slate-800 transition"
           >
             <ArrowLeft className="w-4 h-4" />
             <span>Kembali ke Panel Admin</span>
@@ -852,11 +852,11 @@ export default function ClassDetailPageContent({ initialClassId }: ClassDetailPa
               </table>
             </div>
 
-            <div className="p-4 sm:p-5 border-t border-gray-800 bg-gray-950/60 flex items-center justify-between text-xs text-gray-400">
+            <div className="p-4 sm:p-5 border-t border-slate-200 bg-slate-50 flex items-center justify-between text-xs text-slate-500">
               <span>
-                Menampilkan <strong>{filteredStudents.length}</strong> dari <strong>{classData.totalStudents}</strong> siswa
+                Menampilkan <strong className="text-slate-800">{filteredStudents.length}</strong> dari <strong className="text-slate-800">{classData.totalStudents}</strong> siswa
               </span>
-              <span>Rombel {classData.name}</span>
+              <span className="font-medium text-slate-600">Rombel {classData.name}</span>
             </div>
           </div>
         </div>
@@ -865,14 +865,14 @@ export default function ClassDetailPageContent({ initialClassId }: ClassDetailPa
       {/* VIEW TAB 2: STRUKTUR ORGANISASI KELAS (BAGAN VISUAL) */}
       {activeTab === "structure" && (
         <div className="space-y-10 animate-in fade-in duration-150">
-          <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4 pb-6 mb-12 border-b border-gray-800/80">
+          <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4 pb-6 mb-12 border-b border-slate-200">
             <div>
-              <h3 className="text-base font-bold text-white flex items-center gap-2">
-                <Crown className="w-5 h-5 text-amber-400" />
+              <h3 className="text-base font-bold text-slate-900 flex items-center gap-2">
+                <Crown className="w-5 h-5 text-amber-500" />
                 <span>Bagan Struktur Organisasi {classData.name}</span>
               </h3>
-              <p className="text-xs text-gray-400 mt-1">
-                Struktur kepengurusan kelas resmi. Klik tombol <strong>Ubah</strong> atau <strong>+ Tetapkan</strong> pada posisi mana saja untuk mengatur penugasan siswa secara langsung.
+              <p className="text-xs text-slate-500 mt-1">
+                Struktur kepengurusan kelas resmi. Klik tombol <strong className="text-slate-700">Ubah</strong> atau <strong className="text-slate-700">+ Tetapkan</strong> pada posisi mana saja untuk mengatur penugasan siswa secara langsung.
               </p>
             </div>
 
@@ -880,7 +880,7 @@ export default function ClassDetailPageContent({ initialClassId }: ClassDetailPa
               <button
                 type="button"
                 onClick={() => openAssignModalForRole("Seksi ", null)}
-                className="px-3.5 py-2 rounded-xl bg-[#65C443] hover:bg-[#52a835] text-white text-xs font-semibold inline-flex items-center gap-1.5 transition cursor-pointer shadow-sm"
+                className="px-3.5 py-2 rounded-xl bg-[#65C443] hover:bg-[#52a835] text-white text-xs font-semibold inline-flex items-center gap-1.5 transition cursor-pointer shadow-sm shadow-[#65C443]/20"
               >
                 <Plus className="w-3.5 h-3.5" />
                 <span>+ Seksi Bidang</span>
@@ -888,9 +888,9 @@ export default function ClassDetailPageContent({ initialClassId }: ClassDetailPa
               <button
                 type="button"
                 onClick={() => setActiveTab("roster")}
-                className="px-3.5 py-2 rounded-xl bg-slate-100 hover:bg-slate-200 border border-slate-200 text-slate-700 text-xs font-semibold inline-flex items-center gap-1.5 transition cursor-pointer"
+                className="px-3.5 py-2 rounded-xl bg-white hover:bg-slate-50 border border-slate-200 text-slate-700 text-xs font-semibold inline-flex items-center gap-1.5 transition cursor-pointer shadow-2xs"
               >
-                <Users className="w-3.5 h-3.5 text-slate-600" />
+                <Users className="w-3.5 h-3.5 text-slate-500" />
                 <span>Lihat Daftar Siswa</span>
               </button>
             </div>
@@ -901,8 +901,8 @@ export default function ClassDetailPageContent({ initialClassId }: ClassDetailPa
             {/* LEVEL 1: WALI KELAS */}
             <div className="flex flex-col items-center">
               <div className="text-center mb-5">
-                <span className="text-[11px] uppercase font-bold tracking-wider text-emerald-400 px-4 py-1.5 rounded-full bg-emerald-500/10 border border-emerald-500/20 inline-flex items-center gap-2 shadow-sm">
-                  <ShieldCheck className="w-3.5 h-3.5" />
+                <span className="text-[11px] uppercase font-bold tracking-wider text-emerald-800 px-4 py-1.5 rounded-full bg-emerald-50 border border-emerald-200 inline-flex items-center gap-2 shadow-2xs">
+                  <ShieldCheck className="w-3.5 h-3.5 text-emerald-600" />
                   <span>Level 1 • Pembina & Wali Kelas</span>
                 </span>
               </div>
@@ -917,14 +917,14 @@ export default function ClassDetailPageContent({ initialClassId }: ClassDetailPa
               </div>
 
               {/* Connecting Line Down */}
-              <div className="w-0.5 h-12 bg-gray-800 my-6 sm:my-8" />
+              <div className="w-0.5 h-12 bg-slate-300 my-6 sm:my-8" />
             </div>
 
             {/* LEVEL 2: KETUA & WAKIL KETUA KELAS */}
             <div>
               <div className="text-center mb-5">
-                <span className="text-[11px] uppercase font-bold tracking-wider text-amber-400 px-4 py-1.5 rounded-full bg-amber-500/10 border border-amber-500/20 inline-flex items-center gap-2 shadow-sm">
-                  <Crown className="w-3.5 h-3.5" />
+                <span className="text-[11px] uppercase font-bold tracking-wider text-amber-800 px-4 py-1.5 rounded-full bg-amber-50 border border-amber-200 inline-flex items-center gap-2 shadow-2xs">
+                  <Crown className="w-3.5 h-3.5 text-amber-600" />
                   <span>Level 2 • Pimpinan Murid (Ketua & Wakil Ketua)</span>
                 </span>
               </div>
@@ -946,14 +946,14 @@ export default function ClassDetailPageContent({ initialClassId }: ClassDetailPa
               </div>
 
               {/* Connecting Line Down */}
-              <div className="w-0.5 h-12 bg-gray-800 mx-auto my-6 sm:my-8" />
+              <div className="w-0.5 h-12 bg-slate-300 mx-auto my-6 sm:my-8" />
             </div>
 
             {/* LEVEL 3: SEKRETARIS & BENDAHARA */}
             <div>
               <div className="text-center mb-5">
-                <span className="text-[11px] uppercase font-bold tracking-wider text-sky-400 px-4 py-1.5 rounded-full bg-sky-500/10 border border-sky-500/20 inline-flex items-center gap-2 shadow-sm">
-                  <BookOpen className="w-3.5 h-3.5" />
+                <span className="text-[11px] uppercase font-bold tracking-wider text-sky-800 px-4 py-1.5 rounded-full bg-sky-50 border border-sky-200 inline-flex items-center gap-2 shadow-2xs">
+                  <BookOpen className="w-3.5 h-3.5 text-sky-600" />
                   <span>Level 3 • Pengurus Administrasi & Keuangan</span>
                 </span>
               </div>
@@ -989,14 +989,14 @@ export default function ClassDetailPageContent({ initialClassId }: ClassDetailPa
               </div>
 
               {/* Connecting Line Down */}
-              <div className="w-0.5 h-12 bg-gray-800 mx-auto my-6 sm:my-8" />
+              <div className="w-0.5 h-12 bg-slate-300 mx-auto my-6 sm:my-8" />
             </div>
 
             {/* LEVEL 4: SEKSI-SEKSI / KOORDINATOR BIDANG */}
             <div>
               <div className="text-center mb-5">
-                <span className="text-[11px] uppercase font-bold tracking-wider text-slate-700 px-4 py-1.5 rounded-full bg-slate-100 border border-slate-200 inline-flex items-center gap-2 shadow-sm">
-                  <Sparkles className="w-3.5 h-3.5 text-slate-600" />
+                <span className="text-[11px] uppercase font-bold tracking-wider text-purple-800 px-4 py-1.5 rounded-full bg-purple-50 border border-purple-200 inline-flex items-center gap-2 shadow-2xs">
+                  <Sparkles className="w-3.5 h-3.5 text-purple-600" />
                   <span>Level 4 • Seksi-Seksi & Koordinator Bidang</span>
                 </span>
               </div>
