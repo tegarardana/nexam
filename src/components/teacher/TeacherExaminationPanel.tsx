@@ -34,6 +34,8 @@ import {
   PlayCircle,
   KeyRound,
   Copy,
+  Activity,
+  PieChart,
 } from "lucide-react";
 
 interface Subject {
@@ -104,6 +106,8 @@ interface Examination {
   totalPoints: number;
   passingScore?: number;
   subject?: Subject;
+  examinationType?: { id: string; name: string; code: string } | null;
+  examinationTypeId?: string | null;
   policySettings?: {
     randomizeQuestions: boolean;
     randomizeOptions: boolean;
@@ -131,6 +135,7 @@ interface TeacherExaminationPanelProps {
   activeYearName?: string | null;
   userRoles?: string[];
   teachers?: Array<{ id: string; name?: string; username?: string; displayName?: string | null; email?: string; nip?: string | null }>;
+  viewMode?: "schedule" | "monitoring" | "results" | "analysis" | "grades";
 }
 
 const QUESTION_TYPES = [
@@ -154,6 +159,7 @@ export default function TeacherExaminationPanel({
   activeYearName,
   userRoles = [],
   teachers = [],
+  viewMode = "schedule",
 }: TeacherExaminationPanelProps) {
   const availableClasses = (classGroups && classGroups.length > 0) ? classGroups : (classes || []);
   const isAdmin = userRoles.includes("administrator");
@@ -217,6 +223,13 @@ export default function TeacherExaminationPanel({
   const [examPassingScore, setExamPassingScore] = useState(75);
   const [examScheduledStart, setExamScheduledStart] = useState("");
   const [examScheduledEnd, setExamScheduledEnd] = useState("");
+  // Examination Type & Question Bank Selection
+  const [examinationTypes, setExaminationTypes] = useState<any[]>([]);
+  const [examTypeId, setExamTypeId] = useState<string>("");
+  const [examBankId, setExamBankId] = useState<string>("");
+  const [availableBanks, setAvailableBanks] = useState<any[]>([]);
+  const [loadingBanks, setLoadingBanks] = useState(false);
+
   // Policy settings
   const [polRandomizeQ, setPolRandomizeQ] = useState(true);
   const [polRandomizeOpt, setPolRandomizeOpt] = useState(true);
@@ -227,6 +240,49 @@ export default function TeacherExaminationPanel({
   const [polGlobalToken, setPolGlobalToken] = useState("");
   const [wizardSelectedClassIds, setWizardSelectedClassIds] = useState<string[]>([]);
   const [copiedTokenId, setCopiedTokenId] = useState<string | null>(null);
+
+  // Load available examination types
+  useEffect(() => {
+    fetch("/api/examinations/types")
+      .then((res) => res.json())
+      .then((json) => {
+        if (json.success && Array.isArray(json.data)) {
+          setExaminationTypes(json.data);
+        }
+      })
+      .catch((err) => console.error("Gagal memuat tipe ujian:", err));
+  }, []);
+
+  // Load question banks when subject changes
+  useEffect(() => {
+    if (examSubjectId) {
+      setLoadingBanks(true);
+      fetch(`/api/question-banks?subjectId=${examSubjectId}`)
+        .then((res) => res.json())
+        .then((json) => {
+          if (json.success && Array.isArray(json.data)) {
+            setAvailableBanks(json.data);
+          } else {
+            setAvailableBanks([]);
+          }
+        })
+        .catch(() => setAvailableBanks([]))
+        .finally(() => setLoadingBanks(false));
+    } else {
+      setAvailableBanks([]);
+    }
+  }, [examSubjectId]);
+
+  // Adjust default category filter based on viewMode
+  useEffect(() => {
+    if (viewMode === "monitoring") {
+      setExamCategoryFilter("in_progress");
+    } else if (viewMode === "results") {
+      setExamCategoryFilter("closed");
+    } else if (viewMode === "schedule") {
+      setExamCategoryFilter("all");
+    }
+  }, [viewMode]);
 
   const generateRandomToken = (len = 6) => {
     const chars = "ABCDEFGHJKLMNPQRSTUVWXYZ23456789";
@@ -589,6 +645,8 @@ export default function TeacherExaminationPanel({
       title: examTitle,
       description: examDesc || undefined,
       subjectId: examSubjectId || null,
+      examinationTypeId: examTypeId || undefined,
+      questionBankId: examBankId || undefined,
       academicYearId: examYearId,
       semesterId: examSemesterId || semesters[0]?.id,
       durationMinutes: Number(examDuration),
@@ -623,8 +681,10 @@ export default function TeacherExaminationPanel({
       setShowExamWizard(false);
       setPolTokenReq(false);
       setPolGlobalToken("");
+      setExamTypeId("");
+      setExamBankId("");
       loadExaminations();
-      setSuccessMsg("Paket ujian baru berhasil dibuat dalam status Draft!");
+      setSuccessMsg("Jadwal ujian baru berhasil dibuat dalam status Draft!");
       setTimeout(() => setSuccessMsg(null), 4000);
     } catch (err: any) {
       setErrorMsg(err.message || "Terjadi kesalahan server");
@@ -979,6 +1039,11 @@ export default function TeacherExaminationPanel({
                   {exam.subject.name} ({exam.subject.code})
                 </span>
               )}
+              {exam.examinationType && (
+                <span className="px-2 py-0.5 rounded-md bg-amber-50 text-amber-800 border border-amber-200 font-mono font-bold text-[11px] tracking-wide">
+                  {exam.examinationType.code}
+                </span>
+              )}
             </div>
             <h3 className="text-base font-bold text-slate-900">{exam.title}</h3>
             {exam.description && (
@@ -1241,22 +1306,54 @@ export default function TeacherExaminationPanel({
         </div>
       )}
 
-      {/* TAB CONTENT 2: Section Header: Paket Ujian & Asesmen */}
+      {/* TAB CONTENT 2: Section Header: Paket Ujian & Asesmen / Jadwal */}
       {activeTeacherTab === "examinations" && (
         <div className="space-y-4 animate-in fade-in duration-150">
           <div className="flex items-center justify-between border-b border-slate-200 pb-3 flex-wrap gap-4">
             <div>
               <div className="flex items-center gap-2">
-                <FileSpreadsheet className="w-5 h-5 text-[#0D274C]" />
+                {viewMode === "schedule" ? (
+                  <Calendar className="w-5 h-5 text-[#0D274C]" />
+                ) : viewMode === "monitoring" ? (
+                  <Activity className="w-5 h-5 text-emerald-600" />
+                ) : viewMode === "results" ? (
+                  <Award className="w-5 h-5 text-purple-600" />
+                ) : viewMode === "analysis" ? (
+                  <PieChart className="w-5 h-5 text-indigo-600" />
+                ) : (
+                  <FileSpreadsheet className="w-5 h-5 text-[#0D274C]" />
+                )}
                 <h3 className="text-base font-bold text-slate-900 flex items-center gap-2">
-                  <span>Paket Ujian & Asesmen</span>
+                  <span>
+                    {viewMode === "schedule"
+                      ? "Jadwal Pelaksanaan Ujian"
+                      : viewMode === "monitoring"
+                      ? "Status Siswa & Pemantauan Ujian Live"
+                      : viewMode === "results"
+                      ? "Hasil & Rekapitulasi Nilai Ujian"
+                      : viewMode === "analysis"
+                      ? "Analisis Butir Soal Ujian"
+                      : viewMode === "grades"
+                      ? "Rekap Nilai Siswa"
+                      : "Paket Ujian & Asesmen"}
+                  </span>
                   <span className="text-xs font-semibold px-2.5 py-0.5 rounded-full bg-slate-100 text-slate-600 border border-slate-200">
                     {examinations.length}
                   </span>
                 </h3>
               </div>
               <p className="text-xs text-slate-500 mt-0.5">
-                Penyusunan jadwal asesmen, distribusi butir soal, dan konfigurasi proteksi anti-cheat ujian CBT.
+                {viewMode === "schedule"
+                  ? "Kelola jadwal ujian yang akan diadakan, pilih bank soal, tipe ujian, alokasi kelas, dan konfigurasi anti-cheat."
+                  : viewMode === "monitoring"
+                  ? "Pantau status pengerjaan peserta ujian, koneksi live, dan insiden anti-cheat secara real-time."
+                  : viewMode === "results"
+                  ? "Rekapitulasi skor ujian peserta didik, koreksi jawaban esai, dan ekspor nilai."
+                  : viewMode === "analysis"
+                  ? "Analisis butir soal, daya pembeda, dan tingkat kesukaran soal."
+                  : viewMode === "grades"
+                  ? "Rekap nilai akhir per rombongan belajar untuk pelaporan raport."
+                  : "Penyusunan jadwal asesmen, distribusi butir soal, dan konfigurasi proteksi anti-cheat ujian CBT."}
               </p>
             </div>
 
@@ -1272,13 +1369,19 @@ export default function TeacherExaminationPanel({
                 </button>
               )}
 
-              <button
-                onClick={() => setShowExamWizard(true)}
-                className="px-4 py-2 rounded-xl bg-[#65C443] hover:bg-[#57b237] text-white text-xs font-medium flex items-center gap-2 transition shadow-xs cursor-pointer"
-              >
-                <Plus className="w-4 h-4" />
-                <span>Buat Paket Ujian Baru</span>
-              </button>
+              {viewMode === "schedule" && (
+                <button
+                  onClick={() => {
+                    setExamTypeId("");
+                    setExamBankId("");
+                    setShowExamWizard(true);
+                  }}
+                  className="px-4 py-2 rounded-xl bg-[#65C443] hover:bg-[#57b237] text-white text-xs font-medium flex items-center gap-2 transition shadow-xs cursor-pointer"
+                >
+                  <Plus className="w-4 h-4" />
+                  <span>Buat Jadwal Ujian Baru</span>
+                </button>
+              )}
             </div>
           </div>
 
@@ -2065,8 +2168,8 @@ export default function TeacherExaminationPanel({
           >
             <div className="flex items-center justify-between border-b border-slate-200 pb-3">
               <h3 className="text-base font-bold text-slate-900 flex items-center gap-2">
-                <FileSpreadsheet className="w-5 h-5 text-[#0D274C]" />
-                <span>Wizard Pembuatan Paket Ujian Baru</span>
+                <Calendar className="w-5 h-5 text-[#0D274C]" />
+                <span>Wizard Pembuatan Jadwal Ujian Baru</span>
               </h3>
               <button
                 onClick={() => setShowExamWizard(false)}
@@ -2121,15 +2224,34 @@ export default function TeacherExaminationPanel({
                 )}
 
                 <div>
-                  <label className="text-xs text-slate-700 font-semibold block mb-1">Mata Pelajaran</label>
+                  <label className="text-xs text-slate-700 font-semibold block mb-1">Mata Pelajaran *</label>
                   <select
                     value={examSubjectId}
-                    onChange={(e) => setExamSubjectId(e.target.value)}
+                    onChange={(e) => {
+                      setExamSubjectId(e.target.value);
+                      setExamBankId("");
+                    }}
                     className="w-full bg-white border border-slate-200 rounded-lg px-3 py-2 text-xs text-slate-900 focus:outline-none focus:border-[#65C443]"
                   >
                     {subjects.map((s) => (
                       <option key={s.id} value={s.id}>
                         {s.name} ({s.code})
+                      </option>
+                    ))}
+                  </select>
+                </div>
+
+                <div>
+                  <label className="text-xs text-slate-700 font-semibold block mb-1">Jenis / Tipe Ujian</label>
+                  <select
+                    value={examTypeId}
+                    onChange={(e) => setExamTypeId(e.target.value)}
+                    className="w-full bg-white border border-slate-200 rounded-lg px-3 py-2 text-xs text-slate-900 focus:outline-none focus:border-[#65C443]"
+                  >
+                    <option value="">-- Pilih Jenis Ujian --</option>
+                    {examinationTypes.map((t) => (
+                      <option key={t.id} value={t.id}>
+                        [{t.code}] {t.name}
                       </option>
                     ))}
                   </select>
@@ -2148,6 +2270,33 @@ export default function TeacherExaminationPanel({
                     />
                     <span className="absolute right-3 top-2 text-xs text-slate-400">Menit</span>
                   </div>
+                </div>
+
+                <div className="sm:col-span-2">
+                  <label className="text-xs text-slate-700 font-semibold block mb-1">
+                    Gunakan Bank Soal (Otomatis Tambahkan Butir Soal)
+                  </label>
+                  <select
+                    value={examBankId}
+                    onChange={(e) => setExamBankId(e.target.value)}
+                    className="w-full bg-white border border-slate-200 rounded-lg px-3 py-2 text-xs text-slate-900 focus:outline-none focus:border-[#65C443]"
+                  >
+                    <option value="">-- Pilih Nanti / Tanpa Bank Soal Otomatis --</option>
+                    {availableBanks.map((b) => (
+                      <option key={b.id} value={b.id}>
+                        {b.title} ({b.code}) • {b._count?.questions || b.totalQuestions || 0} Soal
+                      </option>
+                    ))}
+                  </select>
+                  <p className="text-[11px] text-slate-500 mt-1">
+                    {loadingBanks
+                      ? "Memuat daftar bank soal untuk mata pelajaran terpilih..."
+                      : examBankId
+                      ? "Seluruh butir soal aktif dari bank soal terpilih akan langsung dikaitkan ke ujian ini."
+                      : availableBanks.length === 0
+                      ? "Belum ada bank soal pada mata pelajaran ini. Anda dapat menambahkan soal nanti secara manual."
+                      : "Pilih bank soal yang ingin langsung digunakan untuk jadwal ujian ini."}
+                  </p>
                 </div>
               </div>
 
@@ -2374,7 +2523,7 @@ export default function TeacherExaminationPanel({
                   disabled={wizardSaving}
                   className="px-5 py-2 rounded-xl bg-[#65C443] hover:bg-[#52a835] disabled:opacity-50 text-white text-xs font-semibold shadow-xs transition cursor-pointer"
                 >
-                  {wizardSaving ? "Menyimpan..." : "Simpan Paket Ujian (Draft)"}
+                  {wizardSaving ? "Menyimpan..." : "Simpan Jadwal Ujian (Draft)"}
                 </button>
               </div>
             </form>

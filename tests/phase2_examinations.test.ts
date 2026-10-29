@@ -58,4 +58,27 @@ describe("Phase 2: Examination Lifecycle & Validation", () => {
     expect(VALID_EXAM_TRANSITIONS.finalized).not.toContain("draft");
     expect(VALID_EXAM_TRANSITIONS.finalized).not.toContain("in_progress");
   });
+
+  it("validates examination with optional examinationTypeId and questionBankId", () => {
+    const examWithExtras = {
+      title: "Penilaian Akhir Semester - Fisika",
+      academicYearId: "a0eebc99-9c0b-4ef8-bb6d-6bb9bd380a11",
+      semesterId: "b0eebc99-9c0b-4ef8-bb6d-6bb9bd380a22",
+      subjectId: "c0eebc99-9c0b-4ef8-bb6d-6bb9bd380a33",
+      examinationTypeId: "d0eebc99-9c0b-4ef8-bb6d-6bb9bd380a44",
+      questionBankId: "e0eebc99-9c0b-4ef8-bb6d-6bb9bd380a55",
+      durationMinutes: 90,
+      scheduledStart: new Date("2026-11-01T08:00:00Z"),
+      scheduledEnd: new Date("2026-11-01T10:00:00Z"),
+    };
+    const res = CreateExaminationSchema.safeParse(examWithExtras);
+    expect(res.success).toBe(true);
+
+    const invalidUuid = {
+      ...examWithExtras,
+      questionBankId: "not-a-valid-uuid",
+    };
+    const resInvalid = CreateExaminationSchema.safeParse(invalidUuid);
+    expect(resInvalid.success).toBe(false);
+  });
 });

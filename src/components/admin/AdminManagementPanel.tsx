@@ -158,6 +158,7 @@ export default function AdminManagementPanel({
       case "question_banks":
       case "exam_types":
       case "exam_sessions":
+      case "exam_schedules":
         return "Data Ujian";
       case "exam_status":
       case "exam_results":
@@ -196,6 +197,8 @@ export default function AdminManagementPanel({
         return "Tipe Ujian";
       case "exam_sessions":
         return "Sesi Ujian";
+      case "exam_schedules":
+        return "Jadwal Pelaksanaan Ujian";
       case "exam_status":
         return "Status Siswa (Monitoring Ujian)";
       case "exam_results":
@@ -1088,6 +1091,7 @@ export default function AdminManagementPanel({
     }
     if (activeTab === "audit") fetchAuditLogs();
     if (
+      activeTab === "exam_schedules" ||
       activeTab === "examinations" ||
       activeTab === "exam_status" ||
       activeTab === "exam_results" ||
@@ -3050,27 +3054,9 @@ export default function AdminManagementPanel({
             </div>
           )}
 
-          {/* VIEW: PELAKSANAAN UJIAN (STATUS SISWA, HASIL, ANALISIS, REKAP NILAI) */}
-          {(activeTab === "exam_status" ||
-            activeTab === "exam_results" ||
-            activeTab === "exam_analysis" ||
-            activeTab === "exam_grades") && (
+          {/* VIEW: JADWAL UJIAN (DATA UJIAN) */}
+          {(activeTab === "exam_schedules" || activeTab === "examinations") && (
             <div className="space-y-4 animate-in fade-in duration-200">
-              <div className="p-4 rounded-2xl bg-white border border-slate-200 shadow-sm flex items-center justify-between">
-                <div>
-                  <h3 className="text-base font-bold text-slate-900 flex items-center gap-2">
-                    <Activity className="w-4.5 h-4.5 text-[#65C443]" />
-                    <span>{getTabTitle(activeTab)}</span>
-                  </h3>
-                  <p className="text-xs text-slate-500 mt-0.5">
-                    {activeTab === "exam_status" && "Pantau langsung status aktivitas, pengerjaan, dan anti-cheat peserta ujian."}
-                    {activeTab === "exam_results" && "Rekapitulasi skor dan hasil pengerjaan ujian peserta didik."}
-                    {activeTab === "exam_analysis" && "Analisis statistik butir soal, daya pembeda, dan tingkat kesukaran soal."}
-                    {activeTab === "exam_grades" && "Rekap nilai akhir per rombel dan ekspor daftar nilai untuk raport."}
-                  </p>
-                </div>
-              </div>
-
               <TeacherExaminationPanel
                 subjects={subjects}
                 academicYears={years}
@@ -3080,6 +3066,35 @@ export default function AdminManagementPanel({
                 activeYearName={activeYearName}
                 userRoles={["administrator"]}
                 teachers={teachers}
+                viewMode="schedule"
+              />
+            </div>
+          )}
+
+          {/* VIEW: PELAKSANAAN UJIAN (STATUS SISWA, HASIL, ANALISIS, REKAP NILAI) */}
+          {(activeTab === "exam_status" ||
+            activeTab === "exam_results" ||
+            activeTab === "exam_analysis" ||
+            activeTab === "exam_grades") && (
+            <div className="space-y-4 animate-in fade-in duration-200">
+              <TeacherExaminationPanel
+                subjects={subjects}
+                academicYears={years}
+                semesters={years.flatMap((y: any) => y.semesters || [])}
+                classes={classes}
+                activeYearId={activeYearId}
+                activeYearName={activeYearName}
+                userRoles={["administrator"]}
+                teachers={teachers}
+                viewMode={
+                  activeTab === "exam_status"
+                    ? "monitoring"
+                    : activeTab === "exam_results"
+                    ? "results"
+                    : activeTab === "exam_analysis"
+                    ? "analysis"
+                    : "grades"
+                }
               />
             </div>
           )}
@@ -4624,23 +4639,6 @@ export default function AdminManagementPanel({
         </div>
       )}
 
-      {/* ======================================================== */}
-      {/* TAB 7: UJIAN & ASESMEN (ADMIN MANAGEMENT)                 */}
-      {/* ======================================================== */}
-      {activeTab === "examinations" && (
-        <div className="space-y-4 animate-in fade-in duration-200">
-          <TeacherExaminationPanel
-            subjects={subjects}
-            academicYears={years}
-            semesters={years.flatMap((y: any) => y.semesters || [])}
-            classes={classes}
-            activeYearId={activeYearId}
-            activeYearName={activeYearName}
-            userRoles={["administrator"]}
-            teachers={teachers}
-          />
-        </div>
-      )}
 
         </main>
       </div>

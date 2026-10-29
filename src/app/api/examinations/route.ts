@@ -27,6 +27,7 @@ export async function GET(request: NextRequest) {
       },
       include: {
         subject: { select: { id: true, name: true, code: true } },
+        examinationType: { select: { id: true, name: true, code: true } },
         academicYear: { select: { id: true, name: true } },
         semester: { select: { id: true, name: true } },
         createdBy: { select: { id: true, displayName: true } },
@@ -83,6 +84,8 @@ export async function POST(request: NextRequest) {
       passingScore,
       policySettings,
       teacherId,
+      examinationTypeId,
+      questionBankId,
       classGroupIds,
     } = parsed.data;
 
@@ -104,6 +107,7 @@ export async function POST(request: NextRequest) {
           passingScore: passingScore || null,
           status: "draft",
           createdById: creatorId,
+          examinationTypeId: examinationTypeId || null,
         },
       });
 
@@ -114,6 +118,37 @@ export async function POST(request: NextRequest) {
           ...policySettings,
         },
       });
+
+      // Auto-assign questions from questionBankId if selected
+      if (questionBankId) {
+        const bankQuestions = await tx.question.findMany({
+          where: { questionBankId, status: "active" },
+          include: {
+            versions: {
+              where: { isCurrent: true },
+              take: 1,
+            },
+          },
+          orderBy: { createdAt: "asc" },
+        });
+
+        const questionData = bankQuestions
+          .filter((q) => q.versions.length > 0)
+          .map((q, idx) => ({
+            examinationId: exam.id,
+            questionId: q.id,
+            questionVersionId: q.versions[0].id,
+            sequenceOrder: idx + 1,
+            points: (q.versions[0].gradingConfig as any)?.points || 1,
+            isOptional: false,
+          }));
+
+        if (questionData.length > 0) {
+          await tx.examinationQuestion.createMany({
+            data: questionData,
+          });
+        }
+      }
 
       return exam;
     });

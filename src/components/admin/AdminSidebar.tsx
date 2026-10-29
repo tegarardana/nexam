@@ -38,6 +38,7 @@ export type AdminTab =
   | "question_banks"
   | "exam_types"
   | "exam_sessions"
+  | "exam_schedules"
   | "exam_status"
   | "exam_results"
   | "exam_analysis"
@@ -356,6 +357,23 @@ export default function AdminSidebar({
                     }`}
                   />
                   {!isCollapsed && <span className="truncate">Sesi</span>}
+                </button>
+
+                <button
+                  onClick={() => handleItemClick("exam_schedules")}
+                  title={isCollapsed ? "Jadwal" : undefined}
+                  className={`w-full flex items-center gap-3 px-3 py-2 rounded-xl text-xs font-semibold transition cursor-pointer group ${
+                    isTabActive("exam_schedules")
+                      ? "bg-[#0D274C] text-white shadow-xs"
+                      : "text-slate-600 hover:text-slate-900 hover:bg-slate-100"
+                  }`}
+                >
+                  <Calendar
+                    className={`w-4 h-4 shrink-0 ${
+                      isTabActive("exam_schedules") ? "text-[#65C443]" : "text-slate-400 group-hover:text-slate-700"
+                    }`}
+                  />
+                  {!isCollapsed && <span className="truncate">Jadwal</span>}
                 </button>
               </div>
             )}

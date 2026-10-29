@@ -41,6 +41,7 @@ export const CreateExaminationSchema = z
     policySettings: ExaminationPolicySettingSchema.optional(),
     teacherId: z.string().uuid("ID guru pengampu tidak valid").optional().nullable(),
     examinationTypeId: z.string().uuid("ID tipe ujian tidak valid").optional().nullable(),
+    questionBankId: z.string().uuid("ID bank soal tidak valid").optional().nullable(),
     classGroupIds: z.array(z.string().uuid()).optional(),
   })
   .refine((data) => data.scheduledEnd > data.scheduledStart, {
