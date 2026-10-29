@@ -24,11 +24,17 @@ export default async function AdminCreateExaminationPage() {
   });
 
   // Query platform resources
-  const [allSubjects, academicYears, semesters, classes, teacherUsers] = await Promise.all([
+  const [allSubjects, academicYears, semesters, classes, teacherUsers, allMajors] = await Promise.all([
     prisma.subject.findMany({
       where: { isActive: true, archivedAt: null },
       orderBy: { name: "asc" },
-      select: { id: true, name: true, code: true },
+      select: {
+        id: true,
+        name: true,
+        code: true,
+        majorId: true,
+        major: { select: { id: true, name: true, code: true } },
+      },
     }),
     prisma.academicYear.findMany({
       orderBy: { startDate: "desc" },
@@ -41,7 +47,14 @@ export default async function AdminCreateExaminationPage() {
     prisma.classGroup.findMany({
       where: { isActive: true },
       orderBy: { name: "asc" },
-      select: { id: true, name: true, academicYearId: true },
+      select: {
+        id: true,
+        name: true,
+        gradeLevel: true,
+        academicYearId: true,
+        majorId: true,
+        major: { select: { id: true, name: true, code: true } },
+      },
     }),
     prisma.user.findMany({
       where: {
@@ -57,6 +70,11 @@ export default async function AdminCreateExaminationPage() {
         email: true,
       },
     }),
+    prisma.major.findMany({
+      where: { isActive: true, archivedAt: null },
+      orderBy: { name: "asc" },
+      select: { id: true, name: true, code: true },
+    }),
   ]);
 
   return (
@@ -67,6 +85,7 @@ export default async function AdminCreateExaminationPage() {
       academicYears={academicYears}
       semesters={semesters}
       classes={classes}
+      majors={allMajors}
       teachers={teacherUsers}
       activeYearId={activeYear?.id || null}
     />

@@ -15,12 +15,21 @@ import {
   Sparkles,
   CheckCircle2,
   AlertCircle,
+  GraduationCap,
 } from "lucide-react";
+
+interface MajorItem {
+  id: string;
+  name: string;
+  code: string;
+}
 
 interface SubjectItem {
   id: string;
   name: string;
   code: string;
+  majorId?: string | null;
+  major?: { id: string; name: string; code: string } | null;
 }
 
 interface AcademicYearItem {
@@ -39,7 +48,10 @@ interface SemesterItem {
 interface ClassItem {
   id: string;
   name: string;
+  gradeLevel?: number;
   academicYearId?: string;
+  majorId?: string | null;
+  major?: { id: string; name: string; code: string } | null;
 }
 
 interface CreateExaminationFormProps {
@@ -49,6 +61,7 @@ interface CreateExaminationFormProps {
   academicYears: AcademicYearItem[];
   semesters: SemesterItem[];
   classes: ClassItem[];
+  majors?: MajorItem[];
   teachers?: any[];
   currentTeacherId?: string;
   activeYearId?: string | null;
@@ -61,6 +74,7 @@ export default function CreateExaminationForm({
   academicYears,
   semesters,
   classes,
+  majors = [],
   teachers = [],
   currentTeacherId = "",
   activeYearId = null,
@@ -99,8 +113,22 @@ export default function CreateExaminationForm({
   const [loadingBanks, setLoadingBanks] = useState(false);
   const [questionBankId, setQuestionBankId] = useState<string>("");
 
-  // Participants (Classes)
+  // Participants (Classes) & Major Filter
   const [selectedClassIds, setSelectedClassIds] = useState<string[]>([]);
+  const initialSubject = subjects.find((s) => s.id === subjectId);
+  const [selectedMajorFilter, setSelectedMajorFilter] = useState<string>(
+    initialSubject?.majorId || "all"
+  );
+
+  // When subject changes, automatically update class major filter to match subject's major
+  useEffect(() => {
+    const subj = subjects.find((s) => s.id === subjectId);
+    if (subj?.majorId) {
+      setSelectedMajorFilter(subj.majorId);
+    } else {
+      setSelectedMajorFilter("all");
+    }
+  }, [subjectId, subjects]);
 
   // Anti-Cheat & Policy
   const [polRandomizeQ, setPolRandomizeQ] = useState(true);
@@ -184,8 +212,33 @@ export default function CreateExaminationForm({
     }
   };
 
-  // Selected session helper
+  // Selected session & subject helpers
   const selectedSession = sessions.find((s) => s.id === sessionId);
+  const selectedSubject = subjects.find((s) => s.id === subjectId);
+
+  // Displayed classes filtered by major
+  const displayedClasses = classes.filter((c) => {
+    if (selectedMajorFilter && selectedMajorFilter !== "all") {
+      return c.majorId === selectedMajorFilter;
+    }
+    return true;
+  });
+
+  const isAllDisplayedSelected =
+    displayedClasses.length > 0 &&
+    displayedClasses.every((c) => selectedClassIds.includes(c.id));
+
+  const toggleSelectAllDisplayed = () => {
+    if (isAllDisplayedSelected) {
+      const displayedIds = new Set(displayedClasses.map((c) => c.id));
+      setSelectedClassIds(selectedClassIds.filter((id) => !displayedIds.has(id)));
+    } else {
+      const combined = Array.from(
+        new Set([...selectedClassIds, ...displayedClasses.map((c) => c.id)])
+      );
+      setSelectedClassIds(combined);
+    }
+  };
 
   // Filter semesters by selected academic year
   const filteredSemesters = semesters.filter(
@@ -682,65 +735,147 @@ export default function CreateExaminationForm({
                   </p>
                 </div>
               </div>
-              {classes.length > 0 && (
+              {displayedClasses.length > 0 && (
                 <button
                   type="button"
-                  onClick={() => {
-                    if (selectedClassIds.length === classes.length) {
-                      setSelectedClassIds([]);
-                    } else {
-                      setSelectedClassIds(classes.map((c) => c.id));
-                    }
-                  }}
+                  onClick={toggleSelectAllDisplayed}
                   className="text-xs text-[#0D274C] hover:underline font-semibold cursor-pointer"
                 >
-                  {selectedClassIds.length === classes.length
-                    ? "Batal Pilih Semua"
-                    : "Pilih Semua Kelas"}
+                  {isAllDisplayedSelected
+                    ? selectedMajorFilter === "all"
+                      ? "Batal Pilih Semua"
+                      : "Batal Pilih Kelas Ini"
+                    : selectedMajorFilter === "all"
+                    ? "Pilih Semua Kelas"
+                    : "Pilih Semua Kelas Terfilter"}
                 </button>
               )}
             </div>
+
+            {/* Major Filter Banner based on Selected Subject */}
+            {selectedSubject?.major ? (
+              <div className="p-3.5 rounded-xl bg-amber-50/70 border border-amber-200/80 flex flex-col sm:flex-row sm:items-center justify-between gap-3 text-xs">
+                <div className="flex items-center gap-2 text-amber-900">
+                  <GraduationCap className="w-4 h-4 text-amber-700 shrink-0" />
+                  <div>
+                    <span className="font-semibold text-slate-700">Jurusan / Program Keahlian Mapel:</span>{" "}
+                    <span className="bg-amber-100 text-amber-900 font-bold px-2 py-0.5 rounded-md border border-amber-300/60 inline-flex items-center gap-1">
+                      {selectedSubject.major.name} ({selectedSubject.major.code})
+                    </span>
+                  </div>
+                </div>
+                <div className="flex items-center gap-2">
+                  <span className="text-[11px] text-amber-900 font-medium shrink-0">Filter Kelas:</span>
+                  <select
+                    value={selectedMajorFilter}
+                    onChange={(e) => setSelectedMajorFilter(e.target.value)}
+                    className="bg-white border border-amber-300 text-slate-800 rounded-lg px-2.5 py-1 text-xs font-semibold focus:outline-none focus:border-[#65C443] shadow-2xs"
+                  >
+                    <option value={selectedSubject.majorId || ""}>
+                      Hanya {selectedSubject.major.code} (Sesuai Mapel)
+                    </option>
+                    <option value="all">Semua Jurusan ({classes.length} Kelas)</option>
+                    {majors
+                      ?.filter((m) => m.id !== selectedSubject.majorId)
+                      .map((m) => (
+                        <option key={m.id} value={m.id}>
+                          Jurusan {m.name} ({m.code})
+                        </option>
+                      ))}
+                  </select>
+                </div>
+              </div>
+            ) : (
+              <div className="p-3 rounded-xl bg-slate-50 border border-slate-200 flex flex-col sm:flex-row sm:items-center justify-between gap-3 text-xs">
+                <div className="text-slate-600 text-xs">
+                  <span className="font-semibold text-slate-800">Mata Pelajaran Umum (Lintas Jurusan)</span>
+                  <div className="text-[11px] text-slate-500">
+                    Menampilkan rombel untuk seluruh program keahlian.
+                  </div>
+                </div>
+                {majors && majors.length > 0 && (
+                  <div className="flex items-center gap-2">
+                    <span className="text-[11px] text-slate-600 font-medium shrink-0">Filter Jurusan:</span>
+                    <select
+                      value={selectedMajorFilter}
+                      onChange={(e) => setSelectedMajorFilter(e.target.value)}
+                      className="bg-white border border-slate-200 text-slate-800 rounded-lg px-2.5 py-1 text-xs font-semibold focus:outline-none focus:border-[#65C443]"
+                    >
+                      <option value="all">Semua Jurusan ({classes.length} Kelas)</option>
+                      {majors.map((m) => (
+                        <option key={m.id} value={m.id}>
+                          {m.name} ({m.code})
+                        </option>
+                      ))}
+                    </select>
+                  </div>
+                )}
+              </div>
+            )}
 
             {classes.length === 0 ? (
               <p className="text-xs text-slate-400 italic py-2">
                 Belum ada rombel/kelas yang terdaftar pada sistem.
               </p>
+            ) : displayedClasses.length === 0 ? (
+              <div className="p-6 text-center rounded-xl bg-slate-50 border border-slate-200 space-y-2">
+                <p className="text-xs text-slate-500">
+                  Tidak ada rombel/kelas yang terdaftar untuk jurusan terpilih.
+                </p>
+                <button
+                  type="button"
+                  onClick={() => setSelectedMajorFilter("all")}
+                  className="text-xs text-[#0D274C] hover:underline font-semibold cursor-pointer"
+                >
+                  Tampilkan Semua Kelas ({classes.length})
+                </button>
+              </div>
             ) : (
-              <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-2.5 pt-1 max-h-48 overflow-y-auto pr-1">
-                {classes.map((c) => {
+              <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-2.5 pt-1 max-h-52 overflow-y-auto pr-1">
+                {displayedClasses.map((c) => {
                   const isChecked = selectedClassIds.includes(c.id);
                   return (
                     <label
                       key={c.id}
-                      className={`p-2.5 rounded-xl border text-xs cursor-pointer transition flex items-center gap-2.5 ${
+                      className={`p-2.5 rounded-xl border text-xs cursor-pointer transition flex items-center justify-between gap-2 ${
                         isChecked
                           ? "bg-emerald-50 border-emerald-300 text-emerald-900 font-semibold shadow-xs"
                           : "bg-white border-slate-200 text-slate-700 hover:bg-slate-50"
                       }`}
                     >
-                      <input
-                        type="checkbox"
-                        checked={isChecked}
-                        onChange={() => {
-                          if (isChecked) {
-                            setSelectedClassIds(selectedClassIds.filter((id) => id !== c.id));
-                          } else {
-                            setSelectedClassIds([...selectedClassIds, c.id]);
-                          }
-                        }}
-                        className="rounded accent-[#65C443] w-4 h-4"
-                      />
-                      <span className="truncate">{c.name}</span>
+                      <div className="flex items-center gap-2 truncate">
+                        <input
+                          type="checkbox"
+                          checked={isChecked}
+                          onChange={() => {
+                            if (isChecked) {
+                              setSelectedClassIds(selectedClassIds.filter((id) => id !== c.id));
+                            } else {
+                              setSelectedClassIds([...selectedClassIds, c.id]);
+                            }
+                          }}
+                          className="rounded accent-[#65C443] w-4 h-4 shrink-0"
+                        />
+                        <span className="truncate">{c.name}</span>
+                      </div>
+                      {c.major && (
+                        <span className="text-[10px] font-mono px-1.5 py-0.5 rounded bg-slate-100 text-slate-600 border border-slate-200 shrink-0">
+                          {c.major.code}
+                        </span>
+                      )}
                     </label>
                   );
                 })}
               </div>
             )}
-            <div className="text-[11px] text-slate-500 flex items-center justify-between pt-1">
+
+            <div className="text-[11px] text-slate-500 flex flex-col sm:flex-row sm:items-center justify-between gap-1 pt-2 border-t border-slate-100">
               <span>
-                {selectedClassIds.length} kelas dipilih untuk jadwal ini.
+                <strong>{selectedClassIds.length}</strong> kelas dipilih untuk jadwal ini.
               </span>
-              <span>Seluruh siswa aktif di kelas terpilih akan langsung didaftarkan.</span>
+              <span>
+                Menampilkan <strong>{displayedClasses.length}</strong> dari <strong>{classes.length}</strong> total rombel terdaftar.
+              </span>
             </div>
           </div>
 
