@@ -193,11 +193,8 @@ export default function CreateExaminationForm({
       fetch(`/api/question-banks?subjectId=${subjectId}`)
         .then((res) => res.json())
         .then((json) => {
-          if (json.success && Array.isArray(json.data)) {
-            setAvailableBanks(json.data);
-          } else {
-            setAvailableBanks([]);
-          }
+          const list = Array.isArray(json) ? json : (json.data || []);
+          setAvailableBanks(list);
         })
         .catch(() => setAvailableBanks([]))
         .finally(() => setLoadingBanks(false));
@@ -622,7 +619,7 @@ export default function CreateExaminationForm({
                   <option value="">-- Pilih Nanti / Tanpa Bank Soal Otomatis --</option>
                   {availableBanks.map((b) => (
                     <option key={b.id} value={b.id}>
-                      {b.title} ({b.code}) • {b._count?.questions ?? b.totalQuestions ?? 0} Soal
+                      {b.title} ({b.code}) • {b.actualQuestionsCount ?? b.questions?.length ?? b._count?.questions ?? b.totalQuestions ?? 0} Soal
                     </option>
                   ))}
                 </select>

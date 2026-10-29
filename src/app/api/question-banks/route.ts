@@ -30,7 +30,7 @@ export async function GET(req: NextRequest) {
     }
     if (teacherId) {
       where.teacherId = teacherId;
-    } else if (isTeacher) {
+    } else if (isTeacher && !subjectId) {
       // If teacher is logged in without specific query, show banks they teach or created, or open to their subjects
       where.OR = [
         { teacherId: session.user.id },

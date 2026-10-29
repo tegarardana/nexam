@@ -262,11 +262,8 @@ export default function TeacherExaminationPanel({
       fetch(`/api/question-banks?subjectId=${examSubjectId}`)
         .then((res) => res.json())
         .then((json) => {
-          if (json.success && Array.isArray(json.data)) {
-            setAvailableBanks(json.data);
-          } else {
-            setAvailableBanks([]);
-          }
+          const list = Array.isArray(json) ? json : (json.data || []);
+          setAvailableBanks(list);
         })
         .catch(() => setAvailableBanks([]))
         .finally(() => setLoadingBanks(false));
@@ -731,9 +728,8 @@ export default function TeacherExaminationPanel({
         : "/api/question-banks";
       const bankRes = await fetch(bankUrl);
       const bankJson = await bankRes.json();
-      if (bankJson.success) {
-        setExamModalBanks(bankJson.data || []);
-      }
+      const banksList = Array.isArray(bankJson) ? bankJson : (bankJson.data || []);
+      setExamModalBanks(banksList);
 
       // 2. Fetch Questions strictly for this subject
       const qUrl = exam.subjectId
@@ -2219,7 +2215,7 @@ export default function TeacherExaminationPanel({
                         </option>
                         {examModalBanks.map((b) => (
                           <option key={b.id} value={b.id}>
-                            {b.title} ({b.code}) - {b.totalQuestions || b._count?.questions || 0} Soal
+                            {b.title} ({b.code}) - {b.actualQuestionsCount ?? b.questions?.length ?? b.totalQuestions ?? b._count?.questions ?? 0} Soal
                           </option>
                         ))}
                       </select>
