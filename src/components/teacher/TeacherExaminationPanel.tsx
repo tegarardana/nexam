@@ -1961,22 +1961,24 @@ export default function TeacherExaminationPanel({
           <div className="bg-white p-3.5 rounded-xl border border-slate-200 shadow-sm flex flex-col md:flex-row items-stretch md:items-center justify-between gap-3">
             {/* Category Filter Pills */}
             <div className="flex items-center gap-1.5 overflow-x-auto pb-1 md:pb-0 scrollbar-none">
-              <button
-                type="button"
-                onClick={() => setExamCategoryFilter("all")}
-                className={`px-3 py-1.5 rounded-lg text-xs font-semibold whitespace-nowrap transition cursor-pointer flex items-center gap-1.5 ${
-                  examCategoryFilter === "all"
-                    ? "bg-[#0D274C] text-white shadow-xs"
-                    : "bg-slate-100 hover:bg-slate-200 text-slate-700"
-                }`}
-              >
-                <span>Semua Ujian</span>
-                <span className={`px-1.5 py-0.2 rounded-full text-[10px] font-bold ${
-                  examCategoryFilter === "all" ? "bg-white/20 text-white" : "bg-slate-200 text-slate-700"
-                }`}>
-                  {categoryCounts.all}
-                </span>
-              </button>
+              {viewMode !== "monitoring" && (
+                <button
+                  type="button"
+                  onClick={() => setExamCategoryFilter("all")}
+                  className={`px-3 py-1.5 rounded-lg text-xs font-semibold whitespace-nowrap transition cursor-pointer flex items-center gap-1.5 ${
+                    examCategoryFilter === "all"
+                      ? "bg-[#0D274C] text-white shadow-xs"
+                      : "bg-slate-100 hover:bg-slate-200 text-slate-700"
+                  }`}
+                >
+                  <span>Semua Ujian</span>
+                  <span className={`px-1.5 py-0.2 rounded-full text-[10px] font-bold ${
+                    examCategoryFilter === "all" ? "bg-white/20 text-white" : "bg-slate-200 text-slate-700"
+                  }`}>
+                    {categoryCounts.all}
+                  </span>
+                </button>
+              )}
 
               <button
                 type="button"
@@ -1996,23 +1998,25 @@ export default function TeacherExaminationPanel({
                 </span>
               </button>
 
-              <button
-                type="button"
-                onClick={() => setExamCategoryFilter("upcoming")}
-                className={`px-3 py-1.5 rounded-lg text-xs font-semibold whitespace-nowrap transition cursor-pointer flex items-center gap-1.5 ${
-                  examCategoryFilter === "upcoming"
-                    ? "bg-blue-600 text-white shadow-xs"
-                    : "bg-blue-50 hover:bg-blue-100 text-blue-800 border border-blue-200"
-                }`}
-              >
-                <Clock className="w-3.5 h-3.5 shrink-0" />
-                <span>Akan Datang</span>
-                <span className={`px-1.5 py-0.2 rounded-full text-[10px] font-bold ${
-                  examCategoryFilter === "upcoming" ? "bg-white/25 text-white" : "bg-blue-200 text-blue-900"
-                }`}>
-                  {categoryCounts.upcoming}
-                </span>
-              </button>
+              {viewMode !== "monitoring" && (
+                <button
+                  type="button"
+                  onClick={() => setExamCategoryFilter("upcoming")}
+                  className={`px-3 py-1.5 rounded-lg text-xs font-semibold whitespace-nowrap transition cursor-pointer flex items-center gap-1.5 ${
+                    examCategoryFilter === "upcoming"
+                      ? "bg-blue-600 text-white shadow-xs"
+                      : "bg-blue-50 hover:bg-blue-100 text-blue-800 border border-blue-200"
+                  }`}
+                >
+                  <Clock className="w-3.5 h-3.5 shrink-0" />
+                  <span>Akan Datang</span>
+                  <span className={`px-1.5 py-0.2 rounded-full text-[10px] font-bold ${
+                    examCategoryFilter === "upcoming" ? "bg-white/25 text-white" : "bg-blue-200 text-blue-900"
+                  }`}>
+                    {categoryCounts.upcoming}
+                  </span>
+                </button>
+              )}
 
               <button
                 type="button"
@@ -2024,7 +2028,7 @@ export default function TeacherExaminationPanel({
                 }`}
               >
                 <CheckCircle2 className="w-3.5 h-3.5 shrink-0" />
-                <span>Selesai</span>
+                <span>{viewMode === "monitoring" ? "Sudah Selesai" : "Selesai"}</span>
                 <span className={`px-1.5 py-0.2 rounded-full text-[10px] font-bold ${
                   examCategoryFilter === "closed" ? "bg-white/25 text-white" : "bg-slate-200 text-slate-700"
                 }`}>
@@ -2032,7 +2036,7 @@ export default function TeacherExaminationPanel({
                 </span>
               </button>
 
-              {categoryCounts.draft > 0 && (
+              {viewMode !== "monitoring" && categoryCounts.draft > 0 && (
                 <button
                   type="button"
                   onClick={() => setExamCategoryFilter("draft")}
@@ -2148,7 +2152,7 @@ export default function TeacherExaminationPanel({
                     setExamSubjectFilter("all");
                     setExamClassFilter("all");
                     setExamTypeFilter("all");
-                    setExamCategoryFilter("all");
+                    setExamCategoryFilter(viewMode === "monitoring" ? "in_progress" : "all");
                   }}
                   className="px-3 py-1.5 rounded-lg bg-slate-100 hover:bg-slate-200 text-xs font-semibold text-slate-700 transition cursor-pointer"
                 >
