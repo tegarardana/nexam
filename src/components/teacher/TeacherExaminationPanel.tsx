@@ -1313,14 +1313,6 @@ export default function TeacherExaminationPanel({
               <Radio className={`w-4 h-4 ${effectiveInProgress ? "animate-pulse text-white" : "text-emerald-400"}`} />
               <span>Masuk Pengawasan Live</span>
             </Link>
-
-            <Link
-              href={`/teacher/examinations/${exam.id}/results`}
-              className="px-3.5 py-2 rounded-xl border border-slate-200 bg-white hover:bg-slate-50 text-slate-700 text-xs font-semibold flex items-center gap-1.5 transition cursor-pointer shadow-xs"
-            >
-              <Award className="w-3.5 h-3.5 text-purple-600" />
-              <span>Rekap Hasil</span>
-            </Link>
           </div>
 
           <div className="text-[11px] text-slate-500 flex items-center gap-1.5">

@@ -130,12 +130,13 @@ export default function ExaminationResultsPage() {
           <h3 className="text-lg font-bold text-slate-900">Gagal Memuat Hasil</h3>
           <p className="text-xs text-slate-600">{errorMsg || "Ujian tidak ditemukan."}</p>
           <div className="flex justify-center gap-2 pt-2">
-            <Link
-              href="/teacher"
-              className="px-4 py-2 bg-slate-100 hover:bg-slate-200 text-slate-700 text-xs font-semibold rounded-xl transition"
+            <button
+              type="button"
+              onClick={() => router.back()}
+              className="px-4 py-2 bg-slate-100 hover:bg-slate-200 text-slate-700 text-xs font-semibold rounded-xl transition cursor-pointer"
             >
-              Kembali ke Panel Guru
-            </Link>
+              Kembali
+            </button>
             <button
               onClick={fetchResults}
               className="px-4 py-2 bg-[#0D274C] hover:bg-[#163866] text-white text-xs font-semibold rounded-xl transition cursor-pointer"
@@ -156,13 +157,14 @@ export default function ExaminationResultsPage() {
       <header className="bg-white border-b border-slate-200 sticky top-0 z-30 shadow-xs print:hidden">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 py-4 flex items-center justify-between">
           <div className="flex items-center gap-3">
-            <Link
-              href="/teacher"
-              className="p-2 rounded-xl border border-slate-200 text-slate-600 hover:text-slate-900 hover:bg-slate-50 transition"
-              title="Kembali ke Panel Guru"
+            <button
+              type="button"
+              onClick={() => router.back()}
+              className="p-2 rounded-xl border border-slate-200 text-slate-600 hover:text-slate-900 hover:bg-slate-50 transition cursor-pointer"
+              title="Kembali"
             >
               <ArrowLeft className="w-4 h-4" />
-            </Link>
+            </button>
             <div>
               <div className="flex items-center gap-2">
                 <span className="px-2 py-0.5 rounded bg-[#0D274C]/10 text-[#0D274C] border border-[#0D274C]/20 text-[11px] font-mono font-bold">
