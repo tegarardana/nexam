@@ -302,6 +302,7 @@ export default function TeacherExaminationPanel({
   const [managingExamQuestions, setManagingExamQuestions] = useState<Examination | null>(null);
   const [selectedQuestionIds, setSelectedQuestionIds] = useState<string[]>([]);
   const [savingExamQuestions, setSavingExamQuestions] = useState(false);
+  const [examModalGradeFilter, setExamModalGradeFilter] = useState<number | "all">("all");
   const [examModalBankFilter, setExamModalBankFilter] = useState("all");
   const [examModalBanks, setExamModalBanks] = useState<any[]>([]);
   const [subjectQuestions, setSubjectQuestions] = useState<Question[]>([]);
@@ -718,6 +719,7 @@ export default function TeacherExaminationPanel({
   const openManageQuestions = async (exam: Examination) => {
     setManagingExamQuestions(exam);
     setSelectedQuestionIds([]);
+    setExamModalGradeFilter("all");
     setExamModalBankFilter("all");
     setLoadingSubjectQuestions(true);
 
@@ -2195,30 +2197,64 @@ export default function TeacherExaminationPanel({
                     (q) => !managingExamQuestions.subjectId || q.subjectId === managingExamQuestions.subjectId
                   );
 
-              const displayedQuestions =
-                examModalBankFilter === "all"
-                  ? rawList
-                  : rawList.filter((q) => (q as any).questionBankId === examModalBankFilter);
+              const displayedModalBanks =
+                examModalGradeFilter === "all"
+                  ? examModalBanks
+                  : examModalBanks.filter((b) => b.gradeLevel === Number(examModalGradeFilter));
+
+              const displayedQuestions = (() => {
+                if (examModalBankFilter !== "all") {
+                  return rawList.filter((q) => (q as any).questionBankId === examModalBankFilter);
+                }
+                if (examModalGradeFilter !== "all") {
+                  const allowedBankIds = new Set(displayedModalBanks.map((b) => b.id));
+                  return rawList.filter((q) => allowedBankIds.has((q as any).questionBankId));
+                }
+                return rawList;
+              })();
 
               return (
                 <>
                   <div className="flex items-center justify-between gap-3 p-3 rounded-xl bg-slate-50 border border-slate-200 flex-wrap text-xs">
-                    <div className="flex items-center gap-2">
-                      <span className="font-semibold text-slate-700">Pilih Bank Soal:</span>
-                      <select
-                        value={examModalBankFilter}
-                        onChange={(e) => setExamModalBankFilter(e.target.value)}
-                        className="bg-white border border-slate-300 rounded-lg px-2.5 py-1.5 text-xs text-slate-800 focus:outline-none focus:border-[#65C443]"
-                      >
-                        <option value="all">
-                          Semua Bank Soal ({managingExamQuestions.subject?.name || "Mapel Ini"})
-                        </option>
-                        {examModalBanks.map((b) => (
-                          <option key={b.id} value={b.id}>
-                            {b.title} ({b.code}) - {b.actualQuestionsCount ?? b.questions?.length ?? b.totalQuestions ?? b._count?.questions ?? 0} Soal
+                    <div className="flex items-center gap-3 flex-wrap">
+                      <div className="flex items-center gap-1.5">
+                        <span className="font-semibold text-slate-700">Tingkat:</span>
+                        <select
+                          value={examModalGradeFilter}
+                          onChange={(e) => {
+                            const val = e.target.value === "all" ? "all" : Number(e.target.value);
+                            setExamModalGradeFilter(val);
+                            setExamModalBankFilter("all");
+                          }}
+                          className="bg-white border border-slate-300 rounded-lg px-2.5 py-1.5 text-xs text-slate-800 focus:outline-none focus:border-[#65C443] font-medium"
+                        >
+                          <option value="all">Semua Tingkat</option>
+                          <option value={10}>Tingkat 10 (X)</option>
+                          <option value={11}>Tingkat 11 (XI)</option>
+                          <option value={12}>Tingkat 12 (XII)</option>
+                          <option value={13}>Tingkat 13 (XIII)</option>
+                        </select>
+                      </div>
+
+                      <div className="flex items-center gap-1.5">
+                        <span className="font-semibold text-slate-700">Bank Soal:</span>
+                        <select
+                          value={examModalBankFilter}
+                          onChange={(e) => setExamModalBankFilter(e.target.value)}
+                          className="bg-white border border-slate-300 rounded-lg px-2.5 py-1.5 text-xs text-slate-800 focus:outline-none focus:border-[#65C443]"
+                        >
+                          <option value="all">
+                            {examModalGradeFilter === "all"
+                              ? `Semua Bank Soal (${managingExamQuestions.subject?.name || "Mapel Ini"})`
+                              : `Semua Bank Soal Tingkat ${examModalGradeFilter}`}
                           </option>
-                        ))}
-                      </select>
+                          {displayedModalBanks.map((b) => (
+                            <option key={b.id} value={b.id}>
+                              [Tingkat {b.gradeLevel}] {b.title} ({b.code}) - {b.actualQuestionsCount ?? b.questions?.length ?? b.totalQuestions ?? b._count?.questions ?? 0} Soal
+                            </option>
+                          ))}
+                        </select>
+                      </div>
                     </div>
 
                     <div className="flex items-center gap-2">
