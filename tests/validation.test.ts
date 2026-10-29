@@ -8,6 +8,7 @@ import {
   subjectSchema,
   studentEnrollmentSchema,
 } from "../src/lib/validation/academic";
+import { ExaminationTypeSchema } from "../src/lib/validation/examination";
 import {
   createUserSchema,
   bulkStudentRowSchema,
@@ -273,6 +274,26 @@ describe("Validation Schemas (Zod)", () => {
       academicYearId: "123e4567-e89b-12d3-a456-426614174002",
     });
     expect(missingStudent.success).toBe(false);
+  });
+
+  it("should validate examination type schema (Tipe Ujian dan Kode Jenis)", () => {
+    const valid = ExaminationTypeSchema.safeParse({
+      name: "Penilaian Akhir Semester",
+      code: "PAS",
+    });
+    expect(valid.success).toBe(true);
+
+    const invalidShortName = ExaminationTypeSchema.safeParse({
+      name: "A",
+      code: "PAS",
+    });
+    expect(invalidShortName.success).toBe(false);
+
+    const missingCode = ExaminationTypeSchema.safeParse({
+      name: "Ulangan Harian",
+      code: "",
+    });
+    expect(missingCode.success).toBe(false);
   });
 });
 

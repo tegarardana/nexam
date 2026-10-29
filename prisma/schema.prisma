@@ -491,27 +491,45 @@ model QuestionBank {
 }
 
 // -------------------------------------------------------------
+// Examination Type Model
+// -------------------------------------------------------------
+
+model ExaminationType {
+  id           String        @id @default(uuid()) @db.Uuid
+  name         String        @unique // Tipe Ujian (misal: Ulangan Harian, Penilaian Akhir Semester)
+  code         String        @unique // Kode Jenis (misal: UH, PAS)
+  description  String?
+  createdAt    DateTime      @default(now()) @map("created_at") @db.Timestamptz
+  updatedAt    DateTime      @default(now()) @updatedAt @map("updated_at") @db.Timestamptz
+  examinations Examination[]
+
+  @@map("examination_types")
+}
+
+// -------------------------------------------------------------
 // Phase 2: Examination Configuration Models
 // -------------------------------------------------------------
 
 model Examination {
-  id              String    @id @default(uuid()) @db.Uuid
-  title           String
-  description     String?
-  subjectId       String?   @map("subject_id") @db.Uuid
-  academicYearId  String    @map("academic_year_id") @db.Uuid
-  semesterId      String    @map("semester_id") @db.Uuid
-  durationMinutes Int       @map("duration_minutes")
-  scheduledStart  DateTime  @map("scheduled_start") @db.Timestamptz
-  scheduledEnd    DateTime  @map("scheduled_end") @db.Timestamptz
-  status          String    @default("draft") // draft | ready | scheduled | in_progress | closed | grading | finalized | archived
-  totalPoints     Decimal   @default(100.0) @map("total_points") @db.Decimal(6, 2)
-  passingScore    Decimal?  @map("passing_score") @db.Decimal(5, 2)
-  createdById     String    @map("created_by") @db.Uuid
-  createdAt       DateTime  @default(now()) @map("created_at") @db.Timestamptz
-  updatedAt       DateTime  @default(now()) @updatedAt @map("updated_at") @db.Timestamptz
-  publishedAt     DateTime? @map("published_at") @db.Timestamptz
+  id                String    @id @default(uuid()) @db.Uuid
+  title             String
+  description       String?
+  examinationTypeId String?   @map("examination_type_id") @db.Uuid
+  subjectId         String?   @map("subject_id") @db.Uuid
+  academicYearId    String    @map("academic_year_id") @db.Uuid
+  semesterId        String    @map("semester_id") @db.Uuid
+  durationMinutes   Int       @map("duration_minutes")
+  scheduledStart    DateTime  @map("scheduled_start") @db.Timestamptz
+  scheduledEnd      DateTime  @map("scheduled_end") @db.Timestamptz
+  status            String    @default("draft") // draft | ready | scheduled | in_progress | closed | grading | finalized | archived
+  totalPoints       Decimal   @default(100.0) @map("total_points") @db.Decimal(6, 2)
+  passingScore      Decimal?  @map("passing_score") @db.Decimal(5, 2)
+  createdById       String    @map("created_by") @db.Uuid
+  createdAt         DateTime  @default(now()) @map("created_at") @db.Timestamptz
+  updatedAt         DateTime  @default(now()) @updatedAt @map("updated_at") @db.Timestamptz
+  publishedAt       DateTime? @map("published_at") @db.Timestamptz
 
+  examinationType    ExaminationType?               @relation(fields: [examinationTypeId], references: [id], onDelete: SetNull)
   subject            Subject?                       @relation(fields: [subjectId], references: [id], onDelete: SetNull)
   academicYear       AcademicYear                   @relation(fields: [academicYearId], references: [id])
   semester           Semester                       @relation(fields: [semesterId], references: [id])
@@ -527,6 +545,7 @@ model Examination {
   @@index([academicYearId])
   @@index([semesterId])
   @@index([subjectId])
+  @@index([examinationTypeId])
   @@index([status])
   @@index([scheduledStart, scheduledEnd])
   @@map("examinations")

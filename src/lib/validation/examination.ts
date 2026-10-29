@@ -40,6 +40,7 @@ export const CreateExaminationSchema = z
     passingScore: z.number().min(0).max(100).optional().nullable(),
     policySettings: ExaminationPolicySettingSchema.optional(),
     teacherId: z.string().uuid("ID guru pengampu tidak valid").optional().nullable(),
+    examinationTypeId: z.string().uuid("ID tipe ujian tidak valid").optional().nullable(),
     classGroupIds: z.array(z.string().uuid()).optional(),
   })
   .refine((data) => data.scheduledEnd > data.scheduledStart, {
@@ -48,6 +49,14 @@ export const CreateExaminationSchema = z
   });
 
 export type CreateExaminationInput = z.infer<typeof CreateExaminationSchema>;
+
+export const ExaminationTypeSchema = z.object({
+  name: z.string().min(2, "Nama tipe ujian minimal 2 karakter").max(100),
+  code: z.string().min(1, "Kode jenis ujian minimal 1 karakter").max(20),
+  description: z.string().optional().nullable(),
+});
+
+export type ExaminationTypeInput = z.infer<typeof ExaminationTypeSchema>;
 
 export const AssignQuestionsSchema = z.object({
   questions: z

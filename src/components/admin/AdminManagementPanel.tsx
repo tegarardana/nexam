@@ -155,6 +155,7 @@ export default function AdminManagementPanel({
       case "teachers":
         return "Data Umum";
       case "question_banks":
+      case "exam_types":
         return "Data Ujian";
       case "exam_status":
       case "exam_results":
@@ -189,6 +190,8 @@ export default function AdminManagementPanel({
         return "Data Tenaga Pendidik / Guru";
       case "question_banks":
         return "Bank Soal Ujian";
+      case "exam_types":
+        return "Tipe Ujian";
       case "exam_status":
         return "Status Siswa (Monitoring Ujian)";
       case "exam_results":
@@ -402,6 +405,29 @@ export default function AdminManagementPanel({
   const [editAdminEmail, setEditAdminEmail] = useState("");
   const [editAdminPassword, setEditAdminPassword] = useState("");
   const [editAdminIsActive, setEditAdminIsActive] = useState(true);
+
+  // Examination Types state
+  interface ExamTypeItem {
+    id: string;
+    name: string;
+    code: string;
+    description?: string | null;
+    createdAt: string;
+    updatedAt: string;
+    _count?: {
+      examinations: number;
+    };
+  }
+
+  const [examTypes, setExamTypes] = useState<ExamTypeItem[]>([]);
+  const [loadingExamTypes, setLoadingExamTypes] = useState(false);
+  const [examTypeSearch, setExamTypeSearch] = useState("");
+  const [showExamTypeModal, setShowExamTypeModal] = useState(false);
+  const [editingExamType, setEditingExamType] = useState<ExamTypeItem | null>(null);
+  const [examTypeName, setExamTypeName] = useState("");
+  const [examTypeCode, setExamTypeCode] = useState("");
+  const [examTypeSubmitting, setExamTypeSubmitting] = useState(false);
+  const [examTypeError, setExamTypeError] = useState<string | null>(null);
 
   // Bulk Import State
   const [showBulkModal, setShowBulkModal] = useState(false);
@@ -808,6 +834,101 @@ export default function AdminManagementPanel({
     }
   };
 
+  // Exam Types Handlers
+  const fetchExamTypes = async () => {
+    setLoadingExamTypes(true);
+    try {
+      const res = await fetch("/api/examinations/types");
+      const json = await res.json();
+      if (json.success) {
+        setExamTypes(json.data || []);
+      }
+    } catch (err) {
+      console.error("fetchExamTypes error:", err);
+    } finally {
+      setLoadingExamTypes(false);
+    }
+  };
+
+  const handleOpenAddExamType = () => {
+    setEditingExamType(null);
+    setExamTypeName("");
+    setExamTypeCode("");
+    setExamTypeError(null);
+    setShowExamTypeModal(true);
+  };
+
+  const handleOpenEditExamType = (item: ExamTypeItem) => {
+    setEditingExamType(item);
+    setExamTypeName(item.name);
+    setExamTypeCode(item.code);
+    setExamTypeError(null);
+    setShowExamTypeModal(true);
+  };
+
+  const handleSaveExamType = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!examTypeName.trim() || !examTypeCode.trim()) {
+      setExamTypeError("Nama Tipe Ujian dan Kode Jenis wajib diisi.");
+      return;
+    }
+
+    setExamTypeSubmitting(true);
+    setExamTypeError(null);
+
+    try {
+      const url = editingExamType
+        ? `/api/examinations/types/${editingExamType.id}`
+        : "/api/examinations/types";
+      const method = editingExamType ? "PUT" : "POST";
+
+      const res = await fetch(url, {
+        method,
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          name: examTypeName.trim(),
+          code: examTypeCode.trim().toUpperCase(),
+        }),
+      });
+
+      const json = await res.json();
+      if (json.success) {
+        setShowExamTypeModal(false);
+        fetchExamTypes();
+      } else {
+        setExamTypeError(json.error || "Gagal menyimpan data tipe ujian.");
+      }
+    } catch {
+      setExamTypeError("Terjadi kesalahan jaringan.");
+    } finally {
+      setExamTypeSubmitting(false);
+    }
+  };
+
+  const handleDeleteExamType = async (id: string, name: string) => {
+    if (!confirm(`Apakah Anda yakin ingin menghapus tipe ujian "${name}"?`)) return;
+
+    try {
+      const res = await fetch(`/api/examinations/types/${id}`, {
+        method: "DELETE",
+      });
+      const json = await res.json();
+      if (json.success) {
+        fetchExamTypes();
+      } else {
+        alert(json.error || "Gagal menghapus tipe ujian.");
+      }
+    } catch {
+      alert("Terjadi kesalahan jaringan.");
+    }
+  };
+
+  const filteredExamTypes = examTypes.filter(
+    (t) =>
+      t.name.toLowerCase().includes(examTypeSearch.toLowerCase()) ||
+      t.code.toLowerCase().includes(examTypeSearch.toLowerCase())
+  );
+
   useEffect(() => {
     if (activeTab === "students" || activeTab === "user_students") fetchStudents();
     if (activeTab === "teachers" || activeTab === "user_teachers") fetchTeachers();
@@ -820,6 +941,9 @@ export default function AdminManagementPanel({
     }
     if (activeTab === "subjects" || activeTab === "question_banks") {
       fetchSubjectsAndCategories();
+    }
+    if (activeTab === "exam_types") {
+      fetchExamTypes();
     }
     if (activeTab === "audit") fetchAuditLogs();
     if (
@@ -840,6 +964,10 @@ export default function AdminManagementPanel({
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
       if (e.key === "Escape") {
+        if (showExamTypeModal) {
+          setShowExamTypeModal(false);
+          return;
+        }
         if (showClassBulkUpdateModal) {
           setShowClassBulkUpdateModal(false);
           return;
@@ -2535,6 +2663,117 @@ export default function AdminManagementPanel({
             </div>
           )}
 
+          {/* VIEW: TIPE UJIAN */}
+          {activeTab === "exam_types" && (
+            <div className="space-y-4 animate-in fade-in duration-200">
+              <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3">
+                <div>
+                  <h3 className="text-base font-bold text-slate-900 flex items-center gap-2">
+                    <Tag className="w-4.5 h-4.5 text-[#0D274C]" />
+                    <span>Data Master Tipe Ujian</span>
+                  </h3>
+                  <p className="text-xs text-slate-500 mt-0.5">
+                    Kelola daftar tipe ujian dan kode jenis (contoh: Ulangan Harian, UTS, UAS, PAS, US).
+                  </p>
+                </div>
+
+                <div className="flex items-center gap-2.5 w-full sm:w-auto">
+                  <div className="relative flex-1 sm:w-64">
+                    <Search className="w-3.5 h-3.5 absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" />
+                    <input
+                      type="text"
+                      placeholder="Cari tipe atau kode..."
+                      value={examTypeSearch}
+                      onChange={(e) => setExamTypeSearch(e.target.value)}
+                      className="w-full pl-8 pr-3 py-1.5 rounded-xl bg-white border border-slate-200 text-xs text-slate-800 placeholder:text-slate-400 focus:outline-none focus:border-[#65C443]"
+                    />
+                  </div>
+                  <button
+                    onClick={handleOpenAddExamType}
+                    className="flex items-center gap-1.5 px-3.5 py-2 rounded-xl bg-[#65C443] hover:bg-[#52a835] text-white text-xs font-semibold shadow-sm transition cursor-pointer shrink-0"
+                  >
+                    <Plus className="w-3.5 h-3.5" />
+                    <span>Tambah Tipe Ujian</span>
+                  </button>
+                </div>
+              </div>
+
+              <div className="rounded-2xl bg-white border border-slate-200 shadow-sm overflow-hidden">
+                <div className="overflow-x-auto">
+                  <table className="w-full text-left text-xs">
+                    <thead className="bg-slate-50 text-slate-600 uppercase font-bold border-b border-slate-200">
+                      <tr>
+                        <th className="py-3.5 px-4 w-14 text-center">No</th>
+                        <th className="py-3.5 px-4">Tipe Ujian</th>
+                        <th className="py-3.5 px-4 w-40">Kode Jenis</th>
+                        <th className="py-3.5 px-4 w-40 text-center">Ujian Terkait</th>
+                        <th className="py-3.5 px-4 w-28 text-center">Aksi</th>
+                      </tr>
+                    </thead>
+                    <tbody className="divide-y divide-slate-100 font-medium">
+                      {loadingExamTypes ? (
+                        <tr>
+                          <td colSpan={5} className="py-12 text-center text-slate-400">
+                            Memuat data tipe ujian...
+                          </td>
+                        </tr>
+                      ) : filteredExamTypes.length === 0 ? (
+                        <tr>
+                          <td colSpan={5} className="py-12 text-center text-slate-400">
+                            {examTypeSearch
+                              ? "Tidak ada tipe ujian yang cocok dengan pencarian."
+                              : "Belum ada tipe ujian terdaftar. Klik 'Tambah Tipe Ujian' untuk membuat baru."}
+                          </td>
+                        </tr>
+                      ) : (
+                        filteredExamTypes.map((item, idx) => (
+                          <tr key={item.id} className="hover:bg-slate-50/80 transition">
+                            <td className="py-3.5 px-4 text-center text-slate-400 font-mono">
+                              {idx + 1}
+                            </td>
+                            <td className="py-3.5 px-4">
+                              <span className="font-bold text-slate-900 text-sm">{item.name}</span>
+                            </td>
+                            <td className="py-3.5 px-4">
+                              <span className="px-2.5 py-1 rounded-lg bg-amber-50 text-amber-800 border border-amber-200 font-mono font-bold text-xs tracking-wider">
+                                {item.code}
+                              </span>
+                            </td>
+                            <td className="py-3.5 px-4 text-center">
+                              <span className="px-2 py-0.5 rounded-full bg-slate-100 text-slate-700 text-[11px] font-semibold border border-slate-200 font-mono">
+                                {item._count?.examinations || 0} Ujian
+                              </span>
+                            </td>
+                            <td className="py-3.5 px-4 text-center">
+                              <div className="flex items-center justify-center gap-1.5">
+                                <button
+                                  type="button"
+                                  onClick={() => handleOpenEditExamType(item)}
+                                  className="p-1.5 rounded-lg bg-slate-100 hover:bg-[#0D274C] hover:text-white text-slate-600 border border-slate-200 transition cursor-pointer"
+                                  title="Edit Tipe Ujian"
+                                >
+                                  <Pencil className="w-3.5 h-3.5" />
+                                </button>
+                                <button
+                                  type="button"
+                                  onClick={() => handleDeleteExamType(item.id, item.name)}
+                                  className="p-1.5 rounded-lg bg-red-50 text-red-600 hover:bg-red-600 hover:text-white border border-red-200 transition cursor-pointer"
+                                  title="Hapus Tipe Ujian"
+                                >
+                                  <Trash2 className="w-3.5 h-3.5" />
+                                </button>
+                              </div>
+                            </td>
+                          </tr>
+                        ))
+                      )}
+                    </tbody>
+                  </table>
+                </div>
+              </div>
+            </div>
+          )}
+
           {/* VIEW: PELAKSANAAN UJIAN (STATUS SISWA, HASIL, ANALISIS, REKAP NILAI) */}
           {(activeTab === "exam_status" ||
             activeTab === "exam_results" ||
@@ -4129,6 +4368,102 @@ export default function AdminManagementPanel({
 
         </main>
       </div>
+
+      {/* ======================================================== */}
+      {/* MODAL: TAMBAH / EDIT TIPE UJIAN                          */}
+      {/* ======================================================== */}
+      {showExamTypeModal && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/40 backdrop-blur-xs animate-in fade-in duration-200">
+          <div className="w-full max-w-md rounded-2xl bg-white border border-slate-200 shadow-2xl overflow-hidden animate-in zoom-in-95 duration-200">
+            <div className="p-5 border-b border-slate-200 flex items-center justify-between">
+              <div className="flex items-center gap-2.5">
+                <div className="w-9 h-9 rounded-xl bg-[#0D274C]/10 border border-[#0D274C]/20 flex items-center justify-center text-[#0D274C]">
+                  <Tag className="w-4.5 h-4.5" />
+                </div>
+                <div>
+                  <h3 className="font-bold text-slate-900 text-sm">
+                    {editingExamType ? "Edit Tipe Ujian" : "Tambah Tipe Ujian Baru"}
+                  </h3>
+                  <p className="text-[11px] text-slate-500">
+                    Masukkan data tipe ujian dan kode jenis.
+                  </p>
+                </div>
+              </div>
+              <button
+                type="button"
+                onClick={() => setShowExamTypeModal(false)}
+                className="p-1 rounded-lg text-slate-400 hover:text-slate-600 hover:bg-slate-100 transition cursor-pointer"
+              >
+                <XCircle className="w-5 h-5" />
+              </button>
+            </div>
+
+            <form onSubmit={handleSaveExamType} className="p-5 space-y-4 text-xs">
+              {examTypeError && (
+                <div className="p-3 rounded-xl bg-rose-50 border border-rose-200 text-rose-700 flex items-start gap-2">
+                  <AlertTriangle className="w-4 h-4 shrink-0 mt-0.5 text-rose-600" />
+                  <span>{examTypeError}</span>
+                </div>
+              )}
+
+              <div className="space-y-1.5">
+                <label className="font-semibold text-slate-700 block">
+                  Tipe Ujian <span className="text-red-500">*</span>
+                </label>
+                <input
+                  type="text"
+                  required
+                  placeholder="Contoh: Penilaian Akhir Semester"
+                  value={examTypeName}
+                  onChange={(e) => setExamTypeName(e.target.value)}
+                  className="w-full px-3.5 py-2 rounded-xl bg-white border border-slate-300 text-slate-900 placeholder:text-slate-400 focus:outline-none focus:border-[#65C443] focus:ring-1 focus:ring-[#65C443]"
+                />
+                <p className="text-[11px] text-slate-400">
+                  Nama lengkap jenis atau kategori ujian.
+                </p>
+              </div>
+
+              <div className="space-y-1.5">
+                <label className="font-semibold text-slate-700 block">
+                  Kode Jenis <span className="text-red-500">*</span>
+                </label>
+                <input
+                  type="text"
+                  required
+                  placeholder="Contoh: PAS"
+                  value={examTypeCode}
+                  onChange={(e) => setExamTypeCode(e.target.value.toUpperCase())}
+                  className="w-full px-3.5 py-2 rounded-xl bg-white border border-slate-300 text-slate-900 placeholder:text-slate-400 font-mono font-bold uppercase focus:outline-none focus:border-[#65C443] focus:ring-1 focus:ring-[#65C443]"
+                />
+                <p className="text-[11px] text-slate-400">
+                  Kode singkatan unik untuk jenis ujian ini (misal: UH, UTS, UAS, PAS).
+                </p>
+              </div>
+
+              <div className="flex items-center justify-end gap-2.5 pt-3 border-t border-slate-100">
+                <button
+                  type="button"
+                  onClick={() => setShowExamTypeModal(false)}
+                  className="px-4 py-2 rounded-xl border border-slate-200 text-slate-600 hover:bg-slate-100 font-semibold transition cursor-pointer"
+                >
+                  Batal
+                </button>
+                <button
+                  type="submit"
+                  disabled={examTypeSubmitting}
+                  className="px-4 py-2 rounded-xl bg-[#65C443] hover:bg-[#52a835] disabled:opacity-50 text-white font-semibold shadow-sm transition cursor-pointer"
+                >
+                  {examTypeSubmitting
+                    ? "Menyimpan..."
+                    : editingExamType
+                    ? "Simpan Perubahan"
+                    : "Simpan Tipe Ujian"}
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
 
       {/* ======================================================== */}
       {/* MODAL: KELOLA SISWA KELAS (DUAL-LISTBOX & MULTI-ASSIGN)  */}
