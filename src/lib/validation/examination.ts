@@ -58,6 +58,16 @@ export const ExaminationTypeSchema = z.object({
 
 export type ExaminationTypeInput = z.infer<typeof ExaminationTypeSchema>;
 
+export const ExaminationSessionSchema = z.object({
+  name: z.string().min(2, "Nama sesi minimal 2 karakter").max(100),
+  code: z.string().min(1, "Kode sesi minimal 1 karakter").max(20),
+  startTime: z.string().optional().nullable(),
+  endTime: z.string().optional().nullable(),
+  description: z.string().optional().nullable(),
+});
+
+export type ExaminationSessionInput = z.infer<typeof ExaminationSessionSchema>;
+
 export const AssignQuestionsSchema = z.object({
   questions: z
     .array(

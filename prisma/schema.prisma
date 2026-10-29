@@ -507,6 +507,24 @@ model ExaminationType {
 }
 
 // -------------------------------------------------------------
+// Examination Session Model
+// -------------------------------------------------------------
+
+model ExaminationSession {
+  id           String                   @id @default(uuid()) @db.Uuid
+  name         String                   @unique // Sesi (misal: Sesi 1, Sesi Pagi)
+  code         String                   @unique // Kode Sesi (misal: SESI-1, S1)
+  startTime    String?                  @map("start_time") // Format: "07:30"
+  endTime      String?                  @map("end_time")   // Format: "09:30"
+  description  String?
+  createdAt    DateTime                 @default(now()) @map("created_at") @db.Timestamptz
+  updatedAt    DateTime                 @default(now()) @updatedAt @map("updated_at") @db.Timestamptz
+  participants ExaminationParticipant[]
+
+  @@map("examination_sessions")
+}
+
+// -------------------------------------------------------------
 // Phase 2: Examination Configuration Models
 // -------------------------------------------------------------
 
@@ -572,22 +590,25 @@ model ExaminationQuestion {
 }
 
 model ExaminationParticipant {
-  id            String   @id @default(uuid()) @db.Uuid
-  examinationId String   @map("examination_id") @db.Uuid
-  studentId     String   @map("student_id") @db.Uuid
-  classGroupId  String?  @map("class_group_id") @db.Uuid
-  token         String?  // Optional individual exam access token
-  assignedAt    DateTime @default(now()) @map("assigned_at") @db.Timestamptz
-  status        String   @default("eligible") // eligible | exempt | disqualified
+  id            String              @id @default(uuid()) @db.Uuid
+  examinationId String              @map("examination_id") @db.Uuid
+  studentId     String              @map("student_id") @db.Uuid
+  classGroupId  String?             @map("class_group_id") @db.Uuid
+  sessionId     String?             @map("session_id") @db.Uuid
+  token         String?             // Optional individual exam access token
+  assignedAt    DateTime            @default(now()) @map("assigned_at") @db.Timestamptz
+  status        String              @default("eligible") // eligible | exempt | disqualified
 
-  examination Examination @relation(fields: [examinationId], references: [id], onDelete: Cascade)
-  student     User        @relation("ParticipantStudent", fields: [studentId], references: [id], onDelete: Cascade)
-  classGroup  ClassGroup? @relation(fields: [classGroupId], references: [id], onDelete: SetNull)
+  examination Examination         @relation(fields: [examinationId], references: [id], onDelete: Cascade)
+  student     User                @relation("ParticipantStudent", fields: [studentId], references: [id], onDelete: Cascade)
+  classGroup  ClassGroup?         @relation(fields: [classGroupId], references: [id], onDelete: SetNull)
+  session     ExaminationSession? @relation(fields: [sessionId], references: [id], onDelete: SetNull)
 
   @@unique([examinationId, studentId])
   @@index([examinationId])
   @@index([studentId])
   @@index([classGroupId])
+  @@index([sessionId])
   @@map("examination_participants")
 }
 

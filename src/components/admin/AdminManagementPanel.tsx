@@ -46,6 +46,7 @@ import {
   LayoutDashboard,
   Activity,
   FileQuestion,
+  Clock,
 } from "lucide-react";
 import TeacherExaminationPanel from "@/components/teacher/TeacherExaminationPanel";
 import * as XLSX from "xlsx";
@@ -156,6 +157,7 @@ export default function AdminManagementPanel({
         return "Data Umum";
       case "question_banks":
       case "exam_types":
+      case "exam_sessions":
         return "Data Ujian";
       case "exam_status":
       case "exam_results":
@@ -192,6 +194,8 @@ export default function AdminManagementPanel({
         return "Bank Soal Ujian";
       case "exam_types":
         return "Tipe Ujian";
+      case "exam_sessions":
+        return "Sesi Ujian";
       case "exam_status":
         return "Status Siswa (Monitoring Ujian)";
       case "exam_results":
@@ -428,6 +432,34 @@ export default function AdminManagementPanel({
   const [examTypeCode, setExamTypeCode] = useState("");
   const [examTypeSubmitting, setExamTypeSubmitting] = useState(false);
   const [examTypeError, setExamTypeError] = useState<string | null>(null);
+
+  // Examination Session State
+  interface ExamSessionItem {
+    id: string;
+    name: string;
+    code: string;
+    startTime?: string | null;
+    endTime?: string | null;
+    description?: string | null;
+    createdAt: string;
+    updatedAt: string;
+    _count?: {
+      participants: number;
+    };
+  }
+
+  const [examSessions, setExamSessions] = useState<ExamSessionItem[]>([]);
+  const [loadingExamSessions, setLoadingExamSessions] = useState(false);
+  const [examSessionSearch, setExamSessionSearch] = useState("");
+  const [showExamSessionModal, setShowExamSessionModal] = useState(false);
+  const [editingExamSession, setEditingExamSession] = useState<ExamSessionItem | null>(null);
+  const [examSessionName, setExamSessionName] = useState("");
+  const [examSessionCode, setExamSessionCode] = useState("");
+  const [examSessionStartTime, setExamSessionStartTime] = useState("");
+  const [examSessionEndTime, setExamSessionEndTime] = useState("");
+  const [examSessionDescription, setExamSessionDescription] = useState("");
+  const [examSessionSubmitting, setExamSessionSubmitting] = useState(false);
+  const [examSessionError, setExamSessionError] = useState<string | null>(null);
 
   // Bulk Import State
   const [showBulkModal, setShowBulkModal] = useState(false);
@@ -929,6 +961,112 @@ export default function AdminManagementPanel({
       t.code.toLowerCase().includes(examTypeSearch.toLowerCase())
   );
 
+  const fetchExamSessions = async () => {
+    setLoadingExamSessions(true);
+    try {
+      const res = await fetch("/api/examinations/sessions");
+      const json = await res.json();
+      if (json.success && Array.isArray(json.data)) {
+        setExamSessions(json.data);
+      }
+    } catch (err) {
+      console.error("Gagal memuat sesi ujian:", err);
+    } finally {
+      setLoadingExamSessions(false);
+    }
+  };
+
+  const handleOpenAddExamSession = () => {
+    setEditingExamSession(null);
+    setExamSessionName("");
+    setExamSessionCode("");
+    setExamSessionStartTime("");
+    setExamSessionEndTime("");
+    setExamSessionDescription("");
+    setExamSessionError(null);
+    setShowExamSessionModal(true);
+  };
+
+  const handleOpenEditExamSession = (item: ExamSessionItem) => {
+    setEditingExamSession(item);
+    setExamSessionName(item.name);
+    setExamSessionCode(item.code);
+    setExamSessionStartTime(item.startTime || "");
+    setExamSessionEndTime(item.endTime || "");
+    setExamSessionDescription(item.description || "");
+    setExamSessionError(null);
+    setShowExamSessionModal(true);
+  };
+
+  const handleSaveExamSession = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!examSessionName.trim() || !examSessionCode.trim()) {
+      setExamSessionError("Nama Sesi dan Kode Sesi wajib diisi.");
+      return;
+    }
+
+    setExamSessionSubmitting(true);
+    setExamSessionError(null);
+
+    try {
+      const url = editingExamSession
+        ? `/api/examinations/sessions/${editingExamSession.id}`
+        : "/api/examinations/sessions";
+      const method = editingExamSession ? "PUT" : "POST";
+
+      const res = await fetch(url, {
+        method,
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          name: examSessionName.trim(),
+          code: examSessionCode.trim().toUpperCase(),
+          startTime: examSessionStartTime.trim() || null,
+          endTime: examSessionEndTime.trim() || null,
+          description: examSessionDescription.trim() || null,
+        }),
+      });
+
+      const json = await res.json();
+      if (json.success) {
+        setShowExamSessionModal(false);
+        fetchExamSessions();
+      } else {
+        setExamSessionError(json.error || "Gagal menyimpan data sesi ujian.");
+      }
+    } catch {
+      setExamSessionError("Terjadi kesalahan jaringan.");
+    } finally {
+      setExamSessionSubmitting(false);
+    }
+  };
+
+  const handleDeleteExamSession = async (id: string, name: string) => {
+    if (!confirm(`Apakah Anda yakin ingin menghapus sesi "${name}"?`)) return;
+
+    try {
+      const res = await fetch(`/api/examinations/sessions/${id}`, {
+        method: "DELETE",
+      });
+      const json = await res.json();
+      if (json.success) {
+        fetchExamSessions();
+      } else {
+        alert(json.error || "Gagal menghapus sesi ujian.");
+      }
+    } catch {
+      alert("Terjadi kesalahan jaringan.");
+    }
+  };
+
+  const filteredExamSessions = examSessions.filter(
+    (s) =>
+      s.name.toLowerCase().includes(examSessionSearch.toLowerCase()) ||
+      s.code.toLowerCase().includes(examSessionSearch.toLowerCase()) ||
+      (s.startTime && s.startTime.toLowerCase().includes(examSessionSearch.toLowerCase())) ||
+      (s.endTime && s.endTime.toLowerCase().includes(examSessionSearch.toLowerCase())) ||
+      (s.description && s.description.toLowerCase().includes(examSessionSearch.toLowerCase()))
+  );
+
   useEffect(() => {
     if (activeTab === "students" || activeTab === "user_students") fetchStudents();
     if (activeTab === "teachers" || activeTab === "user_teachers") fetchTeachers();
@@ -944,6 +1082,9 @@ export default function AdminManagementPanel({
     }
     if (activeTab === "exam_types") {
       fetchExamTypes();
+    }
+    if (activeTab === "exam_sessions") {
+      fetchExamSessions();
     }
     if (activeTab === "audit") fetchAuditLogs();
     if (
@@ -966,6 +1107,10 @@ export default function AdminManagementPanel({
       if (e.key === "Escape") {
         if (showExamTypeModal) {
           setShowExamTypeModal(false);
+          return;
+        }
+        if (showExamSessionModal) {
+          setShowExamSessionModal(false);
           return;
         }
         if (showClassBulkUpdateModal) {
@@ -2774,6 +2919,137 @@ export default function AdminManagementPanel({
             </div>
           )}
 
+          {/* VIEW: SESI UJIAN */}
+          {activeTab === "exam_sessions" && (
+            <div className="space-y-4 animate-in fade-in duration-200">
+              <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3">
+                <div>
+                  <h3 className="text-base font-bold text-slate-900 flex items-center gap-2">
+                    <Clock className="w-4.5 h-4.5 text-[#0D274C]" />
+                    <span>Data Master Sesi Ujian</span>
+                  </h3>
+                  <p className="text-xs text-slate-500 mt-0.5">
+                    Kelola pembagian sesi waktu pelaksanaan ujian (contoh: Sesi 1, Sesi 2, Sesi Pagi).
+                  </p>
+                </div>
+
+                <div className="flex items-center gap-2.5 w-full sm:w-auto">
+                  <div className="relative flex-1 sm:w-64">
+                    <Search className="w-3.5 h-3.5 absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" />
+                    <input
+                      type="text"
+                      placeholder="Cari sesi atau kode..."
+                      value={examSessionSearch}
+                      onChange={(e) => setExamSessionSearch(e.target.value)}
+                      className="w-full pl-8 pr-3 py-1.5 rounded-xl bg-white border border-slate-200 text-xs text-slate-800 placeholder:text-slate-400 focus:outline-none focus:border-[#65C443]"
+                    />
+                  </div>
+                  <button
+                    onClick={handleOpenAddExamSession}
+                    className="flex items-center gap-1.5 px-3.5 py-2 rounded-xl bg-[#65C443] hover:bg-[#52a835] text-white text-xs font-semibold shadow-sm transition cursor-pointer shrink-0"
+                  >
+                    <Plus className="w-3.5 h-3.5" />
+                    <span>Tambah Sesi</span>
+                  </button>
+                </div>
+              </div>
+
+              <div className="rounded-2xl bg-white border border-slate-200 shadow-sm overflow-hidden">
+                <div className="overflow-x-auto">
+                  <table className="w-full text-left text-xs">
+                    <thead className="bg-slate-50 text-slate-600 uppercase font-bold border-b border-slate-200">
+                      <tr>
+                        <th className="py-3.5 px-4 w-14 text-center">No</th>
+                        <th className="py-3.5 px-4">Sesi</th>
+                        <th className="py-3.5 px-4 w-40">Kode Sesi</th>
+                        <th className="py-3.5 px-4 w-52">Periode Waktu</th>
+                        <th className="py-3.5 px-4">Keterangan</th>
+                        <th className="py-3.5 px-4 w-36 text-center">Peserta Terkait</th>
+                        <th className="py-3.5 px-4 w-28 text-center">Aksi</th>
+                      </tr>
+                    </thead>
+                    <tbody className="divide-y divide-slate-100 font-medium">
+                      {loadingExamSessions ? (
+                        <tr>
+                          <td colSpan={7} className="py-12 text-center text-slate-400">
+                            Memuat data sesi ujian...
+                          </td>
+                        </tr>
+                      ) : filteredExamSessions.length === 0 ? (
+                        <tr>
+                          <td colSpan={7} className="py-12 text-center text-slate-400">
+                            {examSessionSearch
+                              ? "Tidak ada sesi ujian yang cocok dengan pencarian."
+                              : "Belum ada sesi ujian terdaftar. Klik 'Tambah Sesi' untuk membuat baru."}
+                          </td>
+                        </tr>
+                      ) : (
+                        filteredExamSessions.map((item, idx) => (
+                          <tr key={item.id} className="hover:bg-slate-50/80 transition">
+                            <td className="py-3.5 px-4 text-center text-slate-400 font-mono">
+                              {idx + 1}
+                            </td>
+                            <td className="py-3.5 px-4">
+                              <span className="font-bold text-slate-900 text-sm">{item.name}</span>
+                            </td>
+                            <td className="py-3.5 px-4">
+                              <span className="px-2.5 py-1 rounded-lg bg-emerald-50 text-emerald-800 border border-emerald-200 font-mono font-bold text-xs tracking-wider">
+                                {item.code}
+                              </span>
+                            </td>
+                            <td className="py-3.5 px-4 font-mono text-slate-700">
+                              {item.startTime && item.endTime ? (
+                                <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg bg-blue-50 text-blue-800 border border-blue-200 font-semibold text-xs">
+                                  <Clock className="w-3.5 h-3.5 text-blue-600" />
+                                  {item.startTime} - {item.endTime} WIB
+                                </span>
+                              ) : item.startTime ? (
+                                <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg bg-blue-50 text-blue-800 border border-blue-200 font-semibold text-xs">
+                                  <Clock className="w-3.5 h-3.5 text-blue-600" />
+                                  Mulai {item.startTime} WIB
+                                </span>
+                              ) : (
+                                <span className="text-slate-400 italic">Belum diatur</span>
+                              )}
+                            </td>
+                            <td className="py-3.5 px-4 text-slate-500">
+                              {item.description || <span className="text-slate-400 italic">-</span>}
+                            </td>
+                            <td className="py-3.5 px-4 text-center">
+                              <span className="px-2 py-0.5 rounded-full bg-slate-100 text-slate-700 text-[11px] font-semibold border border-slate-200 font-mono">
+                                {item._count?.participants || 0} Peserta
+                              </span>
+                            </td>
+                            <td className="py-3.5 px-4 text-center">
+                              <div className="flex items-center justify-center gap-1.5">
+                                <button
+                                  type="button"
+                                  onClick={() => handleOpenEditExamSession(item)}
+                                  className="p-1.5 rounded-lg bg-slate-100 hover:bg-[#0D274C] hover:text-white text-slate-600 border border-slate-200 transition cursor-pointer"
+                                  title="Edit Sesi"
+                                >
+                                  <Pencil className="w-3.5 h-3.5" />
+                                </button>
+                                <button
+                                  type="button"
+                                  onClick={() => handleDeleteExamSession(item.id, item.name)}
+                                  className="p-1.5 rounded-lg bg-red-50 text-red-600 hover:bg-red-600 hover:text-white border border-red-200 transition cursor-pointer"
+                                  title="Hapus Sesi"
+                                >
+                                  <Trash2 className="w-3.5 h-3.5" />
+                                </button>
+                              </div>
+                            </td>
+                          </tr>
+                        ))
+                      )}
+                    </tbody>
+                  </table>
+                </div>
+              </div>
+            </div>
+          )}
+
           {/* VIEW: PELAKSANAAN UJIAN (STATUS SISWA, HASIL, ANALISIS, REKAP NILAI) */}
           {(activeTab === "exam_status" ||
             activeTab === "exam_results" ||
@@ -4458,6 +4734,144 @@ export default function AdminManagementPanel({
                     : editingExamType
                     ? "Simpan Perubahan"
                     : "Simpan Tipe Ujian"}
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+
+      {/* ======================================================== */}
+      {/* MODAL: TAMBAH / EDIT SESI UJIAN                          */}
+      {/* ======================================================== */}
+      {showExamSessionModal && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/40 backdrop-blur-xs animate-in fade-in duration-200">
+          <div className="w-full max-w-md rounded-2xl bg-white border border-slate-200 shadow-2xl overflow-hidden animate-in zoom-in-95 duration-200">
+            <div className="p-5 border-b border-slate-200 flex items-center justify-between">
+              <div className="flex items-center gap-2.5">
+                <div className="w-9 h-9 rounded-xl bg-[#0D274C]/10 border border-[#0D274C]/20 flex items-center justify-center text-[#0D274C]">
+                  <Clock className="w-4.5 h-4.5" />
+                </div>
+                <div>
+                  <h3 className="font-bold text-slate-900 text-sm">
+                    {editingExamSession ? "Edit Sesi Ujian" : "Tambah Sesi Ujian Baru"}
+                  </h3>
+                  <p className="text-[11px] text-slate-500">
+                    Atur nama sesi, kode sesi, dan periode waktu pelaksanaan.
+                  </p>
+                </div>
+              </div>
+              <button
+                type="button"
+                onClick={() => setShowExamSessionModal(false)}
+                className="p-1 rounded-lg text-slate-400 hover:text-slate-600 hover:bg-slate-100 transition cursor-pointer"
+              >
+                <XCircle className="w-5 h-5" />
+              </button>
+            </div>
+
+            <form onSubmit={handleSaveExamSession} className="p-5 space-y-4 text-xs">
+              {examSessionError && (
+                <div className="p-3 rounded-xl bg-rose-50 border border-rose-200 text-rose-700 flex items-start gap-2">
+                  <AlertTriangle className="w-4 h-4 shrink-0 mt-0.5 text-rose-600" />
+                  <span>{examSessionError}</span>
+                </div>
+              )}
+
+              <div className="space-y-1.5">
+                <label className="font-semibold text-slate-700 block">
+                  Nama Sesi <span className="text-red-500">*</span>
+                </label>
+                <input
+                  type="text"
+                  required
+                  placeholder="Contoh: Sesi 1"
+                  value={examSessionName}
+                  onChange={(e) => setExamSessionName(e.target.value)}
+                  className="w-full px-3.5 py-2 rounded-xl bg-white border border-slate-300 text-slate-900 placeholder:text-slate-400 focus:outline-none focus:border-[#65C443] focus:ring-1 focus:ring-[#65C443]"
+                />
+                <p className="text-[11px] text-slate-400">
+                  Nama sesi pelaksanaan ujian (misal: Sesi 1, Sesi 2, Sesi Pagi).
+                </p>
+              </div>
+
+              <div className="space-y-1.5">
+                <label className="font-semibold text-slate-700 block">
+                  Kode Sesi <span className="text-red-500">*</span>
+                </label>
+                <input
+                  type="text"
+                  required
+                  placeholder="Contoh: SESI-1"
+                  value={examSessionCode}
+                  onChange={(e) => setExamSessionCode(e.target.value.toUpperCase())}
+                  className="w-full px-3.5 py-2 rounded-xl bg-white border border-slate-300 text-slate-900 placeholder:text-slate-400 font-mono font-bold uppercase focus:outline-none focus:border-[#65C443] focus:ring-1 focus:ring-[#65C443]"
+                />
+                <p className="text-[11px] text-slate-400">
+                  Kode singkatan unik untuk sesi ini (misal: SESI-1, SESI-2, S1, S2).
+                </p>
+              </div>
+
+              <div className="space-y-1.5">
+                <label className="font-semibold text-slate-700 block">
+                  Periode Waktu Pelaksanaan
+                </label>
+                <div className="grid grid-cols-2 gap-3">
+                  <div>
+                    <label className="text-[11px] text-slate-500 block mb-1">Waktu Mulai</label>
+                    <input
+                      type="time"
+                      value={examSessionStartTime}
+                      onChange={(e) => setExamSessionStartTime(e.target.value)}
+                      className="w-full px-3 py-2 rounded-xl bg-white border border-slate-300 text-slate-900 focus:outline-none focus:border-[#65C443] focus:ring-1 focus:ring-[#65C443]"
+                    />
+                  </div>
+                  <div>
+                    <label className="text-[11px] text-slate-500 block mb-1">Waktu Selesai</label>
+                    <input
+                      type="time"
+                      value={examSessionEndTime}
+                      onChange={(e) => setExamSessionEndTime(e.target.value)}
+                      className="w-full px-3 py-2 rounded-xl bg-white border border-slate-300 text-slate-900 focus:outline-none focus:border-[#65C443] focus:ring-1 focus:ring-[#65C443]"
+                    />
+                  </div>
+                </div>
+                <p className="text-[11px] text-slate-400">
+                  Rentang jam sesi ujian berlangsung (opsional).
+                </p>
+              </div>
+
+              <div className="space-y-1.5">
+                <label className="font-semibold text-slate-700 block">
+                  Keterangan / Catatan
+                </label>
+                <input
+                  type="text"
+                  placeholder="Contoh: Digunakan untuk sesi lab komputer utama"
+                  value={examSessionDescription}
+                  onChange={(e) => setExamSessionDescription(e.target.value)}
+                  className="w-full px-3.5 py-2 rounded-xl bg-white border border-slate-300 text-slate-900 placeholder:text-slate-400 focus:outline-none focus:border-[#65C443] focus:ring-1 focus:ring-[#65C443]"
+                />
+              </div>
+
+              <div className="flex items-center justify-end gap-2.5 pt-3 border-t border-slate-100">
+                <button
+                  type="button"
+                  onClick={() => setShowExamSessionModal(false)}
+                  className="px-4 py-2 rounded-xl border border-slate-200 text-slate-600 hover:bg-slate-100 font-semibold transition cursor-pointer"
+                >
+                  Batal
+                </button>
+                <button
+                  type="submit"
+                  disabled={examSessionSubmitting}
+                  className="px-4 py-2 rounded-xl bg-[#65C443] hover:bg-[#52a835] disabled:opacity-50 text-white font-semibold shadow-sm transition cursor-pointer"
+                >
+                  {examSessionSubmitting
+                    ? "Menyimpan..."
+                    : editingExamSession
+                    ? "Simpan Perubahan"
+                    : "Simpan Sesi"}
                 </button>
               </div>
             </form>

@@ -8,7 +8,7 @@ import {
   subjectSchema,
   studentEnrollmentSchema,
 } from "../src/lib/validation/academic";
-import { ExaminationTypeSchema } from "../src/lib/validation/examination";
+import { ExaminationTypeSchema, ExaminationSessionSchema } from "../src/lib/validation/examination";
 import {
   createUserSchema,
   bulkStudentRowSchema,
@@ -291,6 +291,35 @@ describe("Validation Schemas (Zod)", () => {
 
     const missingCode = ExaminationTypeSchema.safeParse({
       name: "Ulangan Harian",
+      code: "",
+    });
+    expect(missingCode.success).toBe(false);
+  });
+
+  it("should validate examination session schema (Sesi, Kode, dan Periode Waktu)", () => {
+    const valid = ExaminationSessionSchema.safeParse({
+      name: "Sesi 1",
+      code: "SESI-1",
+      startTime: "07:30",
+      endTime: "09:30",
+      description: "Sesi pagi lab komputer",
+    });
+    expect(valid.success).toBe(true);
+
+    const validMinimal = ExaminationSessionSchema.safeParse({
+      name: "Sesi 2",
+      code: "SESI-2",
+    });
+    expect(validMinimal.success).toBe(true);
+
+    const invalidShortName = ExaminationSessionSchema.safeParse({
+      name: "S",
+      code: "SESI-1",
+    });
+    expect(invalidShortName.success).toBe(false);
+
+    const missingCode = ExaminationSessionSchema.safeParse({
+      name: "Sesi 3",
       code: "",
     });
     expect(missingCode.success).toBe(false);
