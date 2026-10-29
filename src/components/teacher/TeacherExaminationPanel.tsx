@@ -108,6 +108,8 @@ interface Examination {
   subject?: Subject;
   examinationType?: { id: string; name: string; code: string } | null;
   examinationTypeId?: string | null;
+  session?: { id: string; name: string; code: string; startTime?: string; endTime?: string } | null;
+  sessionId?: string | null;
   policySettings?: {
     randomizeQuestions: boolean;
     randomizeOptions: boolean;
@@ -1208,9 +1210,14 @@ export default function TeacherExaminationPanel({
           <div className="text-[11px] text-slate-500 flex items-center gap-1.5">
             <Calendar className="w-3.5 h-3.5 text-slate-400" />
             <span>
-              Jadwal: {new Date(exam.scheduledStart).toLocaleDateString("id-ID")} • {new Date(exam.scheduledStart).toLocaleTimeString("id-ID", { hour: "2-digit", minute: "2-digit" })}
-              {exam.scheduledEnd && (
-                <> s/d {new Date(exam.scheduledEnd).toLocaleTimeString("id-ID", { hour: "2-digit", minute: "2-digit" })}</>
+              Jadwal: {new Date(exam.scheduledStart).toLocaleDateString("id-ID")}
+              {exam.session ? (
+                <> • <span className="font-semibold text-indigo-700">{exam.session.name} ({exam.session.startTime} - {exam.session.endTime} WIB)</span></>
+              ) : (
+                <> • {new Date(exam.scheduledStart).toLocaleTimeString("id-ID", { hour: "2-digit", minute: "2-digit" })}
+                {exam.scheduledEnd && (
+                  <> s/d {new Date(exam.scheduledEnd).toLocaleTimeString("id-ID", { hour: "2-digit", minute: "2-digit" })}</>
+                )}</>
               )}
             </span>
           </div>
@@ -1370,17 +1377,13 @@ export default function TeacherExaminationPanel({
               )}
 
               {viewMode === "schedule" && (
-                <button
-                  onClick={() => {
-                    setExamTypeId("");
-                    setExamBankId("");
-                    setShowExamWizard(true);
-                  }}
+                <Link
+                  href={isAdmin ? "/admin/examinations/create" : "/teacher/examinations/create"}
                   className="px-4 py-2 rounded-xl bg-[#65C443] hover:bg-[#57b237] text-white text-xs font-medium flex items-center gap-2 transition shadow-xs cursor-pointer"
                 >
                   <Plus className="w-4 h-4" />
                   <span>Buat Jadwal Ujian Baru</span>
-                </button>
+                </Link>
               )}
             </div>
           </div>
@@ -2158,378 +2161,6 @@ export default function TeacherExaminationPanel({
         </div>
       )}
 
-      {/* ========================================================= */}
-      {/* MODAL: WIZARD BUAT PAKET UJIAN BARU                       */}
-      {/* ========================================================= */}
-      {showExamWizard && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/40 backdrop-blur-xs animate-in fade-in">
-          <div
-            className="w-full max-w-2xl rounded-2xl bg-white border border-slate-200 p-6 shadow-2xl max-h-[90vh] overflow-y-auto space-y-5 text-slate-800"
-          >
-            <div className="flex items-center justify-between border-b border-slate-200 pb-3">
-              <h3 className="text-base font-bold text-slate-900 flex items-center gap-2">
-                <Calendar className="w-5 h-5 text-[#0D274C]" />
-                <span>Wizard Pembuatan Jadwal Ujian Baru</span>
-              </h3>
-              <button
-                onClick={() => setShowExamWizard(false)}
-                className="text-slate-400 hover:text-slate-600 p-1 rounded-lg hover:bg-slate-100 transition"
-              >
-                <X className="w-5 h-5" />
-              </button>
-            </div>
-
-            {errorMsg && (
-              <div className="p-3 rounded-lg bg-rose-50 border border-rose-200 text-rose-700 text-xs font-medium">
-                {errorMsg}
-              </div>
-            )}
-
-            <form onSubmit={handleSaveExamWizard} className="space-y-4">
-              {/* Exam Title & Subject */}
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                <div className="sm:col-span-2">
-                  <label className="text-xs text-slate-700 font-semibold block mb-1">Judul Ujian *</label>
-                  <input
-                    type="text"
-                    required
-                    value={examTitle}
-                    onChange={(e) => setExamTitle(e.target.value)}
-                    placeholder="Contoh: Asesmen Sumatif Akhir Semester - Matematika"
-                    className="w-full bg-white border border-slate-200 rounded-lg px-3 py-2 text-xs text-slate-900 focus:outline-none focus:border-[#65C443]"
-                  />
-                </div>
-
-                {isAdmin && (
-                  <div className="sm:col-span-2">
-                    <label className="text-xs text-slate-700 font-semibold block mb-1">
-                      Guru Pengampu / Penanggung Jawab Ujian (Admin Override)
-                    </label>
-                    <select
-                      value={examTeacherId}
-                      onChange={(e) => setExamTeacherId(e.target.value)}
-                      className="w-full bg-white border border-slate-200 rounded-lg px-3 py-2 text-xs text-slate-900 focus:outline-none focus:border-[#65C443]"
-                    >
-                      <option value="">-- Tetapkan Admin Sendiri --</option>
-                      {teacherOptions.map((t) => (
-                        <option key={t.id} value={t.id}>
-                          {t.displayName || t.name || t.fullName || t.username} ({t.nip || t.email})
-                        </option>
-                      ))}
-                    </select>
-                    <p className="text-[11px] text-slate-500 mt-1">
-                      Sebagai Admin, Anda dapat memilih guru pengampu yang bertanggung jawab atas paket ujian ini.
-                    </p>
-                  </div>
-                )}
-
-                <div>
-                  <label className="text-xs text-slate-700 font-semibold block mb-1">Mata Pelajaran *</label>
-                  <select
-                    value={examSubjectId}
-                    onChange={(e) => {
-                      setExamSubjectId(e.target.value);
-                      setExamBankId("");
-                    }}
-                    className="w-full bg-white border border-slate-200 rounded-lg px-3 py-2 text-xs text-slate-900 focus:outline-none focus:border-[#65C443]"
-                  >
-                    {subjects.map((s) => (
-                      <option key={s.id} value={s.id}>
-                        {s.name} ({s.code})
-                      </option>
-                    ))}
-                  </select>
-                </div>
-
-                <div>
-                  <label className="text-xs text-slate-700 font-semibold block mb-1">Jenis / Tipe Ujian</label>
-                  <select
-                    value={examTypeId}
-                    onChange={(e) => setExamTypeId(e.target.value)}
-                    className="w-full bg-white border border-slate-200 rounded-lg px-3 py-2 text-xs text-slate-900 focus:outline-none focus:border-[#65C443]"
-                  >
-                    <option value="">-- Pilih Jenis Ujian --</option>
-                    {examinationTypes.map((t) => (
-                      <option key={t.id} value={t.id}>
-                        [{t.code}] {t.name}
-                      </option>
-                    ))}
-                  </select>
-                </div>
-
-                <div>
-                  <label className="text-xs text-slate-700 font-semibold block mb-1">Durasi Pengerjaan *</label>
-                  <div className="relative">
-                    <input
-                      type="number"
-                      min="5"
-                      required
-                      value={examDuration}
-                      onChange={(e) => setExamDuration(Number(e.target.value))}
-                      className="w-full bg-white border border-slate-200 rounded-lg px-3 py-2 text-xs text-slate-900 focus:outline-none focus:border-[#65C443]"
-                    />
-                    <span className="absolute right-3 top-2 text-xs text-slate-400">Menit</span>
-                  </div>
-                </div>
-
-                <div className="sm:col-span-2">
-                  <label className="text-xs text-slate-700 font-semibold block mb-1">
-                    Gunakan Bank Soal (Otomatis Tambahkan Butir Soal)
-                  </label>
-                  <select
-                    value={examBankId}
-                    onChange={(e) => setExamBankId(e.target.value)}
-                    className="w-full bg-white border border-slate-200 rounded-lg px-3 py-2 text-xs text-slate-900 focus:outline-none focus:border-[#65C443]"
-                  >
-                    <option value="">-- Pilih Nanti / Tanpa Bank Soal Otomatis --</option>
-                    {availableBanks.map((b) => (
-                      <option key={b.id} value={b.id}>
-                        {b.title} ({b.code}) • {b._count?.questions || b.totalQuestions || 0} Soal
-                      </option>
-                    ))}
-                  </select>
-                  <p className="text-[11px] text-slate-500 mt-1">
-                    {loadingBanks
-                      ? "Memuat daftar bank soal untuk mata pelajaran terpilih..."
-                      : examBankId
-                      ? "Seluruh butir soal aktif dari bank soal terpilih akan langsung dikaitkan ke ujian ini."
-                      : availableBanks.length === 0
-                      ? "Belum ada bank soal pada mata pelajaran ini. Anda dapat menambahkan soal nanti secara manual."
-                      : "Pilih bank soal yang ingin langsung digunakan untuk jadwal ujian ini."}
-                  </p>
-                </div>
-              </div>
-
-              {/* Schedules */}
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 p-3 rounded-xl bg-slate-50 border border-slate-200">
-                <div>
-                  <label className="text-xs text-slate-700 font-semibold block mb-1">Jadwal Mulai Ujian *</label>
-                  <input
-                    type="datetime-local"
-                    required
-                    value={examScheduledStart}
-                    onChange={(e) => setExamScheduledStart(e.target.value)}
-                    className="w-full bg-white border border-slate-200 rounded-lg px-3 py-2 text-xs text-slate-900 focus:outline-none focus:border-[#65C443]"
-                  />
-                </div>
-                <div>
-                  <label className="text-xs text-slate-700 font-semibold block mb-1">Jadwal Selesai Ujian *</label>
-                  <input
-                    type="datetime-local"
-                    required
-                    value={examScheduledEnd}
-                    onChange={(e) => setExamScheduledEnd(e.target.value)}
-                    className="w-full bg-white border border-slate-200 rounded-lg px-3 py-2 text-xs text-slate-900 focus:outline-none focus:border-[#65C443]"
-                  />
-                </div>
-              </div>
-
-              {/* Target Classes Selection */}
-              <div className="space-y-2 p-3 rounded-xl bg-slate-50 border border-slate-200">
-                <div className="flex items-center justify-between">
-                  <label className="text-xs text-slate-800 font-bold flex items-center gap-1.5">
-                    <Users className="w-4 h-4 text-[#0D274C]" />
-                    <span>Target Rombongan Belajar / Kelas Peserta</span>
-                  </label>
-                  {availableClasses.length > 0 && (
-                    <button
-                      type="button"
-                      onClick={() => {
-                        if (wizardSelectedClassIds.length === availableClasses.length) {
-                          setWizardSelectedClassIds([]);
-                        } else {
-                          setWizardSelectedClassIds(availableClasses.map((c) => c.id));
-                        }
-                      }}
-                      className="text-[11px] text-[#0D274C] hover:underline font-semibold cursor-pointer"
-                    >
-                      {wizardSelectedClassIds.length === availableClasses.length
-                        ? "Batal Pilih Semua"
-                        : "Pilih Semua Kelas"}
-                    </button>
-                  )}
-                </div>
-                <p className="text-[11px] text-slate-500">
-                  Pilih kelas yang wajib mengikuti ujian ini. Seluruh siswa aktif di kelas terpilih akan langsung didaftarkan.
-                </p>
-                {availableClasses.length === 0 ? (
-                  <p className="text-xs text-slate-400 italic">Belum ada rombel/kelas yang terdaftar.</p>
-                ) : (
-                  <div className="grid grid-cols-2 sm:grid-cols-3 gap-2 pt-1 max-h-36 overflow-y-auto pr-1">
-                    {availableClasses.map((cg) => {
-                      const isChecked = wizardSelectedClassIds.includes(cg.id);
-                      return (
-                        <label
-                          key={cg.id}
-                          className={`p-2 rounded-lg border text-xs cursor-pointer transition flex items-center gap-2 ${
-                            isChecked
-                              ? "bg-emerald-50 border-emerald-300 text-emerald-900 font-semibold"
-                              : "bg-white border-slate-200 text-slate-700 hover:bg-slate-100"
-                          }`}
-                        >
-                          <input
-                            type="checkbox"
-                            checked={isChecked}
-                            onChange={() => {
-                              if (isChecked) {
-                                setWizardSelectedClassIds(wizardSelectedClassIds.filter((id) => id !== cg.id));
-                              } else {
-                                setWizardSelectedClassIds([...wizardSelectedClassIds, cg.id]);
-                              }
-                            }}
-                            className="rounded accent-[#65C443]"
-                          />
-                          <span className="truncate">{cg.name}</span>
-                        </label>
-                      );
-                    })}
-                  </div>
-                )}
-              </div>
-
-              {/* Anti-Cheat Settings Header */}
-              <div className="pt-2 border-t border-slate-200">
-                <div className="text-xs font-bold text-amber-900 flex items-center gap-2 mb-2">
-                  <ShieldAlert className="w-4 h-4 text-amber-600" />
-                  <span>Kebijakan Anti-Cheat & Pengawasan Integritas</span>
-                </div>
-
-                <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 text-xs text-slate-700">
-                  <label className="flex items-center gap-2 p-2.5 rounded-lg bg-slate-50 border border-slate-200 cursor-pointer font-medium">
-                    <input
-                      type="checkbox"
-                      checked={polRandomizeQ}
-                      onChange={(e) => setPolRandomizeQ(e.target.checked)}
-                      className="rounded accent-[#65C443]"
-                    />
-                    <span>Acak Urutan Butir Soal</span>
-                  </label>
-
-                  <label className="flex items-center gap-2 p-2.5 rounded-lg bg-slate-50 border border-slate-200 cursor-pointer font-medium">
-                    <input
-                      type="checkbox"
-                      checked={polRandomizeOpt}
-                      onChange={(e) => setPolRandomizeOpt(e.target.checked)}
-                      className="rounded accent-[#65C443]"
-                    />
-                    <span>Acak Opsi Pilihan Ganda</span>
-                  </label>
-
-                  <label className="flex items-center gap-2 p-2.5 rounded-lg bg-slate-50 border border-slate-200 cursor-pointer font-medium">
-                    <input
-                      type="checkbox"
-                      checked={polFullScreen}
-                      onChange={(e) => setPolFullScreen(e.target.checked)}
-                      className="rounded accent-[#65C443]"
-                    />
-                    <span>Layar Penuh Wajib (Full Screen)</span>
-                  </label>
-
-                  <label className="flex items-center gap-2 p-2.5 rounded-lg bg-slate-50 border border-slate-200 cursor-pointer font-medium">
-                    <input
-                      type="checkbox"
-                      checked={polBlockViolation}
-                      onChange={(e) => setPolBlockViolation(e.target.checked)}
-                      className="rounded accent-[#65C443]"
-                    />
-                    <span>Kunci / Blokir saat Batas Tab Habis</span>
-                  </label>
-                </div>
-              </div>
-
-              {/* Token CBT Configuration */}
-              <div className="pt-2 border-t border-slate-200">
-                <div className="text-xs font-bold text-emerald-900 flex items-center justify-between mb-2">
-                  <div className="flex items-center gap-2">
-                    <KeyRound className="w-4 h-4 text-emerald-600" />
-                    <span>Token Ujian (Akses CBT)</span>
-                  </div>
-                  {polTokenReq && (
-                    <button
-                      type="button"
-                      onClick={() => setPolGlobalToken(generateRandomToken(6))}
-                      className="text-[11px] text-emerald-700 hover:text-emerald-900 font-semibold flex items-center gap-1 cursor-pointer"
-                    >
-                      <Sparkles className="w-3.5 h-3.5" />
-                      <span>Acak Token Baru</span>
-                    </button>
-                  )}
-                </div>
-
-                <div className="p-3.5 rounded-xl bg-emerald-50/50 border border-emerald-200 space-y-3">
-                  <label className="flex items-center gap-2.5 text-xs font-semibold text-slate-800 cursor-pointer">
-                    <input
-                      type="checkbox"
-                      checked={polTokenReq}
-                      onChange={(e) => {
-                        const checked = e.target.checked;
-                        setPolTokenReq(checked);
-                        if (checked && !polGlobalToken) {
-                          setPolGlobalToken(generateRandomToken(6));
-                        }
-                      }}
-                      className="rounded accent-[#65C443] w-4 h-4"
-                    />
-                    <span>Wajibkan Siswa Memasukkan Token Ujian</span>
-                  </label>
-
-                  {polTokenReq && (
-                    <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 items-center pt-1 animate-in fade-in">
-                      <div className="sm:col-span-2">
-                        <label className="text-[11px] text-slate-700 font-medium block mb-1">
-                          Kode Token Ujian (6 Karakter) *
-                        </label>
-                        <div className="flex items-center gap-2">
-                          <input
-                            type="text"
-                            required={polTokenReq}
-                            maxLength={10}
-                            value={polGlobalToken}
-                            onChange={(e) =>
-                              setPolGlobalToken(e.target.value.toUpperCase().replace(/[^A-Z0-9]/g, ""))
-                            }
-                            placeholder="Contoh: NEX9KT"
-                            className="w-full bg-white border border-emerald-300 rounded-lg px-3 py-2 text-sm font-mono tracking-widest text-slate-900 font-bold focus:outline-none focus:border-[#65C443] focus:ring-1 focus:ring-[#65C443]"
-                          />
-                          <button
-                            type="button"
-                            onClick={() => setPolGlobalToken(generateRandomToken(6))}
-                            className="px-3 py-2 rounded-lg bg-emerald-600 hover:bg-emerald-500 text-white text-xs font-semibold shrink-0 transition cursor-pointer shadow-xs"
-                            title="Generate Token Acak"
-                          >
-                            Acak
-                          </button>
-                        </div>
-                      </div>
-                      <div className="text-[11px] text-slate-500 leading-relaxed sm:pt-4">
-                        Siswa harus memasukkan token ini saat masuk atau memulai lembar ujian.
-                      </div>
-                    </div>
-                  )}
-                </div>
-              </div>
-
-              {/* Actions */}
-              <div className="flex items-center justify-end gap-2 pt-4 border-t border-slate-200">
-                <button
-                  type="button"
-                  onClick={() => setShowExamWizard(false)}
-                  className="px-4 py-2 rounded-xl text-xs font-semibold text-slate-700 hover:bg-slate-100 border border-slate-200 transition cursor-pointer shadow-xs"
-                >
-                  Batal
-                </button>
-                <button
-                  type="submit"
-                  disabled={wizardSaving}
-                  className="px-5 py-2 rounded-xl bg-[#65C443] hover:bg-[#52a835] disabled:opacity-50 text-white text-xs font-semibold shadow-xs transition cursor-pointer"
-                >
-                  {wizardSaving ? "Menyimpan..." : "Simpan Jadwal Ujian (Draft)"}
-                </button>
-              </div>
-            </form>
-          </div>
-        </div>
-      )}
 
       {/* ========================================================= */}
       {/* MODAL: PILIH SOAL UNTUK UJIAN                             */}

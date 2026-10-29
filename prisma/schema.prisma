@@ -520,6 +520,7 @@ model ExaminationSession {
   createdAt    DateTime                 @default(now()) @map("created_at") @db.Timestamptz
   updatedAt    DateTime                 @default(now()) @updatedAt @map("updated_at") @db.Timestamptz
   participants ExaminationParticipant[]
+  examinations Examination[]
 
   @@map("examination_sessions")
 }
@@ -534,6 +535,7 @@ model Examination {
   description       String?
   examinationTypeId String?   @map("examination_type_id") @db.Uuid
   subjectId         String?   @map("subject_id") @db.Uuid
+  sessionId         String?   @map("session_id") @db.Uuid
   academicYearId    String    @map("academic_year_id") @db.Uuid
   semesterId        String    @map("semester_id") @db.Uuid
   durationMinutes   Int       @map("duration_minutes")
@@ -549,6 +551,7 @@ model Examination {
 
   examinationType    ExaminationType?               @relation(fields: [examinationTypeId], references: [id], onDelete: SetNull)
   subject            Subject?                       @relation(fields: [subjectId], references: [id], onDelete: SetNull)
+  session            ExaminationSession?            @relation(fields: [sessionId], references: [id], onDelete: SetNull)
   academicYear       AcademicYear                   @relation(fields: [academicYearId], references: [id])
   semester           Semester                       @relation(fields: [semesterId], references: [id])
   createdBy          User                           @relation("ExaminationCreatedBy", fields: [createdById], references: [id])
@@ -563,6 +566,7 @@ model Examination {
   @@index([academicYearId])
   @@index([semesterId])
   @@index([subjectId])
+  @@index([sessionId])
   @@index([examinationTypeId])
   @@index([status])
   @@index([scheduledStart, scheduledEnd])

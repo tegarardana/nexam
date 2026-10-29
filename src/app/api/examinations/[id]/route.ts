@@ -24,6 +24,7 @@ export async function GET(
       include: {
         subject: true,
         examinationType: true,
+        session: true,
         academicYear: true,
         semester: true,
         createdBy: { select: { id: true, displayName: true, username: true } },
@@ -124,6 +125,7 @@ export async function PUT(
       passingScore,
       policySettings,
       examinationTypeId,
+      sessionId,
     } = parsed.data;
 
     const updated = await prisma.$transaction(async (tx) => {
@@ -141,6 +143,7 @@ export async function PUT(
           totalPoints,
           passingScore: passingScore || null,
           ...(examinationTypeId !== undefined ? { examinationTypeId: examinationTypeId || null } : {}),
+          ...(sessionId !== undefined ? { sessionId: sessionId || null } : {}),
         },
       });
 

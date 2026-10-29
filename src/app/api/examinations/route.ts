@@ -28,6 +28,7 @@ export async function GET(request: NextRequest) {
       include: {
         subject: { select: { id: true, name: true, code: true } },
         examinationType: { select: { id: true, name: true, code: true } },
+        session: { select: { id: true, name: true, code: true, startTime: true, endTime: true } },
         academicYear: { select: { id: true, name: true } },
         semester: { select: { id: true, name: true } },
         createdBy: { select: { id: true, displayName: true } },
@@ -85,6 +86,7 @@ export async function POST(request: NextRequest) {
       policySettings,
       teacherId,
       examinationTypeId,
+      sessionId,
       questionBankId,
       classGroupIds,
     } = parsed.data;
@@ -108,6 +110,7 @@ export async function POST(request: NextRequest) {
           status: "draft",
           createdById: creatorId,
           examinationTypeId: examinationTypeId || null,
+          sessionId: sessionId || null,
         },
       });
 
