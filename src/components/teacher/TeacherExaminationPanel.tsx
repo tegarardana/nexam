@@ -36,6 +36,9 @@ import {
   Copy,
   Activity,
   PieChart,
+  Radio,
+  AlertTriangle,
+  Tag,
 } from "lucide-react";
 
 interface Subject {
@@ -119,6 +122,15 @@ interface Examination {
     tokenRequired: boolean;
     globalToken?: string;
   };
+  participants?: Array<{
+    classGroupId?: string | null;
+    classGroup?: { id: string; name: string; gradeLevel?: number | null } | null;
+  }>;
+  attempts?: Array<{
+    id: string;
+    status: string;
+    incidentCount?: number;
+  }>;
   _count?: {
     questions: number;
     participants: number;
@@ -212,6 +224,8 @@ export default function TeacherExaminationPanel({
   const [examCategoryFilter, setExamCategoryFilter] = useState<"all" | "in_progress" | "upcoming" | "closed" | "draft">("all");
   const [examSearchFilter, setExamSearchFilter] = useState("");
   const [examSubjectFilter, setExamSubjectFilter] = useState("all");
+  const [examClassFilter, setExamClassFilter] = useState("all");
+  const [examTypeFilter, setExamTypeFilter] = useState("all");
 
   // Exam Wizard Form State
   const [examTitle, setExamTitle] = useState("");
@@ -941,6 +955,17 @@ export default function TeacherExaminationPanel({
         return;
       }
 
+      // Class filter
+      if (examClassFilter !== "all") {
+        const hasClass = exam.participants?.some((p) => p.classGroupId === examClassFilter);
+        if (!hasClass) return;
+      }
+
+      // Examination Type filter
+      if (examTypeFilter !== "all" && exam.examinationTypeId !== examTypeFilter) {
+        return;
+      }
+
       const isPastSchedule = Boolean(exam.scheduledEnd && now > new Date(exam.scheduledEnd));
       const isDraft = exam.status === "draft";
       const isClosed = exam.status === "closed" || exam.status === "finalized" || exam.status === "archived" || isPastSchedule;
@@ -972,7 +997,350 @@ export default function TeacherExaminationPanel({
       categoryCounts: counts,
       totalMatches: total,
     };
-  }, [examinations, examSearchFilter, examSubjectFilter]);
+  }, [examinations, examSearchFilter, examSubjectFilter, examClassFilter, examTypeFilter]);
+
+  // Available classes for filtering
+  const allAvailableClasses = useMemo(() => {
+    const map = new Map<string, { id: string; name: string }>();
+    if (Array.isArray(classes)) {
+      classes.forEach((c) => {
+        if (c?.id && c?.name) map.set(c.id, { id: c.id, name: c.name });
+      });
+    }
+    examinations.forEach((e) => {
+      e.participants?.forEach((p) => {
+        if (p?.classGroup?.id && p?.classGroup?.name) {
+          map.set(p.classGroup.id, { id: p.classGroup.id, name: p.classGroup.name });
+        }
+      });
+    });
+    return Array.from(map.values()).sort((a, b) => a.name.localeCompare(b.name));
+  }, [classes, examinations]);
+
+  // Grouping by Examination Type for monitoring view
+  const groupedByTypeExaminations = useMemo(() => {
+    const now = new Date();
+
+    // Collect all matching examinations for monitoring
+    const matchingExams = examinations.filter((exam) => {
+      // 1. Search filter
+      if (examSearchFilter.trim()) {
+        const q = examSearchFilter.trim().toLowerCase();
+        const matchesTitle = exam.title.toLowerCase().includes(q);
+        const matchesDesc = Boolean(exam.description && exam.description.toLowerCase().includes(q));
+        const matchesSubjectName = Boolean(exam.subject?.name && exam.subject.name.toLowerCase().includes(q));
+        const matchesSubjectCode = Boolean(exam.subject?.code && exam.subject.code.toLowerCase().includes(q));
+        if (!matchesTitle && !matchesDesc && !matchesSubjectName && !matchesSubjectCode) return false;
+      }
+      // 2. Subject filter
+      if (examSubjectFilter !== "all" && exam.subjectId !== examSubjectFilter) return false;
+      // 3. Class filter
+      if (examClassFilter !== "all") {
+        const hasClass = exam.participants?.some((p) => p.classGroupId === examClassFilter);
+        if (!hasClass) return false;
+      }
+      // 4. Type filter
+      if (examTypeFilter !== "all" && exam.examinationTypeId !== examTypeFilter) return false;
+
+      // 5. Status filter (examCategoryFilter)
+      const isPastSchedule = Boolean(exam.scheduledEnd && now > new Date(exam.scheduledEnd));
+      const isDraft = exam.status === "draft";
+      const isClosed = exam.status === "closed" || exam.status === "finalized" || exam.status === "archived" || isPastSchedule;
+      const hasReachedStart = Boolean(exam.scheduledStart && now >= new Date(exam.scheduledStart));
+      const isWindowActive = hasReachedStart && !isPastSchedule;
+      const isAutoStarted = exam.status === "scheduled" && isWindowActive;
+      const effectiveInProgress = !isClosed && (exam.status === "in_progress" || isAutoStarted);
+      const effectiveScheduled = !isClosed && !effectiveInProgress && (exam.status === "scheduled" || exam.status === "ready");
+
+      if (examCategoryFilter === "in_progress" && !effectiveInProgress) return false;
+      if (examCategoryFilter === "upcoming" && !effectiveScheduled) return false;
+      if (examCategoryFilter === "closed" && !isClosed) return false;
+      if (examCategoryFilter === "draft" && !isDraft) return false;
+
+      return true;
+    });
+
+    // Group matching exams by examinationType
+    const typeGroupsMap = new Map<string, {
+      typeId: string;
+      typeName: string;
+      typeCode: string;
+      exams: Examination[];
+      activeStudentsCount: number;
+      totalParticipantsCount: number;
+    }>();
+
+    matchingExams.forEach((exam) => {
+      const typeId = exam.examinationType?.id || "other";
+      const typeName = exam.examinationType?.name || "Ujian Standar / Tanpa Tipe";
+      const typeCode = exam.examinationType?.code || "UMUM";
+
+      if (!typeGroupsMap.has(typeId)) {
+        typeGroupsMap.set(typeId, {
+          typeId,
+          typeName,
+          typeCode,
+          exams: [],
+          activeStudentsCount: 0,
+          totalParticipantsCount: 0,
+        });
+      }
+
+      const group = typeGroupsMap.get(typeId)!;
+      group.exams.push(exam);
+
+      // Student counts
+      const inProgressCount = exam.attempts?.filter(
+        (a) => a.status === "in_progress" || a.status === "warning" || a.status === "blocked"
+      ).length || 0;
+      group.activeStudentsCount += inProgressCount;
+      group.totalParticipantsCount += exam._count?.participants || 0;
+    });
+
+    return Array.from(typeGroupsMap.values());
+  }, [examinations, examSearchFilter, examSubjectFilter, examClassFilter, examTypeFilter, examCategoryFilter]);
+
+  const renderMonitoringExamCard = (exam: Examination) => {
+    const now = new Date();
+    const isPastSchedule = Boolean(exam.scheduledEnd && now > new Date(exam.scheduledEnd));
+    const isClosed = exam.status === "closed" || exam.status === "finalized" || exam.status === "archived" || isPastSchedule;
+    const hasReachedStart = Boolean(exam.scheduledStart && now >= new Date(exam.scheduledStart));
+    const isWindowActive = hasReachedStart && !isPastSchedule;
+    const isAutoStarted = exam.status === "scheduled" && isWindowActive;
+    const effectiveInProgress = !isClosed && (exam.status === "in_progress" || isAutoStarted);
+    const effectiveScheduled = !isClosed && !effectiveInProgress && (exam.status === "scheduled" || exam.status === "ready");
+
+    // Student attempt progress calculation
+    const attempts = exam.attempts || [];
+    const inProgressCount = attempts.filter((a) => a.status === "in_progress" || a.status === "warning" || a.status === "blocked").length;
+    const submittedCount = attempts.filter((a) => a.status === "submitted" || a.status === "completed" || a.status === "grading_pending").length;
+    const totalParticipants = exam._count?.participants || 0;
+    const notStartedCount = Math.max(0, totalParticipants - (inProgressCount + submittedCount));
+    const incidentCount = attempts.filter((a) => (a.incidentCount || 0) > 0 || a.status === "warning" || a.status === "blocked").length;
+
+    // Percentages for progress bar
+    const submittedPct = totalParticipants > 0 ? (submittedCount / totalParticipants) * 100 : 0;
+    const inProgressPct = totalParticipants > 0 ? (inProgressCount / totalParticipants) * 100 : 0;
+
+    // Participating classes
+    const classList = exam.participants?.map((p) => p.classGroup).filter(Boolean) || [];
+
+    return (
+      <div
+        key={exam.id}
+        className={`bg-white p-5 rounded-2xl border transition flex flex-col justify-between space-y-4 shadow-sm hover:shadow-md ${
+          effectiveInProgress
+            ? "border-emerald-300 ring-1 ring-emerald-400/25"
+            : effectiveScheduled
+            ? "border-blue-200"
+            : isClosed
+            ? "border-slate-200 bg-slate-50/60"
+            : "border-slate-200"
+        }`}
+      >
+        {/* Top Header: Status, Subject, Session, Token */}
+        <div className="flex items-start justify-between flex-wrap gap-3">
+          <div className="space-y-1.5">
+            <div className="flex items-center gap-2 flex-wrap">
+              <span
+                className={`px-2.5 py-0.5 rounded-full text-[11px] font-bold uppercase tracking-wider flex items-center gap-1.5 ${
+                  effectiveInProgress
+                    ? "bg-emerald-50 text-emerald-800 border border-emerald-300"
+                    : effectiveScheduled
+                    ? "bg-blue-50 text-blue-800 border border-blue-200"
+                    : isClosed
+                    ? "bg-slate-100 text-slate-700 border border-slate-200"
+                    : "bg-amber-50 text-amber-800 border border-amber-200"
+                }`}
+              >
+                {effectiveInProgress && (
+                  <span className="w-2 h-2 rounded-full bg-emerald-500 animate-ping" />
+                )}
+                <span>
+                  {effectiveInProgress
+                    ? "Sedang Berlangsung Live"
+                    : effectiveScheduled
+                    ? "Akan Datang (Terjadwal)"
+                    : isClosed
+                    ? "Selesai"
+                    : exam.status}
+                </span>
+              </span>
+
+              {exam.subject && (
+                <span className="text-xs font-bold text-[#0D274C]">
+                  {exam.subject.name} ({exam.subject.code})
+                </span>
+              )}
+
+              {exam.examinationType && (
+                <span className="px-2 py-0.5 rounded-md bg-amber-50 text-amber-800 border border-amber-200 font-mono font-bold text-[11px] tracking-wide">
+                  {exam.examinationType.code}
+                </span>
+              )}
+
+              {exam.session && (
+                <span className="px-2 py-0.5 rounded-md bg-indigo-50 text-indigo-800 border border-indigo-200 font-medium text-[11px]">
+                  {exam.session.name} ({exam.session.startTime} - {exam.session.endTime} WIB)
+                </span>
+              )}
+            </div>
+
+            <h3 className="text-base font-bold text-slate-900">{exam.title}</h3>
+
+            {/* Target Classes / Rombel */}
+            <div className="flex items-center gap-1.5 flex-wrap pt-0.5">
+              <span className="text-[11px] font-semibold text-slate-500">Target Rombel:</span>
+              {classList.length > 0 ? (
+                classList.map((c: any) => (
+                  <span
+                    key={c.id}
+                    className="px-2 py-0.5 rounded-md bg-slate-100 border border-slate-200 text-slate-800 text-[11px] font-medium"
+                  >
+                    {c.name}
+                  </span>
+                ))
+              ) : (
+                <span className="text-slate-400 text-[11px] italic">Belum ada kelas terdaftar</span>
+              )}
+            </div>
+          </div>
+
+          {/* Quick Exam State Control & Token */}
+          <div className="flex items-center gap-2 flex-wrap">
+            {exam.policySettings?.tokenRequired && (
+              <div className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-emerald-50 border border-emerald-200 text-xs">
+                <KeyRound className="w-3.5 h-3.5 text-emerald-700" />
+                <span className="text-slate-600 font-medium">Token:</span>
+                <span className="font-mono font-bold text-emerald-900 tracking-wider bg-white px-2 py-0.5 rounded border border-emerald-300">
+                  {exam.policySettings.globalToken || "AKTIF"}
+                </span>
+                {exam.policySettings.globalToken && (
+                  <button
+                    type="button"
+                    onClick={() => handleCopyToken(exam.policySettings!.globalToken!, exam.id)}
+                    className="p-1 rounded hover:bg-emerald-100 text-emerald-700 transition cursor-pointer"
+                    title="Salin Token"
+                  >
+                    {copiedTokenId === exam.id ? (
+                      <CheckCircle2 className="w-3.5 h-3.5 text-emerald-600" />
+                    ) : (
+                      <Copy className="w-3.5 h-3.5" />
+                    )}
+                  </button>
+                )}
+              </div>
+            )}
+
+            {effectiveScheduled && (
+              <button
+                onClick={() => handleTransitionStatus(exam.id, "in_progress")}
+                className="px-3 py-1.5 rounded-xl bg-[#65C443] hover:bg-[#52a835] text-white text-xs font-semibold transition cursor-pointer shadow-xs flex items-center gap-1.5"
+                title="Mulai sesi ujian sekarang lebih awal dari jadwal"
+              >
+                <PlayCircle className="w-3.5 h-3.5" />
+                <span>Mulai Sekarang</span>
+              </button>
+            )}
+
+            {effectiveInProgress && (
+              <button
+                onClick={() => handleTransitionStatus(exam.id, "closed")}
+                className="px-3 py-1.5 rounded-xl bg-rose-600 hover:bg-rose-500 text-white text-xs font-semibold transition cursor-pointer shadow-xs flex items-center gap-1.5"
+                title="Tutup sesi ujian yang sedang berlangsung"
+              >
+                <span>Tutup Ujian</span>
+              </button>
+            )}
+          </div>
+        </div>
+
+        {/* Live Student Progress Bar & Counters */}
+        <div className="p-3.5 rounded-xl bg-slate-50 border border-slate-200 space-y-2.5">
+          <div className="flex items-center justify-between text-xs font-semibold flex-wrap gap-2">
+            <span className="text-slate-700 flex items-center gap-1.5">
+              <Users className="w-3.5 h-3.5 text-slate-500" />
+              Progres Peserta: <strong className="text-slate-900">{totalParticipants} Siswa Terdaftar</strong>
+            </span>
+            <div className="flex items-center gap-3 text-[11px] font-semibold flex-wrap">
+              <span className="text-emerald-700 flex items-center gap-1">
+                <span className="w-2 h-2 rounded-full bg-emerald-500" />
+                {inProgressCount} Sedang Mengerjakan
+              </span>
+              <span className="text-blue-700 flex items-center gap-1">
+                <span className="w-2 h-2 rounded-full bg-blue-500" />
+                {submittedCount} Selesai
+              </span>
+              <span className="text-slate-500 flex items-center gap-1">
+                <span className="w-2 h-2 rounded-full bg-slate-300" />
+                {notStartedCount} Belum Mulai
+              </span>
+              {incidentCount > 0 && (
+                <span className="text-rose-700 flex items-center gap-1 font-bold">
+                  <AlertTriangle className="w-3 h-3 text-rose-500" />
+                  {incidentCount} Terkendala
+                </span>
+              )}
+            </div>
+          </div>
+
+          {/* Segmented Progress Bar */}
+          <div className="w-full h-2 rounded-full bg-slate-200 overflow-hidden flex">
+            <div
+              style={{ width: `${submittedPct}%` }}
+              className="h-full bg-blue-500 transition-all duration-300"
+              title={`Selesai: ${submittedCount}`}
+            />
+            <div
+              style={{ width: `${inProgressPct}%` }}
+              className="h-full bg-emerald-500 transition-all duration-300"
+              title={`Sedang Mengerjakan: ${inProgressCount}`}
+            />
+          </div>
+        </div>
+
+        {/* Bottom Actions: Pengawasan Live & Rekap Nilai */}
+        <div className="pt-2 flex items-center justify-between border-t border-slate-100 flex-wrap gap-2">
+          <div className="flex items-center gap-2 flex-wrap">
+            <Link
+              href={`/teacher/examinations/${exam.id}/proctor`}
+              className={`px-4 py-2 rounded-xl text-xs font-bold flex items-center gap-2 transition cursor-pointer shadow-xs ${
+                effectiveInProgress
+                  ? "bg-emerald-600 hover:bg-emerald-500 text-white shadow-emerald-200"
+                  : "bg-[#0D274C] hover:bg-[#163866] text-white"
+              }`}
+            >
+              <Radio className={`w-4 h-4 ${effectiveInProgress ? "animate-pulse text-white" : "text-emerald-400"}`} />
+              <span>Masuk Pengawasan Live</span>
+            </Link>
+
+            <Link
+              href={`/teacher/examinations/${exam.id}/results`}
+              className="px-3.5 py-2 rounded-xl border border-slate-200 bg-white hover:bg-slate-50 text-slate-700 text-xs font-semibold flex items-center gap-1.5 transition cursor-pointer shadow-xs"
+            >
+              <Award className="w-3.5 h-3.5 text-purple-600" />
+              <span>Rekap Hasil</span>
+            </Link>
+          </div>
+
+          <div className="text-[11px] text-slate-500 flex items-center gap-1.5">
+            <Calendar className="w-3.5 h-3.5 text-slate-400" />
+            <span>
+              {new Date(exam.scheduledStart).toLocaleDateString("id-ID")}
+              {exam.session ? (
+                <> • <strong className="text-indigo-700">{exam.session.name}</strong></>
+              ) : (
+                <> • {new Date(exam.scheduledStart).toLocaleTimeString("id-ID", { hour: "2-digit", minute: "2-digit" })}
+                {exam.scheduledEnd && (
+                  <> s/d {new Date(exam.scheduledEnd).toLocaleTimeString("id-ID", { hour: "2-digit", minute: "2-digit" })}</>
+                )}</>
+              )}
+            </span>
+          </div>
+        </div>
+      </div>
+    );
+  };
 
   const renderExamCard = (exam: Examination) => {
     const now = new Date();
@@ -1383,6 +1751,13 @@ export default function TeacherExaminationPanel({
                   <span>Buat Jadwal Ujian Baru</span>
                 </Link>
               )}
+
+              {viewMode === "monitoring" && (
+                <div className="flex items-center gap-2 px-3 py-1.5 rounded-xl bg-emerald-50 border border-emerald-200 text-emerald-800 text-xs font-semibold">
+                  <span className="w-2 h-2 rounded-full bg-emerald-500 animate-ping" />
+                  <span>Monitoring Live Aktif</span>
+                </div>
+              )}
             </div>
           </div>
 
@@ -1677,9 +2052,9 @@ export default function TeacherExaminationPanel({
               )}
             </div>
 
-            {/* Search and Subject Filter */}
-            <div className="flex items-center gap-2">
-              <div className="relative flex-1 md:w-64">
+            {/* Search and Filters */}
+            <div className="flex items-center gap-2 flex-wrap">
+              <div className="relative flex-1 min-w-[180px] md:w-64">
                 <Search className="w-3.5 h-3.5 absolute left-3 top-2.5 text-slate-400" />
                 <input
                   type="text"
@@ -1697,6 +2072,36 @@ export default function TeacherExaminationPanel({
                   </button>
                 )}
               </div>
+
+              {/* Filter Kelas / Rombel */}
+              <select
+                value={examClassFilter}
+                onChange={(e) => setExamClassFilter(e.target.value)}
+                className="bg-slate-50 border border-slate-200 rounded-lg px-2.5 py-1.5 text-xs text-slate-700 focus:outline-none focus:border-[#65C443] max-w-[170px]"
+              >
+                <option value="all">Semua Kelas / Rombel</option>
+                {allAvailableClasses.map((c) => (
+                  <option key={c.id} value={c.id}>
+                    {c.name}
+                  </option>
+                ))}
+              </select>
+
+              {/* Filter Jenis Ujian */}
+              {examinationTypes.length > 0 && (
+                <select
+                  value={examTypeFilter}
+                  onChange={(e) => setExamTypeFilter(e.target.value)}
+                  className="bg-slate-50 border border-slate-200 rounded-lg px-2.5 py-1.5 text-xs text-slate-700 focus:outline-none focus:border-[#65C443] max-w-[170px]"
+                >
+                  <option value="all">Semua Jenis Ujian</option>
+                  {examinationTypes.map((t) => (
+                    <option key={t.id} value={t.id}>
+                      [{t.code}] {t.name}
+                    </option>
+                  ))}
+                </select>
+              )}
 
               {subjects.length > 1 && (
                 <select
@@ -1720,12 +2125,71 @@ export default function TeacherExaminationPanel({
             <div className="p-12 text-center text-sm text-slate-400">Memuat paket ujian...</div>
           ) : examinations.length === 0 ? (
             <div className="bg-white p-12 text-center rounded-xl border border-slate-200 shadow-sm text-slate-500 space-y-3">
-              <FileSpreadsheet className="w-10 h-10 mx-auto text-slate-400" />
-              <div className="font-semibold text-slate-800">Belum Ada Paket Ujian Dibuat</div>
+              <Activity className="w-10 h-10 mx-auto text-slate-400" />
+              <div className="font-semibold text-slate-800">Belum Ada Sesi Ujian</div>
               <p className="text-xs max-w-md mx-auto">
-                Klik tombol <strong>Buat Paket Ujian Baru</strong> untuk menyusun paket asesmen lengkap dengan butir soal dan proteksi anti-cheat.
+                {viewMode === "monitoring"
+                  ? "Sesi ujian yang dijadwalkan akan muncul di sini untuk pengawasan status live peserta."
+                  : "Klik tombol Buat Jadwal Ujian Baru untuk menyusun paket asesmen lengkap."}
               </p>
             </div>
+          ) : viewMode === "monitoring" ? (
+            groupedByTypeExaminations.length === 0 ? (
+              <div className="bg-white p-10 text-center rounded-xl border border-slate-200 shadow-sm text-slate-500 space-y-3">
+                <Search className="w-8 h-8 mx-auto text-slate-300" />
+                <div className="font-semibold text-slate-800">Tidak Ada Ujian yang Sesuai Filter</div>
+                <p className="text-xs text-slate-500 max-w-sm mx-auto">
+                  Tidak ditemukan sesi ujian yang sesuai dengan kriteria filter kelas, jenis ujian, status, atau pencarian Anda.
+                </p>
+                <button
+                  type="button"
+                  onClick={() => {
+                    setExamSearchFilter("");
+                    setExamSubjectFilter("all");
+                    setExamClassFilter("all");
+                    setExamTypeFilter("all");
+                    setExamCategoryFilter("all");
+                  }}
+                  className="px-3 py-1.5 rounded-lg bg-slate-100 hover:bg-slate-200 text-xs font-semibold text-slate-700 transition cursor-pointer"
+                >
+                  Reset Filter
+                </button>
+              </div>
+            ) : (
+              <div className="space-y-6">
+                {groupedByTypeExaminations.map((group) => (
+                  <div key={group.typeId} className="space-y-3">
+                    <div className="flex items-center justify-between pb-2.5 border-b border-slate-200 flex-wrap gap-2">
+                      <div className="flex items-center gap-2.5">
+                        <span className="p-1.5 rounded-lg bg-amber-50 text-amber-800 border border-amber-200 font-mono font-bold text-xs tracking-wider">
+                          {group.typeCode}
+                        </span>
+                        <h4 className="text-sm font-bold text-slate-900 flex items-center gap-2">
+                          <span>{group.typeName}</span>
+                          <span className="px-2 py-0.5 rounded-full text-[11px] font-bold bg-slate-100 text-slate-700 border border-slate-200">
+                            {group.exams.length} Ujian
+                          </span>
+                        </h4>
+                      </div>
+                      <div className="flex items-center gap-2 text-xs font-semibold">
+                        {group.activeStudentsCount > 0 ? (
+                          <span className="flex items-center gap-1.5 text-emerald-700 bg-emerald-50 px-2.5 py-1 rounded-lg border border-emerald-200">
+                            <span className="w-2 h-2 rounded-full bg-emerald-500 animate-ping" />
+                            {group.activeStudentsCount} Siswa Aktif Live
+                          </span>
+                        ) : (
+                          <span className="text-slate-500">{group.totalParticipantsCount} Peserta Terdaftar</span>
+                        )}
+                      </div>
+                    </div>
+
+                    <div className="grid grid-cols-1 gap-4">
+                      {group.exams.map(renderMonitoringExamCard)}
+                    </div>
+                  </div>
+                ))}
+              </div>
+            )
           ) : totalMatches === 0 ? (
             <div className="bg-white p-10 text-center rounded-xl border border-slate-200 shadow-sm text-slate-500 space-y-3">
               <Search className="w-8 h-8 mx-auto text-slate-300" />
@@ -1738,6 +2202,8 @@ export default function TeacherExaminationPanel({
                 onClick={() => {
                   setExamSearchFilter("");
                   setExamSubjectFilter("all");
+                  setExamClassFilter("all");
+                  setExamTypeFilter("all");
                   setExamCategoryFilter("all");
                 }}
                 className="px-3 py-1.5 rounded-lg bg-slate-100 hover:bg-slate-200 text-xs font-semibold text-slate-700 transition cursor-pointer"

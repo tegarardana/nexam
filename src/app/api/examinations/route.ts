@@ -33,6 +33,20 @@ export async function GET(request: NextRequest) {
         semester: { select: { id: true, name: true } },
         createdBy: { select: { id: true, displayName: true } },
         policySettings: true,
+        participants: {
+          select: {
+            classGroupId: true,
+            classGroup: { select: { id: true, name: true, gradeLevel: true } },
+          },
+          distinct: ["classGroupId"],
+        },
+        attempts: {
+          select: {
+            id: true,
+            status: true,
+            incidentCount: true,
+          },
+        },
         _count: {
           select: {
             questions: true,
