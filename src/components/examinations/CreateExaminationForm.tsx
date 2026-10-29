@@ -16,6 +16,7 @@ import {
   CheckCircle2,
   AlertCircle,
   GraduationCap,
+  Layers,
 } from "lucide-react";
 
 interface MajorItem {
@@ -113,12 +114,13 @@ export default function CreateExaminationForm({
   const [loadingBanks, setLoadingBanks] = useState(false);
   const [questionBankId, setQuestionBankId] = useState<string>("");
 
-  // Participants (Classes) & Major Filter
+  // Participants (Classes) & Filters (Major & Grade Level)
   const [selectedClassIds, setSelectedClassIds] = useState<string[]>([]);
   const initialSubject = subjects.find((s) => s.id === subjectId);
   const [selectedMajorFilter, setSelectedMajorFilter] = useState<string>(
     initialSubject?.majorId || "all"
   );
+  const [selectedGradeFilter, setSelectedGradeFilter] = useState<number | "all">("all");
 
   // When subject changes, automatically update class major filter to match subject's major
   useEffect(() => {
@@ -216,12 +218,42 @@ export default function CreateExaminationForm({
   const selectedSession = sessions.find((s) => s.id === sessionId);
   const selectedSubject = subjects.find((s) => s.id === subjectId);
 
-  // Displayed classes filtered by major
+  // Available grade levels extracted from classes
+  const availableGradeLevels = React.useMemo(() => {
+    const grades = new Set<number>();
+    classes.forEach((c) => {
+      if (typeof c.gradeLevel === "number" && c.gradeLevel > 0) {
+        grades.add(c.gradeLevel);
+      } else {
+        const trimmed = c.name.trim().toUpperCase();
+        if (trimmed.startsWith("X ") || trimmed.startsWith("X-") || trimmed.startsWith("10 ") || trimmed.startsWith("10-")) grades.add(10);
+        else if (trimmed.startsWith("XI ") || trimmed.startsWith("XI-") || trimmed.startsWith("11 ") || trimmed.startsWith("11-")) grades.add(11);
+        else if (trimmed.startsWith("XII ") || trimmed.startsWith("XII-") || trimmed.startsWith("12 ") || trimmed.startsWith("12-")) grades.add(12);
+        else if (trimmed.startsWith("XIII ") || trimmed.startsWith("XIII-") || trimmed.startsWith("13 ") || trimmed.startsWith("13-")) grades.add(13);
+      }
+    });
+    const arr = Array.from(grades).sort((a, b) => a - b);
+    return arr.length > 0 ? arr : [10, 11, 12];
+  }, [classes]);
+
+  // Match class grade helper
+  const matchClassGrade = (c: ClassItem, gradeFilter: number | "all") => {
+    if (gradeFilter === "all") return true;
+    if (c.gradeLevel === gradeFilter) return true;
+    const trimmed = c.name.trim().toUpperCase();
+    if (gradeFilter === 10 && (trimmed.startsWith("X ") || trimmed.startsWith("X-") || trimmed.startsWith("10 ") || trimmed.startsWith("10-"))) return true;
+    if (gradeFilter === 11 && (trimmed.startsWith("XI ") || trimmed.startsWith("XI-") || trimmed.startsWith("11 ") || trimmed.startsWith("11-"))) return true;
+    if (gradeFilter === 12 && (trimmed.startsWith("XII ") || trimmed.startsWith("XII-") || trimmed.startsWith("12 ") || trimmed.startsWith("12-"))) return true;
+    if (gradeFilter === 13 && (trimmed.startsWith("XIII ") || trimmed.startsWith("XIII-") || trimmed.startsWith("13 ") || trimmed.startsWith("13-"))) return true;
+    return false;
+  };
+
+  // Displayed classes filtered by both major and grade level
   const displayedClasses = classes.filter((c) => {
-    if (selectedMajorFilter && selectedMajorFilter !== "all") {
-      return c.majorId === selectedMajorFilter;
-    }
-    return true;
+    const matchMajor =
+      selectedMajorFilter === "all" || c.majorId === selectedMajorFilter;
+    const matchGrade = matchClassGrade(c, selectedGradeFilter);
+    return matchMajor && matchGrade;
   });
 
   const isAllDisplayedSelected =
@@ -742,41 +774,100 @@ export default function CreateExaminationForm({
                   className="text-xs text-[#0D274C] hover:underline font-semibold cursor-pointer"
                 >
                   {isAllDisplayedSelected
-                    ? selectedMajorFilter === "all"
+                    ? selectedMajorFilter === "all" && selectedGradeFilter === "all"
                       ? "Batal Pilih Semua"
                       : "Batal Pilih Kelas Ini"
-                    : selectedMajorFilter === "all"
+                    : selectedMajorFilter === "all" && selectedGradeFilter === "all"
                     ? "Pilih Semua Kelas"
                     : "Pilih Semua Kelas Terfilter"}
                 </button>
               )}
             </div>
 
-            {/* Major Filter Banner based on Selected Subject */}
-            {selectedSubject?.major ? (
-              <div className="p-3.5 rounded-xl bg-amber-50/70 border border-amber-200/80 flex flex-col sm:flex-row sm:items-center justify-between gap-3 text-xs">
-                <div className="flex items-center gap-2 text-amber-900">
+            {/* Filter Bar: Tingkat / Level Kelas & Jurusan */}
+            <div className="p-3.5 rounded-xl bg-slate-50 border border-slate-200 space-y-3">
+              {/* Row 1: Tingkat / Level Kelas Filter Buttons */}
+              <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2.5">
+                <div className="flex items-center gap-2">
+                  <Layers className="w-4 h-4 text-[#0D274C] shrink-0" />
+                  <span className="text-xs font-bold text-slate-800">Tingkat / Level Kelas:</span>
+                </div>
+                <div className="flex items-center gap-1.5 flex-wrap">
+                  <button
+                    type="button"
+                    onClick={() => setSelectedGradeFilter("all")}
+                    className={`px-3 py-1.5 rounded-lg text-xs font-semibold transition cursor-pointer ${
+                      selectedGradeFilter === "all"
+                        ? "bg-[#0D274C] text-white shadow-xs"
+                        : "bg-white text-slate-700 hover:bg-slate-100 border border-slate-200"
+                    }`}
+                  >
+                    Semua Tingkat
+                  </button>
+                  {availableGradeLevels.map((lvl) => {
+                    const roman =
+                      lvl === 10
+                        ? "X"
+                        : lvl === 11
+                        ? "XI"
+                        : lvl === 12
+                        ? "XII"
+                        : lvl === 13
+                        ? "XIII"
+                        : `${lvl}`;
+                    return (
+                      <button
+                        key={lvl}
+                        type="button"
+                        onClick={() => setSelectedGradeFilter(lvl)}
+                        className={`px-3 py-1.5 rounded-lg text-xs font-semibold transition cursor-pointer ${
+                          selectedGradeFilter === lvl
+                            ? "bg-[#0D274C] text-white shadow-xs"
+                            : "bg-white text-slate-700 hover:bg-slate-100 border border-slate-200"
+                        }`}
+                      >
+                        Kelas {lvl} ({roman})
+                      </button>
+                    );
+                  })}
+                </div>
+              </div>
+
+              {/* Row 2: Jurusan / Program Keahlian */}
+              <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2.5 pt-2.5 border-t border-slate-200">
+                <div className="flex items-center gap-2">
                   <GraduationCap className="w-4 h-4 text-amber-700 shrink-0" />
                   <div>
-                    <span className="font-semibold text-slate-700">Jurusan / Program Keahlian Mapel:</span>{" "}
-                    <span className="bg-amber-100 text-amber-900 font-bold px-2 py-0.5 rounded-md border border-amber-300/60 inline-flex items-center gap-1">
-                      {selectedSubject.major.name} ({selectedSubject.major.code})
-                    </span>
+                    {selectedSubject?.major ? (
+                      <span className="text-xs text-slate-700">
+                        Mapel Kejuruan:{" "}
+                        <strong className="text-amber-900 bg-amber-100 px-2 py-0.5 rounded border border-amber-300/60 font-semibold">
+                          {selectedSubject.major.name} ({selectedSubject.major.code})
+                        </strong>
+                      </span>
+                    ) : (
+                      <span className="text-xs text-slate-600 font-medium">
+                        Mapel Umum (Lintas Jurusan)
+                      </span>
+                    )}
                   </div>
                 </div>
+
                 <div className="flex items-center gap-2">
-                  <span className="text-[11px] text-amber-900 font-medium shrink-0">Filter Kelas:</span>
+                  <span className="text-[11px] text-slate-600 font-medium shrink-0">Filter Jurusan:</span>
                   <select
                     value={selectedMajorFilter}
                     onChange={(e) => setSelectedMajorFilter(e.target.value)}
-                    className="bg-white border border-amber-300 text-slate-800 rounded-lg px-2.5 py-1 text-xs font-semibold focus:outline-none focus:border-[#65C443] shadow-2xs"
+                    className="bg-white border border-slate-200 text-slate-800 rounded-lg px-2.5 py-1 text-xs font-semibold focus:outline-none focus:border-[#65C443] shadow-2xs"
                   >
-                    <option value={selectedSubject.majorId || ""}>
-                      Hanya {selectedSubject.major.code} (Sesuai Mapel)
-                    </option>
+                    {selectedSubject?.major && (
+                      <option value={selectedSubject.majorId || ""}>
+                        Hanya {selectedSubject.major.code} (Sesuai Mapel)
+                      </option>
+                    )}
                     <option value="all">Semua Jurusan ({classes.length} Kelas)</option>
                     {majors
-                      ?.filter((m) => m.id !== selectedSubject.majorId)
+                      ?.filter((m) => m.id !== selectedSubject?.majorId)
                       .map((m) => (
                         <option key={m.id} value={m.id}>
                           Jurusan {m.name} ({m.code})
@@ -785,33 +876,7 @@ export default function CreateExaminationForm({
                   </select>
                 </div>
               </div>
-            ) : (
-              <div className="p-3 rounded-xl bg-slate-50 border border-slate-200 flex flex-col sm:flex-row sm:items-center justify-between gap-3 text-xs">
-                <div className="text-slate-600 text-xs">
-                  <span className="font-semibold text-slate-800">Mata Pelajaran Umum (Lintas Jurusan)</span>
-                  <div className="text-[11px] text-slate-500">
-                    Menampilkan rombel untuk seluruh program keahlian.
-                  </div>
-                </div>
-                {majors && majors.length > 0 && (
-                  <div className="flex items-center gap-2">
-                    <span className="text-[11px] text-slate-600 font-medium shrink-0">Filter Jurusan:</span>
-                    <select
-                      value={selectedMajorFilter}
-                      onChange={(e) => setSelectedMajorFilter(e.target.value)}
-                      className="bg-white border border-slate-200 text-slate-800 rounded-lg px-2.5 py-1 text-xs font-semibold focus:outline-none focus:border-[#65C443]"
-                    >
-                      <option value="all">Semua Jurusan ({classes.length} Kelas)</option>
-                      {majors.map((m) => (
-                        <option key={m.id} value={m.id}>
-                          {m.name} ({m.code})
-                        </option>
-                      ))}
-                    </select>
-                  </div>
-                )}
-              </div>
-            )}
+            </div>
 
             {classes.length === 0 ? (
               <p className="text-xs text-slate-400 italic py-2">
@@ -820,15 +885,28 @@ export default function CreateExaminationForm({
             ) : displayedClasses.length === 0 ? (
               <div className="p-6 text-center rounded-xl bg-slate-50 border border-slate-200 space-y-2">
                 <p className="text-xs text-slate-500">
-                  Tidak ada rombel/kelas yang terdaftar untuk jurusan terpilih.
+                  Tidak ada rombel/kelas yang terdaftar untuk kombinasi tingkat kelas & jurusan terpilih.
                 </p>
-                <button
-                  type="button"
-                  onClick={() => setSelectedMajorFilter("all")}
-                  className="text-xs text-[#0D274C] hover:underline font-semibold cursor-pointer"
-                >
-                  Tampilkan Semua Kelas ({classes.length})
-                </button>
+                <div className="flex items-center justify-center gap-3">
+                  {selectedGradeFilter !== "all" && (
+                    <button
+                      type="button"
+                      onClick={() => setSelectedGradeFilter("all")}
+                      className="text-xs text-[#0D274C] hover:underline font-semibold cursor-pointer"
+                    >
+                      Reset Tingkat (Semua Tingkat)
+                    </button>
+                  )}
+                  {selectedMajorFilter !== "all" && (
+                    <button
+                      type="button"
+                      onClick={() => setSelectedMajorFilter("all")}
+                      className="text-xs text-[#0D274C] hover:underline font-semibold cursor-pointer"
+                    >
+                      Reset Jurusan (Semua Jurusan)
+                    </button>
+                  )}
+                </div>
               </div>
             ) : (
               <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-2.5 pt-1 max-h-52 overflow-y-auto pr-1">
@@ -858,11 +936,18 @@ export default function CreateExaminationForm({
                         />
                         <span className="truncate">{c.name}</span>
                       </div>
-                      {c.major && (
-                        <span className="text-[10px] font-mono px-1.5 py-0.5 rounded bg-slate-100 text-slate-600 border border-slate-200 shrink-0">
-                          {c.major.code}
-                        </span>
-                      )}
+                      <div className="flex items-center gap-1 shrink-0">
+                        {c.gradeLevel && (
+                          <span className="text-[10px] font-semibold px-1.5 py-0.5 rounded bg-blue-50 text-blue-700 border border-blue-200">
+                            Kls {c.gradeLevel}
+                          </span>
+                        )}
+                        {c.major && (
+                          <span className="text-[10px] font-mono px-1.5 py-0.5 rounded bg-slate-100 text-slate-600 border border-slate-200">
+                            {c.major.code}
+                          </span>
+                        )}
+                      </div>
                     </label>
                   );
                 })}
