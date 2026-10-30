@@ -100,7 +100,7 @@ export default function AdminSidebar({
 
       {/* Sidebar Container */}
       <aside
-        className={`fixed top-0 bottom-0 left-0 z-50 flex flex-col bg-white border-r border-slate-200 transition-all duration-300 ease-in-out lg:static ${
+        className={`fixed top-0 bottom-0 left-0 z-50 flex flex-col bg-white border-r border-slate-200 transition-all duration-300 ease-in-out lg:sticky lg:top-0 lg:h-screen lg:shrink-0 ${
           mobileOpen ? "translate-x-0 w-72" : "-translate-x-full lg:translate-x-0"
         } ${isCollapsed ? "lg:w-20" : "lg:w-68"}`}
       >
@@ -134,7 +134,7 @@ export default function AdminSidebar({
         </div>
 
         {/* Sidebar Navigation Body (Scrollable) */}
-        <nav className="flex-1 overflow-y-auto px-3 py-4 space-y-5 scrollbar-thin scrollbar-thumb-slate-200">
+        <nav className="flex-1 min-h-0 overflow-y-auto px-3 py-4 space-y-5 scrollbar-thin scrollbar-thumb-slate-200">
           {/* 1. DASHBOARD OVERVIEW (Single Item) */}
           <div className="space-y-1">
             <button
@@ -562,7 +562,7 @@ export default function AdminSidebar({
         </nav>
 
         {/* Sidebar Footer: Desktop Collapse Toggle */}
-        <div className="hidden lg:flex items-center justify-between p-3 border-t border-slate-200 bg-slate-50/80">
+        <div className="hidden lg:flex items-center justify-between p-3 border-t border-slate-200 bg-slate-50/80 shrink-0">
           {!isCollapsed && (
             <span className="text-[11px] font-medium text-slate-500 pl-1">
               Perkecil Sidebar
