@@ -546,14 +546,17 @@ export default function InstitutionProfileSettings({
                 {formData.appLogo || formData.institutionLogo ? (
                   <img
                     src={formData.appLogo || formData.institutionLogo}
-                    alt="Logo Instansi"
+                    alt="Logo"
                     className="w-5 h-5 object-contain rounded-full bg-white/10 p-0.5"
                   />
                 ) : (
-                  <Building2 className="w-4 h-4 text-[#65C443]" />
+                  <ShieldCheck className="w-4 h-4 text-[#65C443]" />
                 )}
-                <span className="font-bold tracking-tight">
-                  {formData.institutionName || "SMK Negeri 1 Contoh"}
+                <span className="font-extrabold tracking-tight">
+                  {formData.appName || "Nexam"}
+                </span>
+                <span className="text-[9px] uppercase px-1.5 py-0.2 rounded font-bold bg-[#65C443] text-white">
+                  CBT Platform
                 </span>
               </div>
             </div>

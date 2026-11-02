@@ -65,7 +65,8 @@ export async function POST(req: NextRequest) {
 
     await writeFile(filePath, buffer);
 
-    const fileUrl = `/uploads/branding/${fileName}`;
+    const base64Data = `data:${file.type};base64,${buffer.toString("base64")}`;
+    const logoValue = file.size <= 2.5 * 1024 * 1024 ? base64Data : `/uploads/branding/${fileName}`;
     const now = new Date();
 
     const keysToUpdate: string[] = [];
@@ -82,12 +83,12 @@ export async function POST(req: NextRequest) {
           where: { key },
           create: {
             key,
-            value: fileUrl,
+            value: logoValue,
             updatedById: session.user.id,
             updatedAt: now,
           },
           update: {
-            value: fileUrl,
+            value: logoValue,
             updatedById: session.user.id,
             updatedAt: now,
           },
@@ -100,12 +101,12 @@ export async function POST(req: NextRequest) {
       action: "UPLOAD_BRANDING_LOGO",
       entityType: "SystemSetting",
       entityId: target,
-      afterValue: { fileUrl, keysToUpdate },
+      afterValue: { logoValue, keysToUpdate },
     });
 
     return NextResponse.json({
       success: true,
-      url: fileUrl,
+      url: logoValue,
       fileName: file.name,
       fileSize: file.size,
       updatedKeys: keysToUpdate,
