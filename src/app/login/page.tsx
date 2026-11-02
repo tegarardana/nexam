@@ -16,7 +16,6 @@ import {
   Cpu,
   BarChart3,
   Layers,
-  Building2,
 } from "lucide-react";
 
 export default function LoginPage() {
@@ -160,20 +159,6 @@ export default function LoginPage() {
 
         {/* Middle Hero Section */}
         <div className="relative z-10 my-auto py-12 max-w-xl">
-          {/* Badge: Logo & Nama Instansi */}
-          <div className="inline-flex items-center gap-2.5 px-4 py-2 rounded-full bg-white/10 border border-white/20 text-white text-xs font-semibold mb-6 shadow-sm backdrop-blur-md">
-            {settings.institutionLogo || settings.appLogo ? (
-              <img
-                src={settings.institutionLogo || settings.appLogo}
-                alt={settings.institutionName}
-                className="w-5 h-5 object-contain rounded-full bg-white/20 p-0.5"
-              />
-            ) : (
-              <Building2 className="w-4 h-4 text-[#65C443]" />
-            )}
-            <span className="font-bold tracking-wide">{settings.institutionName || "SMK Negeri 1 Contoh"}</span>
-          </div>
-
           <h1 className="text-3xl sm:text-4xl lg:text-5xl font-black text-white tracking-tight leading-[1.15] mb-5">
             Build Your Skills With{" "}
             <span className="bg-gradient-to-r from-emerald-300 via-[#65C443] to-teal-200 bg-clip-text text-transparent">
