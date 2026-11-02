@@ -1,6 +1,7 @@
+/* eslint-disable @next/next/no-img-element */
 "use client";
 
-import React, { useState } from "react";
+import React, { useState, useEffect } from "react";
 import {
   LayoutDashboard,
   Calendar,
@@ -25,6 +26,7 @@ import {
   UserCheck,
   Tag,
   Clock,
+  Building2,
 } from "lucide-react";
 
 export type AdminTab =
@@ -47,7 +49,8 @@ export type AdminTab =
   | "user_teachers"
   | "user_students"
   | "admins"
-  | "audit";
+  | "audit"
+  | "institution_profile";
 
 interface AdminSidebarProps {
   activeTab: AdminTab;
@@ -73,6 +76,37 @@ export default function AdminSidebar({
     exam_exec: true,
     user_mgmt: true,
   });
+
+  const [brandSettings, setBrandSettings] = useState<{ appName: string; appLogo: string }>({
+    appName: "Nexam",
+    appLogo: "",
+  });
+
+  useEffect(() => {
+    fetch("/api/settings/public")
+      .then((r) => r.json())
+      .then((data) => {
+        if (data?.settings) {
+          setBrandSettings({
+            appName: data.settings.appName || "Nexam",
+            appLogo: data.settings.appLogo || "",
+          });
+        }
+      })
+      .catch(() => {});
+
+    const handleUpdate = (e: any) => {
+      if (e.detail) {
+        setBrandSettings({
+          appName: e.detail.appName || "Nexam",
+          appLogo: e.detail.appLogo || "",
+        });
+      }
+    };
+
+    window.addEventListener("nexam-settings-updated", handleUpdate);
+    return () => window.removeEventListener("nexam-settings-updated", handleUpdate);
+  }, []);
 
   const toggleAccordion = (key: string) => {
     setOpenAccordions((prev) => ({
@@ -107,13 +141,25 @@ export default function AdminSidebar({
         {/* Sidebar Header / Brand */}
         <div className="h-16 flex items-center justify-between px-4 border-b border-slate-200 shrink-0 bg-white">
           <div className="flex items-center gap-3 overflow-hidden">
-            <div className="flex items-center justify-center w-9 h-9 rounded-xl bg-gradient-to-tr from-[#0D274C] to-[#163B6E] shadow-sm shadow-[#0D274C]/20 border border-[#0D274C]/30 shrink-0">
-              <ShieldCheck className="w-5 h-5 text-white" />
-            </div>
+            {brandSettings.appLogo ? (
+              <div className="w-9 h-9 rounded-xl bg-slate-50 border border-slate-200 flex items-center justify-center p-1 shrink-0 overflow-hidden shadow-xs">
+                <img
+                  src={brandSettings.appLogo}
+                  alt={brandSettings.appName}
+                  className="w-full h-full object-contain"
+                />
+              </div>
+            ) : (
+              <div className="flex items-center justify-center w-9 h-9 rounded-xl bg-gradient-to-tr from-[#0D274C] to-[#163B6E] shadow-sm shadow-[#0D274C]/20 border border-[#0D274C]/30 shrink-0">
+                <ShieldCheck className="w-5 h-5 text-white" />
+              </div>
+            )}
             {!isCollapsed && (
               <div className="transition-opacity duration-200 truncate">
                 <div className="flex items-center gap-1.5">
-                  <span className="font-extrabold text-[#0D274C] tracking-tight text-base">Nexam</span>
+                  <span className="font-extrabold text-[#0D274C] tracking-tight text-base truncate">
+                    {brandSettings.appName || "Nexam"}
+                  </span>
                   <span className="text-[9px] uppercase px-1.5 py-0.2 rounded font-bold bg-[#65C443] text-white">
                     CBT
                   </span>
@@ -484,6 +530,24 @@ export default function AdminSidebar({
             ) : (
               <div className="h-px bg-slate-200 my-2" title="Pengaturan" />
             )}
+
+            {/* Menu: Profil Lembaga */}
+            <button
+              onClick={() => handleItemClick("institution_profile")}
+              title={isCollapsed ? "Profil Lembaga" : undefined}
+              className={`w-full flex items-center gap-3 px-3 py-2 rounded-xl text-xs font-semibold transition cursor-pointer group ${
+                isTabActive("institution_profile")
+                  ? "bg-[#0D274C] text-white shadow-xs"
+                  : "text-slate-600 hover:text-slate-900 hover:bg-slate-100"
+              }`}
+            >
+              <Building2
+                className={`w-4 h-4 shrink-0 ${
+                  isTabActive("institution_profile") ? "text-[#65C443]" : "text-slate-400 group-hover:text-slate-700"
+                }`}
+              />
+              {!isCollapsed && <span className="truncate">Profil Lembaga</span>}
+            </button>
 
             {/* Accordion User Management */}
             {!isCollapsed ? (

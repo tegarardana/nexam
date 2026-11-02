@@ -49,6 +49,7 @@ import {
   Clock,
 } from "lucide-react";
 import TeacherExaminationPanel from "@/components/teacher/TeacherExaminationPanel";
+import InstitutionProfileSettings from "@/components/admin/InstitutionProfileSettings";
 import * as XLSX from "xlsx";
 
 interface AdminStats {
@@ -172,6 +173,8 @@ export default function AdminManagementPanel({
         return "Pengaturan > User Management";
       case "audit":
         return "Pengaturan > Log Sistem";
+      case "institution_profile":
+        return "Pengaturan > Profil Lembaga";
       default:
         return "Ringkasan";
     }
@@ -217,6 +220,8 @@ export default function AdminManagementPanel({
         return "Manajemen Administrator";
       case "audit":
         return "Log Audit Sistem";
+      case "institution_profile":
+        return "Profil Lembaga & Branding Aplikasi";
       default:
         return "Dashboard";
     }
@@ -4639,6 +4644,14 @@ export default function AdminManagementPanel({
         </div>
       )}
 
+      {/* ======================================================== */}
+      {/* TAB: PROFIL LEMBAGA & BRANDING APLIKASI                 */}
+      {/* ======================================================== */}
+      {activeTab === "institution_profile" && (
+        <div className="animate-in fade-in duration-200">
+          <InstitutionProfileSettings />
+        </div>
+      )}
 
         </main>
       </div>

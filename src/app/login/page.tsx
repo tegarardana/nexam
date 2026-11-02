@@ -1,6 +1,7 @@
+/* eslint-disable @next/next/no-img-element */
 "use client";
 
-import React, { useState } from "react";
+import React, { useState, useEffect } from "react";
 import { useRouter } from "next/navigation";
 import {
   ShieldCheck,
@@ -15,6 +16,7 @@ import {
   Cpu,
   BarChart3,
   Layers,
+  Building2,
 } from "lucide-react";
 
 export default function LoginPage() {
@@ -25,6 +27,37 @@ export default function LoginPage() {
   const [rememberMe, setRememberMe] = useState(false);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+
+  const [settings, setSettings] = useState<{
+    appName: string;
+    appLogo: string;
+    appTagline: string;
+    institutionName: string;
+    institutionLogo: string;
+  }>({
+    appName: "Nexam",
+    appLogo: "",
+    appTagline: "School Assessment & Examination Suite",
+    institutionName: "SMK Negeri 1 Contoh",
+    institutionLogo: "",
+  });
+
+  useEffect(() => {
+    fetch("/api/settings/public")
+      .then((r) => r.json())
+      .then((data) => {
+        if (data?.settings) {
+          setSettings({
+            appName: data.settings.appName || "Nexam",
+            appLogo: data.settings.appLogo || "",
+            appTagline: data.settings.appTagline || "School Assessment & Examination Suite",
+            institutionName: data.settings.institutionName || "SMK Negeri 1 Contoh",
+            institutionLogo: data.settings.institutionLogo || data.settings.appLogo || "",
+          });
+        }
+      })
+      .catch(() => {});
+  }, []);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -96,26 +129,49 @@ export default function LoginPage() {
         {/* Top Header Logo */}
         <div className="relative z-10">
           <div className="flex items-center gap-3">
-            <div className="flex items-center justify-center w-11 h-11 rounded-2xl bg-gradient-to-tr from-[#65C443] to-emerald-400 shadow-lg shadow-[#65C443]/30 border border-white/20">
-              <ShieldCheck className="w-6 h-6 text-white" />
-            </div>
+            {settings.appLogo ? (
+              <div className="w-11 h-11 rounded-2xl bg-white/10 p-1.5 border border-white/20 shadow-lg backdrop-blur-md flex items-center justify-center shrink-0">
+                <img
+                  src={settings.appLogo}
+                  alt={settings.appName}
+                  className="w-full h-full object-contain"
+                />
+              </div>
+            ) : (
+              <div className="flex items-center justify-center w-11 h-11 rounded-2xl bg-gradient-to-tr from-[#65C443] to-emerald-400 shadow-lg shadow-[#65C443]/30 border border-white/20 shrink-0">
+                <ShieldCheck className="w-6 h-6 text-white" />
+              </div>
+            )}
             <div>
               <div className="flex items-center gap-2">
-                <span className="font-extrabold text-white text-xl tracking-tight">Nexam</span>
+                <span className="font-extrabold text-white text-xl tracking-tight">
+                  {settings.appName || "Nexam"}
+                </span>
                 <span className="text-[10px] uppercase font-bold tracking-wider px-2 py-0.5 rounded-full bg-[#65C443] text-white shadow-xs">
                   CBT Platform
                 </span>
               </div>
-              <p className="text-xs text-slate-300">School Assessment & Examination Suite</p>
+              <p className="text-xs text-slate-300">
+                {settings.institutionName ? settings.institutionName : settings.appTagline}
+              </p>
             </div>
           </div>
         </div>
 
         {/* Middle Hero Section */}
         <div className="relative z-10 my-auto py-12 max-w-xl">
-          <div className="inline-flex items-center gap-2 px-3.5 py-1.5 rounded-full bg-[#65C443]/15 border border-[#65C443]/30 text-[#65C443] text-xs font-semibold mb-6 shadow-sm">
-            <Sparkles className="w-3.5 h-3.5 text-[#65C443]" />
-            <span>Next-Generation CBT Examination 2.0</span>
+          {/* Badge: Logo & Nama Instansi */}
+          <div className="inline-flex items-center gap-2.5 px-4 py-2 rounded-full bg-white/10 border border-white/20 text-white text-xs font-semibold mb-6 shadow-sm backdrop-blur-md">
+            {settings.institutionLogo || settings.appLogo ? (
+              <img
+                src={settings.institutionLogo || settings.appLogo}
+                alt={settings.institutionName}
+                className="w-5 h-5 object-contain rounded-full bg-white/20 p-0.5"
+              />
+            ) : (
+              <Building2 className="w-4 h-4 text-[#65C443]" />
+            )}
+            <span className="font-bold tracking-wide">{settings.institutionName || "SMK Negeri 1 Contoh"}</span>
           </div>
 
           <h1 className="text-3xl sm:text-4xl lg:text-5xl font-black text-white tracking-tight leading-[1.15] mb-5">
@@ -162,7 +218,7 @@ export default function LoginPage() {
         <div className="relative z-10 flex items-center justify-between text-xs text-slate-300 pt-4 border-t border-white/10">
           <div className="flex items-center gap-2">
             <span className="w-2 h-2 rounded-full bg-[#65C443] animate-pulse" />
-            <span>Nexam CBT Engine v0.1 • Server Ready</span>
+            <span>{settings.appName || "Nexam"} CBT Engine • Server Ready</span>
           </div>
           <div className="text-slate-400 font-mono text-[11px]">Argon2id Enforced</div>
         </div>
@@ -178,6 +234,36 @@ export default function LoginPage() {
         {/* Center: Main Login Form Container */}
         <div className="flex flex-col justify-center items-center my-auto w-full py-6">
           <div className="max-w-md w-full mx-auto">
+            {/* Mobile Branding (visible on mobile only) */}
+            <div className="md:hidden flex items-center gap-3 mb-6 p-3 rounded-2xl bg-slate-50 border border-slate-200">
+              {settings.appLogo ? (
+                <div className="w-10 h-10 rounded-xl bg-white border border-slate-200 p-1 flex items-center justify-center shrink-0 shadow-xs">
+                  <img
+                    src={settings.appLogo}
+                    alt={settings.appName}
+                    className="w-full h-full object-contain"
+                  />
+                </div>
+              ) : (
+                <div className="w-10 h-10 rounded-xl bg-[#0D274C] flex items-center justify-center text-[#65C443] shrink-0">
+                  <ShieldCheck className="w-5 h-5 text-white" />
+                </div>
+              )}
+              <div className="min-w-0">
+                <div className="flex items-center gap-1.5">
+                  <span className="font-extrabold text-slate-900 text-sm tracking-tight truncate">
+                    {settings.appName || "Nexam"}
+                  </span>
+                  <span className="text-[9px] uppercase font-bold px-1.5 py-0.2 rounded bg-[#65C443] text-white">
+                    CBT
+                  </span>
+                </div>
+                <div className="text-[11px] font-semibold text-slate-600 truncate">
+                  {settings.institutionName || "SMK Negeri 1 Contoh"}
+                </div>
+              </div>
+            </div>
+
             {/* Title & Subtitle */}
             <div className="mb-7">
               <h2 className="text-3xl font-extrabold text-slate-900 tracking-tight">Welcome!</h2>
@@ -364,7 +450,9 @@ export default function LoginPage() {
 
         {/* Footer: Copyright & Anti-Cheat Notice */}
         <div className="w-full text-center pt-6 border-t border-slate-100 text-xs text-slate-400">
-          <p className="font-semibold text-slate-600">Nexam CBT • Secure Examination Platform</p>
+          <p className="font-semibold text-slate-600">
+            {settings.appName || "Nexam"} CBT • {settings.institutionName || "Secure Examination Platform"}
+          </p>
           <p className="mt-1 text-[11px] text-slate-400">
             Protected by Server-Enforced Anti-Cheat Engine
           </p>

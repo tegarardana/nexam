@@ -1,6 +1,7 @@
+/* eslint-disable @next/next/no-img-element */
 "use client";
 
-import React, { useState } from "react";
+import React, { useState, useEffect } from "react";
 import { useRouter } from "next/navigation";
 import { ShieldCheck, LogOut, Calendar, User as UserIcon, Menu } from "lucide-react";
 
@@ -25,6 +26,37 @@ export default function Header({
 }: HeaderProps) {
   const router = useRouter();
   const [loggingOut, setLoggingOut] = useState(false);
+  const [brandSettings, setBrandSettings] = useState<{ appName: string; appLogo: string }>({
+    appName: "Nexam",
+    appLogo: "",
+  });
+
+  useEffect(() => {
+    fetch("/api/settings/public")
+      .then((r) => r.json())
+      .then((data) => {
+        if (data?.settings) {
+          setBrandSettings({
+            appName: data.settings.appName || "Nexam",
+            appLogo: data.settings.appLogo || "",
+          });
+        }
+      })
+      .catch(() => {});
+
+    const handleUpdate = (e: Event) => {
+      const customEvent = e as CustomEvent<{ appName?: string; appLogo?: string }>;
+      if (customEvent.detail) {
+        setBrandSettings({
+          appName: customEvent.detail.appName || "Nexam",
+          appLogo: customEvent.detail.appLogo || "",
+        });
+      }
+    };
+
+    window.addEventListener("nexam-settings-updated", handleUpdate);
+    return () => window.removeEventListener("nexam-settings-updated", handleUpdate);
+  }, []);
 
   const handleLogout = async () => {
     setLoggingOut(true);
@@ -70,12 +102,24 @@ export default function Header({
             </div>
           ) : (
             <div className="flex items-center gap-3">
-              <div className="flex items-center justify-center w-9 h-9 rounded-xl bg-gradient-to-tr from-[#0D274C] to-[#163B6E] shadow-sm shadow-[#0D274C]/20 border border-[#0D274C]/30 shrink-0">
-                <ShieldCheck className="w-5 h-5 text-white" />
-              </div>
+              {brandSettings.appLogo ? (
+                <div className="w-9 h-9 rounded-xl bg-slate-50 border border-slate-200 flex items-center justify-center p-1 shrink-0 overflow-hidden shadow-xs">
+                  <img
+                    src={brandSettings.appLogo}
+                    alt={brandSettings.appName}
+                    className="w-full h-full object-contain"
+                  />
+                </div>
+              ) : (
+                <div className="flex items-center justify-center w-9 h-9 rounded-xl bg-gradient-to-tr from-[#0D274C] to-[#163B6E] shadow-sm shadow-[#0D274C]/20 border border-[#0D274C]/30 shrink-0">
+                  <ShieldCheck className="w-5 h-5 text-white" />
+                </div>
+              )}
               <div>
                 <div className="flex items-center gap-2">
-                  <span className="font-extrabold text-[#0D274C] tracking-tight text-lg">Nexam</span>
+                  <span className="font-extrabold text-[#0D274C] tracking-tight text-lg">
+                    {brandSettings.appName || "Nexam"}
+                  </span>
                   <span className="text-[10px] uppercase px-1.5 py-0.5 rounded font-bold bg-[#65C443] text-white shadow-xs">
                     CBT
                   </span>
