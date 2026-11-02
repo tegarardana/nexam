@@ -129,13 +129,11 @@ export default function LoginPage() {
         <div className="relative z-10">
           <div className="flex items-center gap-3">
             {settings.appLogo ? (
-              <div className="w-11 h-11 rounded-2xl bg-white/10 p-1.5 border border-white/20 shadow-lg backdrop-blur-md flex items-center justify-center shrink-0">
-                <img
-                  src={settings.appLogo}
-                  alt={settings.appName}
-                  className="w-full h-full object-contain"
-                />
-              </div>
+              <img
+                src={settings.appLogo}
+                alt={settings.appName}
+                className="h-11 w-auto max-w-[120px] object-contain shrink-0 drop-shadow-sm"
+              />
             ) : (
               <div className="flex items-center justify-center w-11 h-11 rounded-2xl bg-gradient-to-tr from-[#65C443] to-emerald-400 shadow-lg shadow-[#65C443]/30 border border-white/20 shrink-0">
                 <ShieldCheck className="w-6 h-6 text-white" />
@@ -222,13 +220,11 @@ export default function LoginPage() {
             {/* Mobile Branding (visible on mobile only) */}
             <div className="md:hidden flex items-center gap-3 mb-6 p-3 rounded-2xl bg-slate-50 border border-slate-200">
               {settings.appLogo ? (
-                <div className="w-10 h-10 rounded-xl bg-white border border-slate-200 p-1 flex items-center justify-center shrink-0 shadow-xs">
-                  <img
-                    src={settings.appLogo}
-                    alt={settings.appName}
-                    className="w-full h-full object-contain"
-                  />
-                </div>
+                <img
+                  src={settings.appLogo}
+                  alt={settings.appName}
+                  className="h-10 w-auto max-w-[100px] object-contain shrink-0"
+                />
               ) : (
                 <div className="w-10 h-10 rounded-xl bg-[#0D274C] flex items-center justify-center text-[#65C443] shrink-0">
                   <ShieldCheck className="w-5 h-5 text-white" />

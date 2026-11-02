@@ -103,13 +103,11 @@ export default function Header({
           ) : (
             <div className="flex items-center gap-3">
               {brandSettings.appLogo ? (
-                <div className="w-9 h-9 rounded-xl bg-slate-50 border border-slate-200 flex items-center justify-center p-1 shrink-0 overflow-hidden shadow-xs">
-                  <img
-                    src={brandSettings.appLogo}
-                    alt={brandSettings.appName}
-                    className="w-full h-full object-contain"
-                  />
-                </div>
+                <img
+                  src={brandSettings.appLogo}
+                  alt={brandSettings.appName}
+                  className="w-9 h-9 object-contain shrink-0"
+                />
               ) : (
                 <div className="flex items-center justify-center w-9 h-9 rounded-xl bg-gradient-to-tr from-[#0D274C] to-[#163B6E] shadow-sm shadow-[#0D274C]/20 border border-[#0D274C]/30 shrink-0">
                   <ShieldCheck className="w-5 h-5 text-white" />
