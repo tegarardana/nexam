@@ -288,6 +288,7 @@ export default async function StudentDashboardPage() {
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
               {upcomingExams.map((exam) => {
                 const formattedStart = new Date(exam.scheduledStart).toLocaleString("id-ID", {
+                  timeZone: "Asia/Jakarta",
                   dateStyle: "full",
                   timeStyle: "short",
                 });

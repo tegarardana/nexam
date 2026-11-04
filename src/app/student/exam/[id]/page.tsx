@@ -928,7 +928,8 @@ export default function StudentExamPage() {
                   Ujian belum dapat dimulai. Pelaksanaan ujian dijadwalkan pada{" "}
                   <strong>
                     {new Date(examData.scheduledStart).toLocaleString("id-ID", {
-                      dateStyle: "medium",
+                      timeZone: "Asia/Jakarta",
+                      dateStyle: "full",
                       timeStyle: "short",
                     })}{" "}
                     WIB

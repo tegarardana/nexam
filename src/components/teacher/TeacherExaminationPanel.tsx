@@ -1318,13 +1318,13 @@ export default function TeacherExaminationPanel({
           <div className="text-[11px] text-slate-500 flex items-center gap-1.5">
             <Calendar className="w-3.5 h-3.5 text-slate-400" />
             <span>
-              {new Date(exam.scheduledStart).toLocaleDateString("id-ID")}
+              {new Date(exam.scheduledStart).toLocaleDateString("id-ID", { timeZone: "Asia/Jakarta" })}
               {exam.session ? (
                 <> • <strong className="text-indigo-700">{exam.session.name}</strong></>
               ) : (
-                <> • {new Date(exam.scheduledStart).toLocaleTimeString("id-ID", { hour: "2-digit", minute: "2-digit" })}
+                <> • {new Date(exam.scheduledStart).toLocaleTimeString("id-ID", { hour: "2-digit", minute: "2-digit", timeZone: "Asia/Jakarta" })}
                 {exam.scheduledEnd && (
-                  <> s/d {new Date(exam.scheduledEnd).toLocaleTimeString("id-ID", { hour: "2-digit", minute: "2-digit" })}</>
+                  <> s/d {new Date(exam.scheduledEnd).toLocaleTimeString("id-ID", { hour: "2-digit", minute: "2-digit", timeZone: "Asia/Jakarta" })}</>
                 )}</>
               )}
             </span>
@@ -1568,13 +1568,13 @@ export default function TeacherExaminationPanel({
           <div className="text-[11px] text-slate-500 flex items-center gap-1.5">
             <Calendar className="w-3.5 h-3.5 text-slate-400" />
             <span>
-              Jadwal: {new Date(exam.scheduledStart).toLocaleDateString("id-ID")}
+              Jadwal: {new Date(exam.scheduledStart).toLocaleDateString("id-ID", { timeZone: "Asia/Jakarta" })}
               {exam.session ? (
                 <> • <span className="font-semibold text-indigo-700">{exam.session.name} ({exam.session.startTime} - {exam.session.endTime} WIB)</span></>
               ) : (
-                <> • {new Date(exam.scheduledStart).toLocaleTimeString("id-ID", { hour: "2-digit", minute: "2-digit" })}
+                <> • {new Date(exam.scheduledStart).toLocaleTimeString("id-ID", { hour: "2-digit", minute: "2-digit", timeZone: "Asia/Jakarta" })}
                 {exam.scheduledEnd && (
-                  <> s/d {new Date(exam.scheduledEnd).toLocaleTimeString("id-ID", { hour: "2-digit", minute: "2-digit" })}</>
+                  <> s/d {new Date(exam.scheduledEnd).toLocaleTimeString("id-ID", { hour: "2-digit", minute: "2-digit", timeZone: "Asia/Jakarta" })}</>
                 )}</>
               )}
             </span>
