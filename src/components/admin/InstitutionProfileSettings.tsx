@@ -58,6 +58,7 @@ export default function InstitutionProfileSettings({
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [uploadingLogo, setUploadingLogo] = useState(false);
+  const [isDraggingLogo, setIsDraggingLogo] = useState(false);
   const [feedback, setFeedback] = useState<{
     type: "success" | "error";
     message: string;
@@ -99,10 +100,7 @@ export default function InstitutionProfileSettings({
     setFormData((prev) => ({ ...prev, [name]: value }));
   };
 
-  const handleFileUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
-    const file = e.target.files?.[0];
-    if (!file) return;
-
+  const uploadLogoFile = async (file: File) => {
     if (!file.type.startsWith("image/")) {
       setFeedback({
         type: "error",
@@ -167,6 +165,12 @@ export default function InstitutionProfileSettings({
         fileInputRef.current.value = "";
       }
     }
+  };
+
+  const handleFileUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    await uploadLogoFile(file);
   };
 
   const handleSave = async (e: React.FormEvent) => {
@@ -283,9 +287,39 @@ export default function InstitutionProfileSettings({
             </div>
 
             {/* Logo Upload Section */}
-            <div className="flex flex-col sm:flex-row items-center gap-5 p-4 rounded-xl bg-slate-50 border border-slate-200/80">
+            <div
+              onDragOver={(e) => {
+                e.preventDefault();
+                e.stopPropagation();
+                setIsDraggingLogo(true);
+              }}
+              onDragEnter={(e) => {
+                e.preventDefault();
+                e.stopPropagation();
+                setIsDraggingLogo(true);
+              }}
+              onDragLeave={(e) => {
+                e.preventDefault();
+                e.stopPropagation();
+                setIsDraggingLogo(false);
+              }}
+              onDrop={(e) => {
+                e.preventDefault();
+                e.stopPropagation();
+                setIsDraggingLogo(false);
+                const file = e.dataTransfer.files?.[0];
+                if (file) uploadLogoFile(file);
+              }}
+              className={`flex flex-col sm:flex-row items-center gap-5 p-4 rounded-xl border transition ${
+                isDraggingLogo
+                  ? "border-[#65C443] bg-emerald-50 ring-4 ring-[#65C443]/20 scale-[1.01]"
+                  : "bg-slate-50 border-slate-200/80"
+              }`}
+            >
               {/* Logo Preview */}
-              <div className="w-24 h-24 rounded-2xl bg-white border border-slate-200 flex items-center justify-center p-2 relative overflow-hidden shadow-xs shrink-0 group">
+              <div className={`w-24 h-24 rounded-2xl bg-white border flex items-center justify-center p-2 relative overflow-hidden shadow-xs shrink-0 group transition ${
+                isDraggingLogo ? "border-[#65C443] ring-2 ring-[#65C443]/30" : "border-slate-200"
+              }`}>
                 {formData.appLogo || formData.institutionLogo ? (
                   <img
                     src={formData.appLogo || formData.institutionLogo}
@@ -308,10 +342,13 @@ export default function InstitutionProfileSettings({
               {/* Upload Controls & Instructions */}
               <div className="space-y-2 flex-1 text-center sm:text-left">
                 <div>
-                  <h3 className="text-xs font-bold text-slate-800">Upload Logo Resmi (PNG)</h3>
+                  <h3 className="text-xs font-bold text-slate-800">
+                    {isDraggingLogo ? "Lepaskan file logo di sini" : "Upload Logo Resmi (PNG)"}
+                  </h3>
                   <p className="text-[11px] text-slate-500 mt-0.5 leading-relaxed">
-                    Logo ini akan otomatis menggantikan logo aplikasi di header, sidebar admin, dan
-                    badge login. Format PNG dengan background transparan sangat disarankan (maks. 5MB).
+                    {isDraggingLogo
+                      ? "Lepaskan berkas gambar untuk langsung memperbarui logo sistem"
+                      : "Logo ini akan otomatis menggantikan logo aplikasi di header, sidebar admin, dan badge login. Format PNG transparan disarankan (maks. 5MB). Drag & drop berkas gambar didukung."}
                   </p>
                 </div>
 

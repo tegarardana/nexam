@@ -479,6 +479,7 @@ export default function AdminManagementPanel({
   const [bulkPreviewData, setBulkPreviewData] = useState<any | null>(null);
   const [bulkLoading, setBulkLoading] = useState(false);
   const [bulkError, setBulkError] = useState<string | null>(null);
+  const [isDraggingBulkExcel, setIsDraggingBulkExcel] = useState(false);
 
   // Academic Years & Semesters state
   const [years, setYears] = useState<any[]>([]);
@@ -509,6 +510,7 @@ export default function AdminManagementPanel({
   const [classCsvFileName, setClassCsvFileName] = useState("");
   const [classCsvMatchedStudents, setClassCsvMatchedStudents] = useState<any[] | null>(null);
   const [classCsvUnmatchedCount, setClassCsvUnmatchedCount] = useState(0);
+  const [isDraggingClassCsv, setIsDraggingClassCsv] = useState(false);
 
   // Majors Customization Modal state
   const [showManageMajorsModal, setShowManageMajorsModal] = useState(false);
@@ -1352,10 +1354,8 @@ export default function AdminManagementPanel({
     }
   };
 
-  // Handle CSV File Upload for Class Bulk Re-upload
-  const handleClassCsvFileSelected = async (e: React.ChangeEvent<HTMLInputElement>) => {
-    const file = e.target.files?.[0];
-    if (!file) return;
+  // Process CSV File for Class Bulk Re-upload
+  const processClassCsvFile = async (file: File) => {
     setClassCsvFileName(file.name);
     try {
       const text = await file.text();
@@ -1447,6 +1447,13 @@ export default function AdminManagementPanel({
     } catch {
       setClassBulkMessage({ type: "error", text: "Gagal membaca atau memproses file CSV." });
     }
+  };
+
+  // Handle CSV File Upload for Class Bulk Re-upload
+  const handleClassCsvFileSelected = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    await processClassCsvFile(file);
   };
 
   // Apply Changes from Re-uploaded CSV
@@ -5841,7 +5848,11 @@ export default function AdminManagementPanel({
       {/* MODAL: IMPOR PENGGUNA VIA CSV                            */}
       {/* ======================================================== */}
       {showBulkModal && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/40 backdrop-blur-xs animate-in fade-in duration-200">
+        <div
+          className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/40 backdrop-blur-xs animate-in fade-in duration-200"
+          onDragOver={(e) => e.preventDefault()}
+          onDrop={(e) => e.preventDefault()}
+        >
           <div
             className="w-full max-w-2xl rounded-2xl p-6 bg-white border border-slate-200 shadow-2xl relative max-h-[90vh] flex flex-col space-y-4 text-slate-800"
           >
@@ -5951,7 +5962,35 @@ export default function AdminManagementPanel({
                     )}
                   </label>
 
-                  <div className="border-2 border-dashed border-slate-300 hover:border-emerald-500 rounded-2xl p-6 text-center transition bg-slate-50/50 hover:bg-emerald-50/20">
+                  <div
+                    onDragOver={(e) => {
+                      e.preventDefault();
+                      e.stopPropagation();
+                      setIsDraggingBulkExcel(true);
+                    }}
+                    onDragEnter={(e) => {
+                      e.preventDefault();
+                      e.stopPropagation();
+                      setIsDraggingBulkExcel(true);
+                    }}
+                    onDragLeave={(e) => {
+                      e.preventDefault();
+                      e.stopPropagation();
+                      setIsDraggingBulkExcel(false);
+                    }}
+                    onDrop={(e) => {
+                      e.preventDefault();
+                      e.stopPropagation();
+                      setIsDraggingBulkExcel(false);
+                      const file = e.dataTransfer.files?.[0];
+                      if (file) handleExcelFileSelected(file);
+                    }}
+                    className={`border-2 border-dashed rounded-2xl p-6 text-center transition ${
+                      isDraggingBulkExcel
+                        ? "border-emerald-500 bg-emerald-50 ring-4 ring-emerald-500/20 scale-[1.01]"
+                        : "border-slate-300 hover:border-emerald-500 bg-slate-50/50 hover:bg-emerald-50/20"
+                    }`}
+                  >
                     <input
                       type="file"
                       id="bulk-excel-file-input"
@@ -5984,14 +6023,20 @@ export default function AdminManagementPanel({
                         htmlFor="bulk-excel-file-input"
                         className="flex flex-col items-center justify-center cursor-pointer space-y-2"
                       >
-                        <div className="w-12 h-12 rounded-2xl bg-slate-100 text-slate-500 flex items-center justify-center group-hover:scale-105 transition">
+                        <div className={`w-12 h-12 rounded-2xl flex items-center justify-center transition ${
+                          isDraggingBulkExcel ? "bg-emerald-100 text-emerald-700 scale-110" : "bg-slate-100 text-slate-500 group-hover:scale-105"
+                        }`}>
                           <Upload className="w-6 h-6 text-[#0D274C]" />
                         </div>
                         <span className="text-xs font-bold text-slate-800">
-                          Klik untuk Memilih Berkas Excel (.xlsx)
+                          {isDraggingBulkExcel
+                            ? "Lepaskan berkas Excel di sini untuk mengunggah"
+                            : "Pilih atau Drag & Drop Berkas Excel (.xlsx)"}
                         </span>
                         <span className="text-[11px] text-slate-500">
-                          Mendukung format .xlsx, .xls, atau .csv hasil ekspor
+                          {isDraggingBulkExcel
+                            ? "Lepaskan berkas untuk langsung memeriksa data"
+                            : "Mendukung format .xlsx, .xls, atau .csv hasil ekspor"}
                         </span>
                       </label>
                     )}
@@ -7064,7 +7109,11 @@ export default function AdminManagementPanel({
       {/* MODAL: UPDATE DATA SISWA SEKELAS                          */}
       {/* ======================================================== */}
       {showClassBulkUpdateModal && selectedClassForBulk && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/40 backdrop-blur-xs animate-in fade-in duration-200">
+        <div
+          className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/40 backdrop-blur-xs animate-in fade-in duration-200"
+          onDragOver={(e) => e.preventDefault()}
+          onDrop={(e) => e.preventDefault()}
+        >
           <div
             className="w-full max-w-4xl rounded-2xl p-6 bg-white border border-slate-200 shadow-2xl relative max-h-[90vh] overflow-y-auto space-y-4 text-slate-800"
           >
@@ -7419,13 +7468,45 @@ export default function AdminManagementPanel({
                   </p>
 
                   <div className="flex flex-col sm:flex-row items-center gap-3 pt-2">
-                    <label className="flex-1 w-full flex flex-col items-center justify-center p-4 rounded-xl border-2 border-dashed border-slate-300 hover:border-[#65C443] bg-white cursor-pointer transition">
-                      <Upload className="w-6 h-6 text-[#65C443] mb-1.5" />
+                    <label
+                      onDragOver={(e) => {
+                        e.preventDefault();
+                        e.stopPropagation();
+                        setIsDraggingClassCsv(true);
+                      }}
+                      onDragEnter={(e) => {
+                        e.preventDefault();
+                        e.stopPropagation();
+                        setIsDraggingClassCsv(true);
+                      }}
+                      onDragLeave={(e) => {
+                        e.preventDefault();
+                        e.stopPropagation();
+                        setIsDraggingClassCsv(false);
+                      }}
+                      onDrop={(e) => {
+                        e.preventDefault();
+                        e.stopPropagation();
+                        setIsDraggingClassCsv(false);
+                        const file = e.dataTransfer.files?.[0];
+                        if (file) processClassCsvFile(file);
+                      }}
+                      className={`flex-1 w-full flex flex-col items-center justify-center p-4 rounded-xl border-2 border-dashed cursor-pointer transition ${
+                        isDraggingClassCsv
+                          ? "border-[#65C443] bg-emerald-50 ring-4 ring-[#65C443]/20 scale-[1.01]"
+                          : "border-slate-300 hover:border-[#65C443] bg-white"
+                      }`}
+                    >
+                      <Upload className={`w-6 h-6 mb-1.5 transition ${isDraggingClassCsv ? "text-[#65C443] scale-110" : "text-[#65C443]"}`} />
                       <span className="text-xs text-slate-800 font-medium">
-                        {classCsvFileName ? classCsvFileName : "Pilih atau Seret File CSV di Sini"}
+                        {classCsvFileName
+                          ? classCsvFileName
+                          : isDraggingClassCsv
+                          ? "Lepaskan File CSV di Sini"
+                          : "Pilih atau Seret File CSV di Sini"}
                       </span>
                       <span className="text-[10px] text-slate-400 mt-0.5">
-                        File ekspor CSV kelas (.csv)
+                        {isDraggingClassCsv ? "Lepaskan file CSV untuk langsung memproses" : "File ekspor CSV kelas (.csv)"}
                       </span>
                       <input
                         type="file"

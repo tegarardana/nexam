@@ -172,6 +172,7 @@ export default function QuestionBankPageContent({
   const [importFileName, setImportFileName] = useState("");
   const [importRawText, setImportRawText] = useState("");
   const [importTab, setImportTab] = useState<"file" | "paste">("file");
+  const [isDraggingFile, setIsDraggingFile] = useState(false);
   const [parsedQuestions, setParsedQuestions] = useState<any[]>([]);
   const [importing, setImporting] = useState(false);
   const [importError, setImportError] = useState<string | null>(null);
@@ -1312,10 +1313,8 @@ export default function QuestionBankPageContent({
     XLSX.writeFile(wb, `template_import_bank_soal_${activeBank?.code || "nexam"}.xlsx`);
   };
 
-  // Handle File Selected for Import (Supports .xlsx, .xls, .csv, .tsv, .txt, .json)
-  const handleImportFileChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
-    const file = e.target.files?.[0];
-    if (!file) return;
+  // Process File for Import (Supports .xlsx, .xls, .csv, .tsv, .txt, .json)
+  const processImportFile = async (file: File) => {
     setImportFileName(file.name);
     setImportError(null);
     setImportSuccess(null);
@@ -1390,6 +1389,13 @@ export default function QuestionBankPageContent({
     } catch (err: any) {
       setImportError("Gagal membaca berkas Excel/CSV. Pastikan format berkas valid: " + err.message);
     }
+  };
+
+  // Handle File Selected for Import (Supports .xlsx, .xls, .csv, .tsv, .txt, .json)
+  const handleImportFileChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    await processImportFile(file);
   };
 
   // Handle Raw Text Change
@@ -2761,7 +2767,11 @@ export default function QuestionBankPageContent({
       {/* MODAL: IMPOR BUTIR SOAL MASSAL                           */}
       {/* ======================================================== */}
       {showImportModal && activeBank && (
-        <div className="fixed inset-0 z-50 bg-slate-900/40 backdrop-blur-xs flex items-center justify-center p-4">
+        <div
+          className="fixed inset-0 z-50 bg-slate-900/40 backdrop-blur-xs flex items-center justify-center p-4"
+          onDragOver={(e) => e.preventDefault()}
+          onDrop={(e) => e.preventDefault()}
+        >
           <div
             className="w-full max-w-4xl max-h-[92vh] flex flex-col rounded-2xl bg-white border border-slate-200 shadow-2xl overflow-hidden animate-in fade-in zoom-in-95 duration-200 text-slate-800"
           >
@@ -2867,14 +2877,52 @@ export default function QuestionBankPageContent({
                 <div className="space-y-3">
                   <label
                     htmlFor="question-import-file-input"
-                    className="flex flex-col items-center justify-center p-8 border-2 border-dashed border-slate-300 hover:border-[#65C443] rounded-2xl bg-slate-50 hover:bg-emerald-50/20 cursor-pointer transition text-center group"
+                    onDragOver={(e) => {
+                      e.preventDefault();
+                      e.stopPropagation();
+                      setIsDraggingFile(true);
+                    }}
+                    onDragEnter={(e) => {
+                      e.preventDefault();
+                      e.stopPropagation();
+                      setIsDraggingFile(true);
+                    }}
+                    onDragLeave={(e) => {
+                      e.preventDefault();
+                      e.stopPropagation();
+                      setIsDraggingFile(false);
+                    }}
+                    onDrop={(e) => {
+                      e.preventDefault();
+                      e.stopPropagation();
+                      setIsDraggingFile(false);
+                      const file = e.dataTransfer.files?.[0];
+                      if (file) {
+                        processImportFile(file);
+                      }
+                    }}
+                    className={`flex flex-col items-center justify-center p-8 border-2 border-dashed rounded-2xl cursor-pointer transition text-center group ${
+                      isDraggingFile
+                        ? "border-[#65C443] bg-emerald-50 ring-4 ring-[#65C443]/20 scale-[1.01]"
+                        : "border-slate-300 hover:border-[#65C443] bg-slate-50 hover:bg-emerald-50/20"
+                    }`}
                   >
-                    <FileSpreadsheet className="w-10 h-10 text-slate-400 group-hover:text-emerald-600 mb-2 transition" />
+                    <FileSpreadsheet
+                      className={`w-10 h-10 mb-2 transition ${
+                        isDraggingFile ? "text-[#65C443] scale-110" : "text-slate-400 group-hover:text-emerald-600"
+                      }`}
+                    />
                     <span className="font-bold text-slate-800 text-sm">
-                      {importFileName ? importFileName : "Pilih atau Drag & Drop Berkas Excel (.xlsx / .xls) atau CSV Soal"}
+                      {importFileName
+                        ? importFileName
+                        : isDraggingFile
+                        ? "Lepaskan berkas di sini untuk mengunggah"
+                        : "Pilih atau Drag & Drop Berkas Excel (.xlsx / .xls) atau CSV Soal"}
                     </span>
                     <span className="text-[11px] text-slate-500 mt-1">
-                      Mendukung format berkas Excel .xlsx, .xls, atau .csv
+                      {isDraggingFile
+                        ? "Lepaskan file untuk mulai memproses butir soal"
+                        : "Mendukung format berkas Excel .xlsx, .xls, atau .csv"}
                     </span>
                     <input
                       id="question-import-file-input"

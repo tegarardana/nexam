@@ -57,6 +57,7 @@ export default function ClassStudentsPageContent({ initialClassId }: ClassStuden
   const [bulkSubmitting, setBulkSubmitting] = useState(false);
   const [bulkMessage, setBulkMessage] = useState<{ type: "success" | "error"; text: string } | null>(null);
   const [csvFileName, setCsvFileName] = useState<string | null>(null);
+  const [isDraggingFile, setIsDraggingFile] = useState(false);
 
   // Fetch Class & Enrollments
   const fetchAllData = async () => {
@@ -274,9 +275,7 @@ export default function ClassStudentsPageContent({ initialClassId }: ClassStuden
   };
 
   // Re-upload CSV / Excel File
-  const handleReuploadFile = async (e: React.ChangeEvent<HTMLInputElement>) => {
-    const file = e.target.files?.[0];
-    if (!file) return;
+  const processReuploadFile = async (file: File) => {
     setCsvFileName(file.name);
     setBulkMessage(null);
 
@@ -352,6 +351,12 @@ export default function ClassStudentsPageContent({ initialClassId }: ClassStuden
     } catch (err: any) {
       setBulkMessage({ type: "error", text: `Gagal membaca berkas: ${err.message}` });
     }
+  };
+
+  const handleReuploadFile = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    await processReuploadFile(file);
   };
 
   // Export to Excel (.xlsx)
@@ -930,9 +935,43 @@ export default function ClassStudentsPageContent({ initialClassId }: ClassStuden
                   Unggah kembali berkas CSV/Excel ekspor yang telah diedit secara offline.
                 </p>
               </div>
-              <label className="w-full py-2.5 sm:py-3 rounded-xl bg-amber-50 hover:bg-amber-100 border border-amber-200 text-amber-800 text-xs font-bold transition cursor-pointer flex items-center justify-center gap-2 text-center">
-                <Upload className="w-4 h-4" />
-                <span className="truncate">{csvFileName ? csvFileName : "Pilih File CSV / Excel"}</span>
+              <label
+                onDragOver={(e) => {
+                  e.preventDefault();
+                  e.stopPropagation();
+                  setIsDraggingFile(true);
+                }}
+                onDragEnter={(e) => {
+                  e.preventDefault();
+                  e.stopPropagation();
+                  setIsDraggingFile(true);
+                }}
+                onDragLeave={(e) => {
+                  e.preventDefault();
+                  e.stopPropagation();
+                  setIsDraggingFile(false);
+                }}
+                onDrop={(e) => {
+                  e.preventDefault();
+                  e.stopPropagation();
+                  setIsDraggingFile(false);
+                  const file = e.dataTransfer.files?.[0];
+                  if (file) processReuploadFile(file);
+                }}
+                className={`w-full py-2.5 sm:py-3 rounded-xl border text-xs font-bold transition cursor-pointer flex items-center justify-center gap-2 text-center ${
+                  isDraggingFile
+                    ? "border-amber-500 bg-amber-100 ring-4 ring-amber-400/20 scale-[1.01] text-amber-900"
+                    : "border-amber-200 bg-amber-50 hover:bg-amber-100 text-amber-800"
+                }`}
+              >
+                <Upload className={`w-4 h-4 ${isDraggingFile ? "scale-110" : ""}`} />
+                <span className="truncate">
+                  {csvFileName
+                    ? csvFileName
+                    : isDraggingFile
+                    ? "Lepaskan File di Sini"
+                    : "Pilih atau Drag & Drop File CSV / Excel"}
+                </span>
                 <input
                   type="file"
                   accept=".csv,.xlsx,.xls"
