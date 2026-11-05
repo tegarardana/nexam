@@ -133,20 +133,33 @@ export async function evaluateAntiCheatEvent(
   }
 
   const policy = attempt.examination.policySettings;
+  const blockOnViolation = policy?.blockOnViolation ?? true;
+  const maxTabSwitches = policy?.maxTabSwitches ?? 3;
+  const fullScreenRequired = policy?.fullScreenRequired ?? true;
   const mode = policy?.mode || "standard";
 
-  // Determine counted events and thresholds based on policy mode
-  let countedEvents = DEFAULT_COUNTED_EVENTS;
+  // Determine counted events and thresholds based on policy mode and maxTabSwitches
+  let countedEvents = [...DEFAULT_COUNTED_EVENTS];
+  if (!fullScreenRequired) {
+    countedEvents = countedEvents.filter(
+      (e) => e !== "fullscreen_exit" && e !== "fullscreen_attempt"
+    );
+  }
+
   let warnThreshold = policy?.warnThreshold ?? 1;
   let blockThreshold = policy?.blockThreshold ?? 3;
 
-  if (mode === "strict") {
-    warnThreshold = 1;
-    blockThreshold = 2;
-  } else if (mode === "practice") {
-    // In practice mode, thresholds are practically infinite; events are recorded only
+  if (!blockOnViolation || mode === "practice") {
+    // In practice/no-block mode, thresholds are practically infinite; events are recorded only
     warnThreshold = 9999;
     blockThreshold = 9999;
+  } else if (policy && typeof policy.maxTabSwitches === "number" && policy.maxTabSwitches === 0) {
+    // Zero-tolerance mode explicitly configured: 1st violation immediately blocks
+    warnThreshold = 0;
+    blockThreshold = 1;
+  } else if (mode === "strict") {
+    warnThreshold = 1;
+    blockThreshold = 2;
   } else if (mode === "custom" && policy?.customRules) {
     const rules = policy.customRules as any;
     if (Array.isArray(rules.counted_events)) {
@@ -158,6 +171,10 @@ export async function evaluateAntiCheatEvent(
     if (typeof rules.block_threshold === "number") {
       blockThreshold = rules.block_threshold;
     }
+  } else {
+    // Standard custom tolerance: warn starting at 1st incident, block when incidentCount reaches maxTabSwitches
+    warnThreshold = 1;
+    blockThreshold = maxTabSwitches;
   }
 
   const isCounted = countedEvents.includes(eventType);
@@ -200,7 +217,7 @@ export async function evaluateAntiCheatEvent(
       if (newIncidentCount >= blockThreshold) {
         nextStatus = "blocked";
         actionResult = "blocked";
-      } else if (newIncidentCount >= warnThreshold && nextStatus === "in_progress") {
+      } else if (newIncidentCount >= warnThreshold) {
         nextStatus = "warning";
         actionResult = "warning";
       }

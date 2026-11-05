@@ -129,10 +129,31 @@ export async function POST(request: NextRequest) {
       });
 
       // Create policy settings
+      const polBlockOnViolation = policySettings?.blockOnViolation ?? true;
+      const polMaxTabSwitches = policySettings?.maxTabSwitches ?? 3;
+      const computedBlockThreshold = !polBlockOnViolation
+        ? 9999
+        : polMaxTabSwitches === 0
+        ? 1
+        : polMaxTabSwitches;
+      const computedWarnThreshold = !polBlockOnViolation
+        ? 9999
+        : polMaxTabSwitches === 0
+        ? 0
+        : 1;
+      const computedMode = !polBlockOnViolation
+        ? "practice"
+        : polMaxTabSwitches === 0
+        ? "strict"
+        : "standard";
+
       await tx.examinationPolicySetting.create({
         data: {
           examinationId: exam.id,
           ...policySettings,
+          blockThreshold: computedBlockThreshold,
+          warnThreshold: computedWarnThreshold,
+          mode: computedMode,
         },
       });
 

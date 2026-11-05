@@ -1075,12 +1075,157 @@ export default function CreateExaminationForm({
                   className="rounded accent-[#65C443] w-4 h-4"
                 />
                 <div>
-                  <div className="font-semibold text-slate-900">Kunci Saat Batas Tab Habis</div>
+                  <div className="font-semibold text-slate-900">Blokir / Kunci Sesi Saat Melanggar</div>
                   <div className="text-[11px] text-slate-500">
-                    Ujian terkunci otomatis jika siswa melanggar batas perpindahan tab ({polMaxTabSwitches}x).
+                    Otomatis mengunci ujian jika siswa melebihi batas toleransi yang ditentukan.
                   </div>
                 </div>
               </label>
+            </div>
+
+            {/* Toleransi Pindah Tab & Layar Penuh */}
+            <div className="mt-4 pt-4 border-t border-slate-100 space-y-3">
+              <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-1">
+                <div>
+                  <label className="text-xs font-bold text-slate-900 block">
+                    Batas Toleransi Berpindah Tab / Keluar Layar Penuh
+                  </label>
+                  <p className="text-[11px] text-slate-500">
+                    Tentukan berapa kali siswa diizinkan berpindah tab atau keluar fullscreen sebelum sesi terkunci.
+                  </p>
+                </div>
+                <div className="inline-flex items-center gap-1.5 self-start sm:self-auto px-2.5 py-1 rounded-full text-xs font-semibold bg-slate-100 text-slate-700">
+                  <span>Toleransi Aktif:</span>
+                  <span className={polMaxTabSwitches === 0 ? "text-rose-600 font-bold" : "text-emerald-700 font-bold"}>
+                    {polMaxTabSwitches === 0 ? "0x (Tanpa Toleransi)" : `${polMaxTabSwitches}x`}
+                  </span>
+                </div>
+              </div>
+
+              {/* Quick Select Buttons */}
+              <div className="grid grid-cols-2 sm:grid-cols-6 gap-2 pt-1">
+                <button
+                  type="button"
+                  onClick={() => setPolMaxTabSwitches(0)}
+                  className={`p-2.5 rounded-xl border text-xs font-medium text-left transition flex flex-col justify-between ${
+                    polMaxTabSwitches === 0
+                      ? "border-rose-500 bg-rose-50/80 text-rose-900 ring-2 ring-rose-400/20"
+                      : "border-slate-200 bg-white hover:bg-slate-50 text-slate-700"
+                  }`}
+                >
+                  <span className="font-bold text-rose-600">0x Ketat</span>
+                  <span className="text-[10px] text-slate-500 leading-tight mt-0.5">Langsung Blokir (1x langgar)</span>
+                </button>
+
+                <button
+                  type="button"
+                  onClick={() => setPolMaxTabSwitches(1)}
+                  className={`p-2.5 rounded-xl border text-xs font-medium text-left transition flex flex-col justify-between ${
+                    polMaxTabSwitches === 1
+                      ? "border-amber-500 bg-amber-50/80 text-amber-900 ring-2 ring-amber-400/20"
+                      : "border-slate-200 bg-white hover:bg-slate-50 text-slate-700"
+                  }`}
+                >
+                  <span className="font-bold text-amber-700">1x Toleransi</span>
+                  <span className="text-[10px] text-slate-500 leading-tight mt-0.5">Peringatan 1x, ke-2 blokir</span>
+                </button>
+
+                <button
+                  type="button"
+                  onClick={() => setPolMaxTabSwitches(2)}
+                  className={`p-2.5 rounded-xl border text-xs font-medium text-left transition flex flex-col justify-between ${
+                    polMaxTabSwitches === 2
+                      ? "border-[#65C443] bg-emerald-50/80 text-emerald-900 ring-2 ring-emerald-400/20"
+                      : "border-slate-200 bg-white hover:bg-slate-50 text-slate-700"
+                  }`}
+                >
+                  <span className="font-bold text-emerald-700">2x Toleransi</span>
+                  <span className="text-[10px] text-slate-500 leading-tight mt-0.5">Peringatan 2x, ke-3 blokir</span>
+                </button>
+
+                <button
+                  type="button"
+                  onClick={() => setPolMaxTabSwitches(3)}
+                  className={`p-2.5 rounded-xl border text-xs font-medium text-left transition flex flex-col justify-between ${
+                    polMaxTabSwitches === 3
+                      ? "border-[#65C443] bg-emerald-50/80 text-emerald-900 ring-2 ring-emerald-400/20"
+                      : "border-slate-200 bg-white hover:bg-slate-50 text-slate-700"
+                  }`}
+                >
+                  <span className="font-bold text-emerald-700">3x (Standar)</span>
+                  <span className="text-[10px] text-slate-500 leading-tight mt-0.5">Default CBT Nexam</span>
+                </button>
+
+                <button
+                  type="button"
+                  onClick={() => setPolMaxTabSwitches(5)}
+                  className={`p-2.5 rounded-xl border text-xs font-medium text-left transition flex flex-col justify-between ${
+                    polMaxTabSwitches === 5
+                      ? "border-blue-500 bg-blue-50/80 text-blue-900 ring-2 ring-blue-400/20"
+                      : "border-slate-200 bg-white hover:bg-slate-50 text-slate-700"
+                  }`}
+                >
+                  <span className="font-bold text-blue-700">5x (Longgar)</span>
+                  <span className="text-[10px] text-slate-500 leading-tight mt-0.5">Untuk tryout / latihan</span>
+                </button>
+
+                <div className="p-2 rounded-xl border border-slate-200 bg-slate-50 flex flex-col justify-between">
+                  <span className="text-[10px] font-semibold text-slate-500">Kustom (Angka)</span>
+                  <div className="flex items-center gap-1 mt-1">
+                    <input
+                      type="number"
+                      min="0"
+                      max="50"
+                      value={polMaxTabSwitches}
+                      onChange={(e) => {
+                        const val = Math.max(0, parseInt(e.target.value, 10) || 0);
+                        setPolMaxTabSwitches(val);
+                      }}
+                      className="w-full bg-white border border-slate-200 rounded-lg px-2 py-1 text-xs text-center font-bold text-slate-900 focus:outline-none focus:border-[#65C443]"
+                    />
+                    <span className="text-xs text-slate-400 font-semibold">x</span>
+                  </div>
+                </div>
+              </div>
+
+              {/* Informational Banner */}
+              {polMaxTabSwitches === 0 ? (
+                <div className="rounded-xl p-3 bg-rose-50 border border-rose-200 text-rose-800 text-xs flex items-start gap-2.5">
+                  <div className="p-1 rounded-md bg-rose-100 text-rose-700 shrink-0 mt-0.5">
+                    <ShieldAlert className="w-3.5 h-3.5" />
+                  </div>
+                  <div>
+                    <div className="font-bold">Mode Tanpa Toleransi (0x) Aktif</div>
+                    <div className="text-[11px] text-rose-700 mt-0.5 leading-relaxed">
+                      Siswa <strong>sama sekali tidak boleh berpindah tab atau keluar fullscreen</strong>. Jika siswa melanggar <strong>1 kali saja</strong>, sesi ujian akan langsung dikunci (diblokir) tanpa peringatan terlebih dahulu dan harus dibuka oleh pengawas.
+                    </div>
+                  </div>
+                </div>
+              ) : !polBlockViolation ? (
+                <div className="rounded-xl p-3 bg-amber-50 border border-amber-200 text-amber-800 text-xs flex items-start gap-2.5">
+                  <div className="p-1 rounded-md bg-amber-100 text-amber-700 shrink-0 mt-0.5">
+                    <ShieldAlert className="w-3.5 h-3.5" />
+                  </div>
+                  <div>
+                    <div className="font-bold">Mode Pencatatan Saja (Tidak Ada Pemblokiran Otomatis)</div>
+                    <div className="text-[11px] text-amber-700 mt-0.5 leading-relaxed">
+                      Pelanggaran perpindahan tab dan fullscreen tetap dicatat pada log pengawas, namun siswa tidak akan dikunci secara otomatis.
+                    </div>
+                  </div>
+                </div>
+              ) : (
+                <div className="rounded-xl p-3 bg-emerald-50 border border-emerald-200 text-emerald-800 text-xs flex items-start gap-2.5">
+                  <div className="p-1 rounded-md bg-emerald-100 text-emerald-700 shrink-0 mt-0.5">
+                    <ShieldAlert className="w-3.5 h-3.5" />
+                  </div>
+                  <div>
+                    <div className="font-bold">Toleransi {polMaxTabSwitches}x Pelanggaran</div>
+                    <div className="text-[11px] text-emerald-700 mt-0.5 leading-relaxed">
+                      Siswa akan menerima modal peringatan pada pelanggaran ke-1 hingga ke-{polMaxTabSwitches - 1}. Pada pelanggaran ke-{polMaxTabSwitches}, sesi ujian akan otomatis terkunci.
+                    </div>
+                  </div>
+                </div>
+              )}
             </div>
           </div>
 

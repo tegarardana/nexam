@@ -148,12 +148,37 @@ export async function PUT(
       });
 
       if (policySettings) {
+        const polBlockOnViolation = policySettings.blockOnViolation ?? true;
+        const polMaxTabSwitches = policySettings.maxTabSwitches ?? 3;
+        const computedBlockThreshold = !polBlockOnViolation
+          ? 9999
+          : polMaxTabSwitches === 0
+          ? 1
+          : polMaxTabSwitches;
+        const computedWarnThreshold = !polBlockOnViolation
+          ? 9999
+          : polMaxTabSwitches === 0
+          ? 0
+          : 1;
+        const computedMode = !polBlockOnViolation
+          ? "practice"
+          : polMaxTabSwitches === 0
+          ? "strict"
+          : "standard";
+
+        const syncedPolicy = {
+          ...policySettings,
+          blockThreshold: computedBlockThreshold,
+          warnThreshold: computedWarnThreshold,
+          mode: computedMode,
+        };
+
         await tx.examinationPolicySetting.upsert({
           where: { examinationId: id },
-          update: policySettings,
+          update: syncedPolicy,
           create: {
             examinationId: id,
-            ...policySettings,
+            ...syncedPolicy,
           },
         });
       }

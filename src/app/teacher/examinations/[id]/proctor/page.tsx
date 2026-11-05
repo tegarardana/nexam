@@ -520,8 +520,21 @@ export default function ProctorDashboardPage() {
                 </span>
               </div>
               <p className="text-xs text-slate-500">
-                Durasi: {examInfo?.durationMinutes} Menit • Mode Integritas:{" "}
-                <strong className="uppercase font-semibold">{examInfo?.policy?.mode || "Standard"}</strong>
+                Durasi: {examInfo?.durationMinutes} Menit • Mode:{" "}
+                <strong className="uppercase font-semibold">{examInfo?.policy?.mode || "Standard"}</strong> • Toleransi:{" "}
+                <strong className={`font-semibold ${
+                  examInfo?.policy?.blockOnViolation === false
+                    ? "text-slate-600"
+                    : (examInfo?.policy?.maxTabSwitches ?? 3) === 0
+                    ? "text-rose-600"
+                    : "text-amber-700"
+                }`}>
+                  {examInfo?.policy?.blockOnViolation === false
+                    ? "Bebas (Pencatatan)"
+                    : (examInfo?.policy?.maxTabSwitches ?? 3) === 0
+                    ? "0x (Ketat / Blokir Langsung)"
+                    : `${examInfo?.policy?.maxTabSwitches ?? 3}x Tab`}
+                </strong>
               </p>
             </div>
           </div>

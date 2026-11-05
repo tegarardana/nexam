@@ -1483,8 +1483,20 @@ export default function TeacherExaminationPanel({
             <span>Peserta: <strong className="text-slate-900">{exam._count?.participants || 0} Siswa</strong></span>
           </div>
           <div className="flex items-center gap-1.5">
-            <ShieldAlert className="w-4 h-4 text-amber-600" />
-            <span>Anti-Cheat: <strong className="text-slate-900">Aktif ({exam.policySettings?.maxTabSwitches || 3}x Tab)</strong></span>
+            <ShieldAlert className={`w-4 h-4 ${
+              exam.policySettings?.blockOnViolation === false
+                ? "text-slate-400"
+                : (exam.policySettings?.maxTabSwitches ?? 3) === 0
+                ? "text-rose-600"
+                : "text-amber-600"
+            }`} />
+            <span>Anti-Cheat: <strong className="text-slate-900">
+              {exam.policySettings?.blockOnViolation === false
+                ? "Bebas (Pencatatan)"
+                : (exam.policySettings?.maxTabSwitches ?? 3) === 0
+                ? "Ketat (0x / Langsung Blokir)"
+                : `Aktif (${exam.policySettings?.maxTabSwitches ?? 3}x Tab)`}
+            </strong></span>
           </div>
         </div>
 

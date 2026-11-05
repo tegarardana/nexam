@@ -535,7 +535,8 @@ export default function StudentExamPage() {
     const handleFullscreenChange = () => {
       const isFs = !!(document.fullscreenElement || (document as any).webkitFullscreenElement);
       setIsFullscreen(isFs);
-      if (!isFs && stage === "active_exam" && !showWarningModal && !isBlocked) {
+      const fsRequired = examData?.policySettings?.fullScreenRequired !== false;
+      if (!isFs && stage === "active_exam" && !showWarningModal && !isBlocked && fsRequired) {
         reportAntiCheatEvent(
           "fullscreen_exit",
           { exit: true, isTabSwitchEquivalent: true },
@@ -894,18 +895,60 @@ export default function StudentExamPage() {
             )}
 
             {/* Anti-cheat Policy reminder */}
-            <div className="p-4 sm:p-5 rounded-xl bg-amber-50 border border-amber-200 space-y-2 text-slate-700">
-              <div className="font-bold text-amber-900 flex items-center gap-2">
-                <ShieldAlert className="w-4 h-4 text-amber-600 shrink-0" />
-                <span>Tata Tertib & Integritas Ujian</span>
-              </div>
-              <ul className="list-disc pl-6 sm:pl-7 space-y-2 text-slate-700 text-xs leading-relaxed marker:text-amber-600">
-                <li>Waktu ujian diatur langsung oleh server dan tidak dapat dijeda.</li>
-                <li>Dilarang berpindah tab peramban atau membuka aplikasi lain selama ujian.</li>
-                <li>Jawaban tersimpan otomatis secara berkala (Auto-save).</li>
-                <li>Pastikan menekan tombol Kumpulkan setelah selesai memeriksa semua jawaban.</li>
-              </ul>
-            </div>
+            {(() => {
+              const maxTabs = examData?.policySettings?.maxTabSwitches ?? 3;
+              const blockOnViol = examData?.policySettings?.blockOnViolation ?? true;
+              const isStrictZero = blockOnViol && maxTabs === 0;
+
+              return (
+                <div
+                  className={`p-4 sm:p-5 rounded-xl border space-y-2 text-slate-700 ${
+                    isStrictZero
+                      ? "bg-rose-50 border-rose-300"
+                      : "bg-amber-50 border-amber-200"
+                  }`}
+                >
+                  <div
+                    className={`font-bold flex items-center gap-2 ${
+                      isStrictZero ? "text-rose-900" : "text-amber-900"
+                    }`}
+                  >
+                    <ShieldAlert
+                      className={`w-4 h-4 shrink-0 ${
+                        isStrictZero ? "text-rose-600" : "text-amber-600"
+                      }`}
+                    />
+                    <span>
+                      {isStrictZero
+                        ? "Tata Tertib Ketat — Integritas Tanpa Toleransi (0x)"
+                        : "Tata Tertib & Integritas Ujian"}
+                    </span>
+                  </div>
+                  <ul
+                    className={`list-disc pl-6 sm:pl-7 space-y-2 text-slate-700 text-xs leading-relaxed ${
+                      isStrictZero ? "marker:text-rose-600" : "marker:text-amber-600"
+                    }`}
+                  >
+                    <li>Waktu ujian diatur langsung oleh server dan tidak dapat dijeda.</li>
+                    {isStrictZero ? (
+                      <li className="font-semibold text-rose-900">
+                        <strong>PERHATIAN KERAS:</strong> Anda <strong>sama sekali dilarang</strong> berpindah tab peramban, meminimalkan jendela, atau keluar dari mode layar penuh (Full Screen). Pelanggaran <strong>1 kali saja</strong> akan <strong>langsung mengunci/memblokir</strong> ujian Anda.
+                      </li>
+                    ) : !blockOnViol ? (
+                      <li>
+                        Aktivitas perpindahan tab dan layar penuh diawasi dan dicatat pada log pengawas.
+                      </li>
+                    ) : (
+                      <li>
+                        Dilarang berpindah tab peramban atau keluar dari mode layar penuh. Batas toleransi maksimal adalah <strong>{maxTabs} kali</strong> sebelum sesi ujian terkunci otomatis.
+                      </li>
+                    )}
+                    <li>Jawaban tersimpan otomatis secara berkala (Auto-save).</li>
+                    <li>Pastikan menekan tombol Kumpulkan setelah selesai memeriksa semua jawaban.</li>
+                  </ul>
+                </div>
+              );
+            })()}
 
             {/* Checkbox Acknowledgment */}
             <label className="flex items-start gap-2.5 cursor-pointer pt-1">
@@ -1751,7 +1794,7 @@ export default function StudentExamPage() {
               <div className="flex items-center justify-between">
                 <span className="text-slate-500 font-medium">Insiden Tercatat:</span>
                 <span className="font-bold text-amber-700">
-                  {incidentCount} dari {examData?.policySettings?.blockThreshold || 3} kali toleransi
+                  {incidentCount} dari {examData?.policySettings?.maxTabSwitches ?? examData?.policySettings?.blockThreshold ?? 3} kali toleransi
                 </span>
               </div>
               <p className="text-[11px] text-slate-500">
@@ -1785,7 +1828,9 @@ export default function StudentExamPage() {
             <div className="space-y-1.5">
               <h3 className="font-bold text-slate-900 text-base">Sesi Ujian Ditangguhkan Sementara</h3>
               <p className="text-xs text-slate-600 leading-relaxed">
-                Akses pengerjaan ujian Anda saat ini dikunci karena batas toleransi integritas tercapai atau penangguhan oleh pengawas.
+                {(examData?.policySettings?.maxTabSwitches ?? 3) === 0
+                  ? "Akses ujian Anda langsung dikunci karena terdeteksi keluar dari layar ujian / berpindah tab pada mode Tanpa Toleransi (0x)."
+                  : "Akses pengerjaan ujian Anda saat ini dikunci karena batas toleransi integritas tercapai atau penangguhan oleh pengawas."}
               </p>
             </div>
 

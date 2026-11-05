@@ -356,4 +356,101 @@ describe("Phase 4 – Anti-Cheat Policy Evaluator Engine", () => {
     expect(unlockRes.status).toBe("in_progress");
     expect(unlockRes.incidentCount).toBe(0);
   });
+
+  it("should immediately block on 1st violation in zero-tolerance mode (maxTabSwitches: 0)", async () => {
+    mockAttempts["attempt-zero"] = {
+      id: "attempt-zero",
+      examinationId: "exam-zero",
+      studentId: "student-zero",
+      status: "in_progress",
+      incidentCount: 0,
+      student: { displayName: "Doni", nis: "1009" },
+      examination: {
+        policySettings: {
+          maxTabSwitches: 0,
+          blockOnViolation: true,
+          fullScreenRequired: true,
+        },
+      },
+    };
+
+    const res = await evaluateAntiCheatEvent({
+      attemptId: "attempt-zero",
+      eventType: "visibility_change",
+      clientEventId: "zero-evt-1",
+    });
+
+    expect(res.action).toBe("blocked");
+    expect(res.status).toBe("blocked");
+    expect(res.incidentCount).toBe(1);
+    expect(mockAttempts["attempt-zero"].status).toBe("blocked");
+  });
+
+  it("should respect custom maxTabSwitches limit (e.g. 5 times)", async () => {
+    mockAttempts["attempt-five"] = {
+      id: "attempt-five",
+      examinationId: "exam-five",
+      studentId: "student-five",
+      status: "in_progress",
+      incidentCount: 0,
+      student: { displayName: "Rina", nis: "1010" },
+      examination: {
+        policySettings: {
+          maxTabSwitches: 5,
+          blockOnViolation: true,
+        },
+      },
+    };
+
+    // Events 1 to 4 should result in warning
+    for (let i = 1; i <= 4; i++) {
+      const res = await evaluateAntiCheatEvent({
+        attemptId: "attempt-five",
+        eventType: "visibility_change",
+        clientEventId: `five-evt-${i}`,
+      });
+      expect(res.action).toBe("warning");
+      expect(res.status).toBe("warning");
+      expect(res.incidentCount).toBe(i);
+    }
+
+    // 5th event should block
+    const res5 = await evaluateAntiCheatEvent({
+      attemptId: "attempt-five",
+      eventType: "visibility_change",
+      clientEventId: "five-evt-5",
+    });
+    expect(res5.action).toBe("blocked");
+    expect(res5.status).toBe("blocked");
+    expect(res5.incidentCount).toBe(5);
+  });
+
+  it("should ignore fullscreen_exit when fullScreenRequired is false", async () => {
+    mockAttempts["attempt-no-fs"] = {
+      id: "attempt-no-fs",
+      examinationId: "exam-no-fs",
+      studentId: "student-no-fs",
+      status: "in_progress",
+      incidentCount: 0,
+      student: { displayName: "Hadi", nis: "1011" },
+      examination: {
+        policySettings: {
+          maxTabSwitches: 3,
+          fullScreenRequired: false,
+          blockOnViolation: true,
+        },
+      },
+    };
+
+    const res = await evaluateAntiCheatEvent({
+      attemptId: "attempt-no-fs",
+      eventType: "fullscreen_exit",
+      clientEventId: "no-fs-1",
+    });
+
+    // Should be recorded without incrementing incident count or warning
+    expect(res.action).toBe("recorded");
+    expect(res.status).toBe("in_progress");
+    expect(res.incidentCount).toBe(0);
+  });
 });
