@@ -292,6 +292,8 @@ export default function TeacherExaminationPanel({
       setExamCategoryFilter("in_progress");
     } else if (viewMode === "results") {
       setExamCategoryFilter("closed");
+    } else if (viewMode === "analysis") {
+      setExamCategoryFilter("closed");
     } else if (viewMode === "schedule") {
       setExamCategoryFilter("all");
     }
@@ -1313,6 +1315,24 @@ export default function TeacherExaminationPanel({
               <Radio className={`w-4 h-4 ${effectiveInProgress ? "animate-pulse text-white" : "text-emerald-400"}`} />
               <span>Masuk Pengawasan Live</span>
             </Link>
+
+            <Link
+              href={`/teacher/examinations/${exam.id}/results`}
+              className="px-3.5 py-2 rounded-xl border border-slate-200 bg-white hover:bg-slate-50 text-slate-700 text-xs font-semibold flex items-center gap-1.5 transition cursor-pointer shadow-xs"
+              title="Buka Rekapitulasi Hasil & Nilai Siswa"
+            >
+              <Award className="w-4 h-4 text-purple-600" />
+              <span>Rekap Nilai</span>
+            </Link>
+
+            <Link
+              href={`/teacher/examinations/${exam.id}/analysis`}
+              className="px-3.5 py-2 rounded-xl border border-indigo-200 bg-indigo-50/70 hover:bg-indigo-100 text-indigo-900 text-xs font-semibold flex items-center gap-1.5 transition cursor-pointer shadow-xs"
+              title="Buka Analisis Butir Soal"
+            >
+              <PieChart className="w-4 h-4 text-indigo-600" />
+              <span>Analisis Soal</span>
+            </Link>
           </div>
 
           <div className="text-[11px] text-slate-500 flex items-center gap-1.5">
@@ -1574,6 +1594,19 @@ export default function TeacherExaminationPanel({
             >
               <Award className="w-3.5 h-3.5 text-purple-600" />
               <span>Rekap Nilai</span>
+            </Link>
+
+            <Link
+              href={`/teacher/examinations/${exam.id}/analysis`}
+              className={`px-3 py-1.5 rounded-lg text-xs font-semibold flex items-center gap-1.5 transition cursor-pointer shadow-xs ${
+                viewMode === "analysis"
+                  ? "bg-indigo-600 hover:bg-indigo-500 text-white font-bold"
+                  : "border border-slate-200 bg-white hover:bg-slate-50 text-slate-700"
+              }`}
+              title="Buka Analisis Butir Soal, Daya Pembeda, dan Distribusi Jawaban"
+            >
+              <PieChart className={`w-3.5 h-3.5 ${viewMode === "analysis" ? "text-white" : "text-indigo-600"}`} />
+              <span>Analisis Soal</span>
             </Link>
           </div>
 

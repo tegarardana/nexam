@@ -198,6 +198,15 @@ export default function ExaminationResultsPage() {
             </button>
 
             <Link
+              href={`/teacher/examinations/${examId}/analysis`}
+              className="px-3.5 py-2 rounded-xl border border-indigo-200 bg-indigo-50/70 hover:bg-indigo-100 text-indigo-900 text-xs font-semibold flex items-center gap-1.5 transition cursor-pointer shadow-xs"
+              title="Buka Analisis Butir Soal"
+            >
+              <BarChart3 className="w-4 h-4 text-indigo-600" />
+              <span>Analisis Soal</span>
+            </Link>
+
+            <Link
               href={`/teacher/examinations/${examId}/proctor`}
               className="px-3.5 py-2 rounded-xl border border-slate-200 bg-white hover:bg-slate-50 text-slate-700 text-xs font-semibold flex items-center gap-1.5 transition cursor-pointer shadow-xs"
             >
