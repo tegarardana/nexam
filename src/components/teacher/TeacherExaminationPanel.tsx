@@ -1432,60 +1432,62 @@ export default function TeacherExaminationPanel({
           </div>
 
           {/* State Machine Transition Actions */}
-          <div className="flex items-center gap-2 flex-wrap">
-            {isDraft && (
-              <button
-                onClick={() => handleTransitionStatus(exam.id, "ready")}
-                className="px-3 py-1.5 rounded-lg bg-cyan-600 hover:bg-cyan-500 text-white text-xs font-semibold transition cursor-pointer shadow-xs"
-              >
-                Setujui (Ready)
-              </button>
-            )}
-            {(isDraft || isReady) && (
-              <button
-                onClick={() => handleTransitionStatus(exam.id, "scheduled")}
-                className="px-3 py-1.5 rounded-lg bg-[#0D274C] hover:bg-[#163866] text-white text-xs font-semibold transition cursor-pointer shadow-xs"
-              >
-                Jadwalkan (Scheduled)
-              </button>
-            )}
-            {effectiveScheduled && (
-              <button
-                onClick={() => handleTransitionStatus(exam.id, "in_progress")}
-                className="px-3 py-1.5 rounded-lg bg-[#65C443] hover:bg-[#52a835] text-white text-xs font-semibold transition cursor-pointer shadow-xs flex items-center gap-1.5"
-                title="Mulai sesi ujian sekarang lebih awal dari jadwal"
-              >
-                <PlayCircle className="w-3.5 h-3.5" />
-                <span>Mulai Sekarang</span>
-              </button>
-            )}
-            {effectiveInProgress && (
-              <button
-                onClick={() => handleTransitionStatus(exam.id, "closed")}
-                className="px-3 py-1.5 rounded-lg bg-rose-600 hover:bg-rose-500 text-white text-xs font-semibold transition cursor-pointer shadow-xs flex items-center gap-1.5"
-              >
-                <span>Tutup Ujian (Closed)</span>
-              </button>
-            )}
-            {isClosed && (
-              <button
-                onClick={() => handleReopenExam(exam)}
-                className="px-3 py-1.5 rounded-lg bg-indigo-600 hover:bg-indigo-500 text-white text-xs font-semibold transition cursor-pointer shadow-xs flex items-center gap-1.5"
-              >
-                <RotateCcw className="w-3.5 h-3.5" />
-                <span>Adakan Ulang</span>
-              </button>
-            )}
-            {isClosed && isAdmin && (
-              <button
-                onClick={() => handleDeleteClosedExam(exam)}
-                className="px-3 py-1.5 rounded-lg bg-rose-600 hover:bg-rose-700 text-white text-xs font-semibold transition cursor-pointer shadow-xs flex items-center gap-1.5"
-              >
-                <Trash2 className="w-3.5 h-3.5" />
-                <span>Hapus Ujian</span>
-              </button>
-            )}
-          </div>
+          {viewMode !== "analysis" && (
+            <div className="flex items-center gap-2 flex-wrap">
+              {isDraft && (
+                <button
+                  onClick={() => handleTransitionStatus(exam.id, "ready")}
+                  className="px-3 py-1.5 rounded-lg bg-cyan-600 hover:bg-cyan-500 text-white text-xs font-semibold transition cursor-pointer shadow-xs"
+                >
+                  Setujui (Ready)
+                </button>
+              )}
+              {(isDraft || isReady) && (
+                <button
+                  onClick={() => handleTransitionStatus(exam.id, "scheduled")}
+                  className="px-3 py-1.5 rounded-lg bg-[#0D274C] hover:bg-[#163866] text-white text-xs font-semibold transition cursor-pointer shadow-xs"
+                >
+                  Jadwal (Scheduled)
+                </button>
+              )}
+              {effectiveScheduled && (
+                <button
+                  onClick={() => handleTransitionStatus(exam.id, "in_progress")}
+                  className="px-3 py-1.5 rounded-lg bg-[#65C443] hover:bg-[#52a835] text-white text-xs font-semibold transition cursor-pointer shadow-xs flex items-center gap-1.5"
+                  title="Mulai sesi ujian sekarang lebih awal dari jadwal"
+                >
+                  <PlayCircle className="w-3.5 h-3.5" />
+                  <span>Mulai Sekarang</span>
+                </button>
+              )}
+              {effectiveInProgress && (
+                <button
+                  onClick={() => handleTransitionStatus(exam.id, "closed")}
+                  className="px-3 py-1.5 rounded-lg bg-rose-600 hover:bg-rose-500 text-white text-xs font-semibold transition cursor-pointer shadow-xs flex items-center gap-1.5"
+                >
+                  <span>Tutup Ujian (Closed)</span>
+                </button>
+              )}
+              {isClosed && (
+                <button
+                  onClick={() => handleReopenExam(exam)}
+                  className="px-3 py-1.5 rounded-lg bg-indigo-600 hover:bg-indigo-500 text-white text-xs font-semibold transition cursor-pointer shadow-xs flex items-center gap-1.5"
+                >
+                  <RotateCcw className="w-3.5 h-3.5" />
+                  <span>Adakan Ulang</span>
+                </button>
+              )}
+              {isClosed && isAdmin && (
+                <button
+                  onClick={() => handleDeleteClosedExam(exam)}
+                  className="px-3 py-1.5 rounded-lg bg-rose-600 hover:bg-rose-700 text-white text-xs font-semibold transition cursor-pointer shadow-xs flex items-center gap-1.5"
+                >
+                  <Trash2 className="w-3.5 h-3.5" />
+                  <span>Hapus Ujian</span>
+                </button>
+              )}
+            </div>
+          )}
         </div>
 
         {/* Metadata Badges */}
@@ -1557,73 +1559,99 @@ export default function TeacherExaminationPanel({
 
         {/* Action Buttons */}
         <div className="pt-2 flex items-center justify-between border-t border-slate-100 flex-wrap gap-2">
-          <div className="flex items-center gap-2 flex-wrap">
-            <button
-              onClick={() => openManageQuestions(exam)}
-              className="px-3 py-1.5 rounded-lg border border-slate-200 bg-white hover:bg-slate-50 text-slate-700 text-xs font-semibold flex items-center gap-1.5 transition cursor-pointer shadow-xs"
-            >
-              <BookOpen className="w-3.5 h-3.5 text-[#0D274C]" />
-              <span>Pilih Soal ({exam._count?.questions || 0})</span>
-            </button>
+          {viewMode === "analysis" ? (
+            <div className="flex items-center gap-2 flex-wrap w-full justify-between">
+              <Link
+                href={`/teacher/examinations/${exam.id}/analysis`}
+                className="px-4 py-2 rounded-xl bg-indigo-600 hover:bg-indigo-500 text-white text-xs font-bold flex items-center gap-2 transition cursor-pointer shadow-xs"
+                title="Buka Analisis Butir Soal"
+              >
+                <PieChart className="w-4 h-4 text-white" />
+                <span>Analisis Soal</span>
+              </Link>
 
-            <button
-              onClick={() => openManageParticipants(exam)}
-              className="px-3 py-1.5 rounded-lg border border-slate-200 bg-white hover:bg-slate-50 text-slate-700 text-xs font-semibold flex items-center gap-1.5 transition cursor-pointer shadow-xs"
-            >
-              <Users className="w-3.5 h-3.5 text-[#65C443]" />
-              <span>Daftarkan Kelas ({exam._count?.participants || 0})</span>
-            </button>
+              <div className="text-[11px] text-slate-500 flex items-center gap-1.5">
+                <Calendar className="w-3.5 h-3.5 text-slate-400" />
+                <span>
+                  Jadwal: {new Date(exam.scheduledStart).toLocaleDateString("id-ID", { timeZone: "Asia/Jakarta" })}
+                  {exam.session ? (
+                    <> • <span className="font-semibold text-indigo-700">{exam.session.name} ({exam.session.startTime} - {exam.session.endTime} WIB)</span></>
+                  ) : (
+                    <> • {new Date(exam.scheduledStart).toLocaleTimeString("id-ID", { hour: "2-digit", minute: "2-digit", timeZone: "Asia/Jakarta" })}
+                    {exam.scheduledEnd && (
+                      <> s/d {new Date(exam.scheduledEnd).toLocaleTimeString("id-ID", { hour: "2-digit", minute: "2-digit", timeZone: "Asia/Jakarta" })}</>
+                    )}</>
+                  )}
+                </span>
+              </div>
+            </div>
+          ) : (
+            <>
+              <div className="flex items-center gap-2 flex-wrap">
+                <button
+                  onClick={() => openManageQuestions(exam)}
+                  className="px-3 py-1.5 rounded-lg border border-slate-200 bg-white hover:bg-slate-50 text-slate-700 text-xs font-semibold flex items-center gap-1.5 transition cursor-pointer shadow-xs"
+                >
+                  <BookOpen className="w-3.5 h-3.5 text-[#0D274C]" />
+                  <span>Pilih Soal ({exam._count?.questions || 0})</span>
+                </button>
 
-            <Link
-              href={`/teacher/examinations/${exam.id}/proctor`}
-              className={`px-3 py-1.5 rounded-lg text-xs font-semibold flex items-center gap-1.5 transition cursor-pointer shadow-xs ${
-                effectiveInProgress
-                  ? "bg-emerald-600 hover:bg-emerald-500 text-white"
-                  : "border border-slate-200 bg-white hover:bg-slate-50 text-slate-700"
-              }`}
-              title="Buka Dasbor Pengawasan Live (Real-Time Proctoring)"
-            >
-              <Eye className={`w-3.5 h-3.5 ${effectiveInProgress ? "text-white" : "text-[#65C443]"}`} />
-              <span>Pengawasan Live</span>
-            </Link>
+                <button
+                  onClick={() => openManageParticipants(exam)}
+                  className="px-3 py-1.5 rounded-lg border border-slate-200 bg-white hover:bg-slate-50 text-slate-700 text-xs font-semibold flex items-center gap-1.5 transition cursor-pointer shadow-xs"
+                >
+                  <Users className="w-3.5 h-3.5 text-[#65C443]" />
+                  <span>Daftarkan Kelas ({exam._count?.participants || 0})</span>
+                </button>
 
-            <Link
-              href={`/teacher/examinations/${exam.id}/results`}
-              className="px-3 py-1.5 rounded-lg border border-slate-200 bg-white hover:bg-slate-50 text-slate-700 text-xs font-semibold flex items-center gap-1.5 transition cursor-pointer shadow-xs"
-              title="Buka Rekapitulasi Hasil & Nilai Siswa"
-            >
-              <Award className="w-3.5 h-3.5 text-purple-600" />
-              <span>Rekap Nilai</span>
-            </Link>
+                <Link
+                  href={`/teacher/examinations/${exam.id}/proctor`}
+                  className={`px-3 py-1.5 rounded-lg text-xs font-semibold flex items-center gap-1.5 transition cursor-pointer shadow-xs ${
+                    effectiveInProgress
+                      ? "bg-emerald-600 hover:bg-emerald-500 text-white"
+                      : "border border-slate-200 bg-white hover:bg-slate-50 text-slate-700"
+                  }`}
+                  title="Buka Dasbor Pengawasan Live (Real-Time Proctoring)"
+                >
+                  <Eye className={`w-3.5 h-3.5 ${effectiveInProgress ? "text-white" : "text-[#65C443]"}`} />
+                  <span>Pengawasan Live</span>
+                </Link>
 
-            <Link
-              href={`/teacher/examinations/${exam.id}/analysis`}
-              className={`px-3 py-1.5 rounded-lg text-xs font-semibold flex items-center gap-1.5 transition cursor-pointer shadow-xs ${
-                viewMode === "analysis"
-                  ? "bg-indigo-600 hover:bg-indigo-500 text-white font-bold"
-                  : "border border-slate-200 bg-white hover:bg-slate-50 text-slate-700"
-              }`}
-              title="Buka Analisis Butir Soal, Daya Pembeda, dan Distribusi Jawaban"
-            >
-              <PieChart className={`w-3.5 h-3.5 ${viewMode === "analysis" ? "text-white" : "text-indigo-600"}`} />
-              <span>Analisis Soal</span>
-            </Link>
-          </div>
+                <Link
+                  href={`/teacher/examinations/${exam.id}/results`}
+                  className="px-3 py-1.5 rounded-lg border border-slate-200 bg-white hover:bg-slate-50 text-slate-700 text-xs font-semibold flex items-center gap-1.5 transition cursor-pointer shadow-xs"
+                  title="Buka Rekapitulasi Hasil & Nilai Siswa"
+                >
+                  <Award className="w-3.5 h-3.5 text-purple-600" />
+                  <span>Rekap Nilai</span>
+                </Link>
 
-          <div className="text-[11px] text-slate-500 flex items-center gap-1.5">
-            <Calendar className="w-3.5 h-3.5 text-slate-400" />
-            <span>
-              Jadwal: {new Date(exam.scheduledStart).toLocaleDateString("id-ID", { timeZone: "Asia/Jakarta" })}
-              {exam.session ? (
-                <> • <span className="font-semibold text-indigo-700">{exam.session.name} ({exam.session.startTime} - {exam.session.endTime} WIB)</span></>
-              ) : (
-                <> • {new Date(exam.scheduledStart).toLocaleTimeString("id-ID", { hour: "2-digit", minute: "2-digit", timeZone: "Asia/Jakarta" })}
-                {exam.scheduledEnd && (
-                  <> s/d {new Date(exam.scheduledEnd).toLocaleTimeString("id-ID", { hour: "2-digit", minute: "2-digit", timeZone: "Asia/Jakarta" })}</>
-                )}</>
-              )}
-            </span>
-          </div>
+                <Link
+                  href={`/teacher/examinations/${exam.id}/analysis`}
+                  className="px-3 py-1.5 rounded-lg border border-slate-200 bg-white hover:bg-slate-50 text-slate-700 text-xs font-semibold flex items-center gap-1.5 transition cursor-pointer shadow-xs"
+                  title="Buka Analisis Butir Soal, Daya Pembeda, dan Distribusi Jawaban"
+                >
+                  <PieChart className="w-3.5 h-3.5 text-indigo-600" />
+                  <span>Analisis Soal</span>
+                </Link>
+              </div>
+
+              <div className="text-[11px] text-slate-500 flex items-center gap-1.5">
+                <Calendar className="w-3.5 h-3.5 text-slate-400" />
+                <span>
+                  Jadwal: {new Date(exam.scheduledStart).toLocaleDateString("id-ID", { timeZone: "Asia/Jakarta" })}
+                  {exam.session ? (
+                    <> • <span className="font-semibold text-indigo-700">{exam.session.name} ({exam.session.startTime} - {exam.session.endTime} WIB)</span></>
+                  ) : (
+                    <> • {new Date(exam.scheduledStart).toLocaleTimeString("id-ID", { hour: "2-digit", minute: "2-digit", timeZone: "Asia/Jakarta" })}
+                    {exam.scheduledEnd && (
+                      <> s/d {new Date(exam.scheduledEnd).toLocaleTimeString("id-ID", { hour: "2-digit", minute: "2-digit", timeZone: "Asia/Jakarta" })}</>
+                    )}</>
+                  )}
+                </span>
+              </div>
+            </>
+          )}
         </div>
       </div>
     );
@@ -1998,7 +2026,7 @@ export default function TeacherExaminationPanel({
           <div className="bg-white p-3.5 rounded-xl border border-slate-200 shadow-sm flex flex-col md:flex-row items-stretch md:items-center justify-between gap-3">
             {/* Category Filter Pills */}
             <div className="flex items-center gap-1.5 overflow-x-auto pb-1 md:pb-0 scrollbar-none">
-              {viewMode !== "monitoring" && (
+              {viewMode !== "monitoring" && viewMode !== "analysis" && (
                 <button
                   type="button"
                   onClick={() => setExamCategoryFilter("all")}
@@ -2035,7 +2063,7 @@ export default function TeacherExaminationPanel({
                 </span>
               </button>
 
-              {viewMode !== "monitoring" && (
+              {viewMode !== "monitoring" && viewMode !== "analysis" && (
                 <button
                   type="button"
                   onClick={() => setExamCategoryFilter("upcoming")}
@@ -2073,7 +2101,7 @@ export default function TeacherExaminationPanel({
                 </span>
               </button>
 
-              {viewMode !== "monitoring" && categoryCounts.draft > 0 && (
+              {viewMode !== "monitoring" && viewMode !== "analysis" && categoryCounts.draft > 0 && (
                 <button
                   type="button"
                   onClick={() => setExamCategoryFilter("draft")}
