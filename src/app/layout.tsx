@@ -1,6 +1,7 @@
 import type { Metadata } from "next";
 import { Inter } from "next/font/google";
 import "./globals.css";
+import DevModeBanner from "@/components/dev/DevModeBanner";
 
 const inter = Inter({
   subsets: ["latin"],
@@ -24,6 +25,7 @@ export default function RootLayout({
       <body className="min-h-full flex flex-col font-sans bg-[#F8FAFC] text-slate-900 antialiased selection:bg-[#65C443]/30 selection:text-slate-900">
         <link rel="stylesheet" href="/katex/katex.min.css" precedence="default" />
         {children}
+        <DevModeBanner />
       </body>
     </html>
   );
