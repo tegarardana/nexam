@@ -49,6 +49,7 @@ import {
   Clock,
 } from "lucide-react";
 import TeacherExaminationPanel from "@/components/teacher/TeacherExaminationPanel";
+import ExamGradeRecapPanel from "@/components/admin/ExamGradeRecapPanel";
 import InstitutionProfileSettings from "@/components/admin/InstitutionProfileSettings";
 import * as XLSX from "xlsx";
 
@@ -3083,11 +3084,10 @@ export default function AdminManagementPanel({
             </div>
           )}
 
-          {/* VIEW: PELAKSANAAN UJIAN (STATUS SISWA, HASIL, ANALISIS, REKAP NILAI) */}
+          {/* VIEW: PELAKSANAAN UJIAN (STATUS SISWA, HASIL, ANALISIS) */}
           {(activeTab === "exam_status" ||
             activeTab === "exam_results" ||
-            activeTab === "exam_analysis" ||
-            activeTab === "exam_grades") && (
+            activeTab === "exam_analysis") && (
             <div className="space-y-4 animate-in fade-in duration-200">
               <TeacherExaminationPanel
                 subjects={subjects}
@@ -3103,10 +3103,22 @@ export default function AdminManagementPanel({
                     ? "monitoring"
                     : activeTab === "exam_results"
                     ? "results"
-                    : activeTab === "exam_analysis"
-                    ? "analysis"
-                    : "grades"
+                    : "analysis"
                 }
+              />
+            </div>
+          )}
+
+          {/* VIEW: REKAP NILAI & PENGARSIPAN ASESMEN */}
+          {activeTab === "exam_grades" && (
+            <div className="space-y-4 animate-in fade-in duration-200">
+              <ExamGradeRecapPanel
+                subjects={subjects}
+                academicYears={years}
+                classes={classes}
+                activeYearId={activeYearId}
+                activeYearName={activeYearName}
+                userRoles={["administrator"]}
               />
             </div>
           )}

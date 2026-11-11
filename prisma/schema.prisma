@@ -562,6 +562,7 @@ model Examination {
   attempts           ExaminationAttempt[]
   results            ExaminationResult[]
   publications       ResultPublication[]
+  gradeRecaps        ExamGradeRecap[]
 
   @@index([academicYearId])
   @@index([semesterId])
@@ -815,4 +816,55 @@ model ExaminationEvent {
   @@index([serverTimestamp])
   @@map("examination_events")
 }
+
+// -------------------------------------------------------------
+// Phase 5: Rekap Nilai Mandiri & Snapshot Pengarsipan Asesmen
+// -------------------------------------------------------------
+
+model ExamGradeRecap {
+  id                 String    @id @default(uuid()) @db.Uuid
+  examinationId      String?   @map("examination_id") @db.Uuid
+  examTitle          String    @map("exam_title")
+  examTypeCode       String?   @map("exam_type_code")
+  examTypeName       String?   @map("exam_type_name")
+  subjectCode        String?   @map("subject_code")
+  subjectName        String    @map("subject_name")
+  academicYearName   String    @map("academic_year_name")
+  semesterName       String    @map("semester_name")
+  targetClasses      String    @default("") @map("target_classes")
+  scheduledStart     DateTime  @map("scheduled_start") @db.Timestamptz
+  scheduledEnd       DateTime  @map("scheduled_end") @db.Timestamptz
+  durationMinutes    Int       @default(0) @map("duration_minutes")
+  passingScore       Decimal   @default(75.0) @map("passing_score") @db.Decimal(5, 2)
+  totalPoints        Decimal   @default(100.0) @map("total_points") @db.Decimal(6, 2)
+
+  // Statistik Ringkasan
+  totalParticipants  Int       @default(0) @map("total_participants")
+  submittedCount     Int       @default(0) @map("submitted_count")
+  averageScore       Decimal   @default(0.0) @map("average_score") @db.Decimal(6, 2)
+  highestScore       Decimal   @default(0.0) @map("highest_score") @db.Decimal(6, 2)
+  lowestScore        Decimal   @default(0.0) @map("lowest_score") @db.Decimal(6, 2)
+  passingCount       Int       @default(0) @map("passing_count")
+  failingCount       Int       @default(0) @map("failing_count")
+
+  // Snapshot JSON Data Nilai Siswa
+  studentRecords     Json      @map("student_records")
+
+  status             String    @default("locked") @map("status") // locked | archived
+  lockedAt           DateTime  @default(now()) @map("locked_at") @db.Timestamptz
+  lockedById         String?   @map("locked_by_id") @db.Uuid
+  lockedByName       String?   @map("locked_by_name")
+
+  createdAt          DateTime  @default(now()) @map("created_at") @db.Timestamptz
+  updatedAt          DateTime  @default(now()) @updatedAt @map("updated_at") @db.Timestamptz
+
+  examination        Examination? @relation(fields: [examinationId], references: [id], onDelete: SetNull)
+
+  @@index([examinationId])
+  @@index([subjectName])
+  @@index([academicYearName])
+  @@index([lockedAt])
+  @@map("exam_grade_recaps")
+}
+
 
