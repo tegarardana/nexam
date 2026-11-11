@@ -290,7 +290,7 @@ export default function TeacherExaminationPanel({
   useEffect(() => {
     if (viewMode === "monitoring") {
       setExamCategoryFilter("in_progress");
-    } else if (viewMode === "results") {
+    } else if (viewMode === "results" || viewMode === "grades") {
       setExamCategoryFilter("closed");
     } else if (viewMode === "analysis") {
       setExamCategoryFilter("closed");
@@ -1414,7 +1414,7 @@ export default function TeacherExaminationPanel({
           </div>
 
           {/* State Machine Transition Actions */}
-          {viewMode !== "analysis" && (
+          {viewMode !== "analysis" && viewMode !== "results" && viewMode !== "grades" && (
             <div className="flex items-center gap-2 flex-wrap">
               {isDraft && (
                 <button
@@ -1558,6 +1558,32 @@ export default function TeacherExaminationPanel({
                   Jadwal: {new Date(exam.scheduledStart).toLocaleDateString("id-ID", { timeZone: "Asia/Jakarta" })}
                   {exam.session ? (
                     <> • <span className="font-semibold text-indigo-700">{exam.session.name} ({exam.session.startTime} - {exam.session.endTime} WIB)</span></>
+                  ) : (
+                    <> • {new Date(exam.scheduledStart).toLocaleTimeString("id-ID", { hour: "2-digit", minute: "2-digit", timeZone: "Asia/Jakarta" })}
+                    {exam.scheduledEnd && (
+                      <> s/d {new Date(exam.scheduledEnd).toLocaleTimeString("id-ID", { hour: "2-digit", minute: "2-digit", timeZone: "Asia/Jakarta" })}</>
+                    )}</>
+                  )}
+                </span>
+              </div>
+            </div>
+          ) : viewMode === "results" || viewMode === "grades" ? (
+            <div className="flex items-center gap-2 flex-wrap w-full justify-between">
+              <Link
+                href={`/teacher/examinations/${exam.id}/results`}
+                className="px-4 py-2 rounded-xl bg-purple-600 hover:bg-purple-500 text-white text-xs font-bold flex items-center gap-2 transition cursor-pointer shadow-xs"
+                title="Buka Rekapitulasi Hasil & Nilai Siswa"
+              >
+                <Award className="w-4 h-4 text-white" />
+                <span>Rekap Nilai</span>
+              </Link>
+
+              <div className="text-[11px] text-slate-500 flex items-center gap-1.5">
+                <Calendar className="w-3.5 h-3.5 text-slate-400" />
+                <span>
+                  Jadwal: {new Date(exam.scheduledStart).toLocaleDateString("id-ID", { timeZone: "Asia/Jakarta" })}
+                  {exam.session ? (
+                    <> • <span className="font-semibold text-purple-700">{exam.session.name} ({exam.session.startTime} - {exam.session.endTime} WIB)</span></>
                   ) : (
                     <> • {new Date(exam.scheduledStart).toLocaleTimeString("id-ID", { hour: "2-digit", minute: "2-digit", timeZone: "Asia/Jakarta" })}
                     {exam.scheduledEnd && (
@@ -2008,7 +2034,7 @@ export default function TeacherExaminationPanel({
           <div className="bg-white p-3.5 rounded-xl border border-slate-200 shadow-sm flex flex-col md:flex-row items-stretch md:items-center justify-between gap-3">
             {/* Category Filter Pills */}
             <div className="flex items-center gap-1.5 overflow-x-auto pb-1 md:pb-0 scrollbar-none">
-              {viewMode !== "monitoring" && viewMode !== "analysis" && (
+              {viewMode !== "monitoring" && viewMode !== "analysis" && viewMode !== "results" && viewMode !== "grades" && (
                 <button
                   type="button"
                   onClick={() => setExamCategoryFilter("all")}
@@ -2045,7 +2071,7 @@ export default function TeacherExaminationPanel({
                 </span>
               </button>
 
-              {viewMode !== "monitoring" && viewMode !== "analysis" && (
+              {viewMode !== "monitoring" && viewMode !== "analysis" && viewMode !== "results" && viewMode !== "grades" && (
                 <button
                   type="button"
                   onClick={() => setExamCategoryFilter("upcoming")}
@@ -2083,7 +2109,7 @@ export default function TeacherExaminationPanel({
                 </span>
               </button>
 
-              {viewMode !== "monitoring" && viewMode !== "analysis" && categoryCounts.draft > 0 && (
+              {viewMode !== "monitoring" && viewMode !== "analysis" && viewMode !== "results" && viewMode !== "grades" && categoryCounts.draft > 0 && (
                 <button
                   type="button"
                   onClick={() => setExamCategoryFilter("draft")}
