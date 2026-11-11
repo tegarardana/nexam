@@ -1301,7 +1301,7 @@ export default function TeacherExaminationPanel({
           </div>
         </div>
 
-        {/* Bottom Actions: Pengawasan Live & Rekap Nilai */}
+        {/* Bottom Actions: Pengawasan Live */}
         <div className="pt-2 flex items-center justify-between border-t border-slate-100 flex-wrap gap-2">
           <div className="flex items-center gap-2 flex-wrap">
             <Link
@@ -1314,24 +1314,6 @@ export default function TeacherExaminationPanel({
             >
               <Radio className={`w-4 h-4 ${effectiveInProgress ? "animate-pulse text-white" : "text-emerald-400"}`} />
               <span>Masuk Pengawasan Live</span>
-            </Link>
-
-            <Link
-              href={`/teacher/examinations/${exam.id}/results`}
-              className="px-3.5 py-2 rounded-xl border border-slate-200 bg-white hover:bg-slate-50 text-slate-700 text-xs font-semibold flex items-center gap-1.5 transition cursor-pointer shadow-xs"
-              title="Buka Rekapitulasi Hasil & Nilai Siswa"
-            >
-              <Award className="w-4 h-4 text-purple-600" />
-              <span>Rekap Nilai</span>
-            </Link>
-
-            <Link
-              href={`/teacher/examinations/${exam.id}/analysis`}
-              className="px-3.5 py-2 rounded-xl border border-indigo-200 bg-indigo-50/70 hover:bg-indigo-100 text-indigo-900 text-xs font-semibold flex items-center gap-1.5 transition cursor-pointer shadow-xs"
-              title="Buka Analisis Butir Soal"
-            >
-              <PieChart className="w-4 h-4 text-indigo-600" />
-              <span>Analisis Soal</span>
             </Link>
           </div>
 
