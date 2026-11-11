@@ -92,12 +92,22 @@ export async function GET(request: NextRequest) {
         lockedAt: r.lockedAt,
         lockedByName: r.lockedByName,
         status: r.status,
+        isFinished: true,
+        canRecap: false,
       });
     }
 
     // Add examinations that have not yet been recapped
+    const now = new Date();
     for (const exam of examinations) {
       if (!recappedExamIds.has(exam.id)) {
+        const isPastSchedule = Boolean(exam.scheduledEnd && now > new Date(exam.scheduledEnd));
+        const isFinished =
+          exam.status === "closed" ||
+          exam.status === "finalized" ||
+          exam.status === "archived" ||
+          isPastSchedule;
+
         const targetClassesSet = new Set<string>();
         for (const p of exam.participants) {
           if (p.classGroup?.name) {
@@ -115,6 +125,8 @@ export async function GET(request: NextRequest) {
           recapId: null,
           examinationId: exam.id,
           isRecapped: false,
+          isFinished,
+          canRecap: isFinished,
           examTitle: exam.title,
           examTypeCode: exam.examinationType?.code || null,
           examTypeName: exam.examinationType?.name || null,
@@ -148,7 +160,9 @@ export async function GET(request: NextRequest) {
     if (statusFilter === "recapped") {
       filteredItems = filteredItems.filter((i) => i.isRecapped);
     } else if (statusFilter === "pending") {
-      filteredItems = filteredItems.filter((i) => !i.isRecapped);
+      filteredItems = filteredItems.filter((i) => !i.isRecapped && i.canRecap);
+    } else if (statusFilter === "in_progress") {
+      filteredItems = filteredItems.filter((i) => !i.isRecapped && !i.canRecap);
     }
 
     if (search) {
@@ -164,7 +178,8 @@ export async function GET(request: NextRequest) {
     const summary = {
       totalExams: items.length,
       totalRecapped: items.filter((i) => i.isRecapped).length,
-      totalPending: items.filter((i) => !i.isRecapped).length,
+      totalPending: items.filter((i) => !i.isRecapped && i.canRecap).length,
+      totalInProgress: items.filter((i) => !i.isRecapped && !i.canRecap).length,
     };
 
     return NextResponse.json({

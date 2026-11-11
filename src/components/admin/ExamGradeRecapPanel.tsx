@@ -47,13 +47,14 @@ export default function ExamGradeRecapPanel({
     totalExams: 0,
     totalRecapped: 0,
     totalPending: 0,
+    totalInProgress: 0,
   });
   const [loading, setLoading] = useState(true);
   const [revisingId, setRevisingId] = useState<string | null>(null);
   const [exporting, setExporting] = useState(false);
 
   // Filters & Search
-  const [statusFilter, setStatusFilter] = useState<"all" | "recapped" | "pending">("all");
+  const [statusFilter, setStatusFilter] = useState<"all" | "recapped" | "pending" | "in_progress">("all");
   const [selectedSubject, setSelectedSubject] = useState<string>("all");
   const [searchQuery, setSearchQuery] = useState("");
 
@@ -110,8 +111,15 @@ export default function ExamGradeRecapPanel({
   }, [loadRecapData]);
 
   // Handle Process & Lock Recap
-  const handleProcessRecap = async (examinationId: string, examTitle: string) => {
+  const handleProcessRecap = async (examinationId: string, examTitle: string, canRecap: boolean = true) => {
     if (!examinationId) return;
+    if (!canRecap) {
+      showToast(
+        "Ujian masih berlangsung dan belum selesai. Rekap nilai hanya dapat dilakukan setelah ujian selesai atau ditutup.",
+        "error"
+      );
+      return;
+    }
     const confirmLock = confirm(
       `Apakah Anda yakin ingin memproses dan mengunci rekap nilai untuk:\n"${examTitle}"?\n\nNilai seluruh peserta akan dihitung dan di-backup secara permanen ke dalam sistem.`
     );
@@ -340,7 +348,7 @@ export default function ExamGradeRecapPanel({
       </div>
 
       {/* 2. Quick Stat KPI Cards */}
-      <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
         <div className="bg-white p-4 rounded-xl border border-slate-200/80 shadow-xs flex items-center gap-3.5">
           <div className="w-11 h-11 rounded-xl bg-blue-50 border border-blue-200 flex items-center justify-center text-blue-700">
             <FileSpreadsheet className="w-5 h-5" />
@@ -368,11 +376,21 @@ export default function ExamGradeRecapPanel({
 
         <div className="bg-white p-4 rounded-xl border border-amber-200/80 shadow-xs flex items-center gap-3.5">
           <div className="w-11 h-11 rounded-xl bg-amber-50 border border-amber-200 flex items-center justify-center text-amber-700">
+            <CheckCircle2 className="w-5 h-5" />
+          </div>
+          <div>
+            <div className="text-xs text-amber-800 font-medium">Selesai (Siap Direkap)</div>
+            <div className="text-xl font-extrabold text-amber-700 mt-0.5">{summary.totalPending} Ujian</div>
+          </div>
+        </div>
+
+        <div className="bg-white p-4 rounded-xl border border-blue-200/80 shadow-xs flex items-center gap-3.5">
+          <div className="w-11 h-11 rounded-xl bg-blue-50 border border-blue-200 flex items-center justify-center text-blue-700">
             <Clock className="w-5 h-5" />
           </div>
           <div>
-            <div className="text-xs text-amber-800 font-medium">Menunggu Rekapitulasi</div>
-            <div className="text-xl font-extrabold text-amber-700 mt-0.5">{summary.totalPending} Ujian</div>
+            <div className="text-xs text-blue-800 font-medium">Sedang Berjalan</div>
+            <div className="text-xl font-extrabold text-blue-700 mt-0.5">{summary.totalInProgress || 0} Ujian</div>
           </div>
         </div>
       </div>
@@ -425,12 +443,30 @@ export default function ExamGradeRecapPanel({
                 : "bg-amber-50 hover:bg-amber-100 text-amber-800 border border-amber-200"
             }`}
           >
-            <Clock className="w-3.5 h-3.5 shrink-0" />
-            <span>Belum Direkap</span>
+            <CheckCircle2 className="w-3.5 h-3.5 shrink-0" />
+            <span>Siap Direkap</span>
             <span className={`px-1.5 py-0.2 rounded-full text-[10px] font-bold ${
               statusFilter === "pending" ? "bg-white/25 text-white" : "bg-amber-200 text-amber-900"
             }`}>
               {summary.totalPending}
+            </span>
+          </button>
+
+          <button
+            type="button"
+            onClick={() => setStatusFilter("in_progress")}
+            className={`px-3 py-1.5 rounded-lg text-xs font-semibold whitespace-nowrap transition cursor-pointer flex items-center gap-1.5 ${
+              statusFilter === "in_progress"
+                ? "bg-blue-600 text-white shadow-xs"
+                : "bg-blue-50 hover:bg-blue-100 text-blue-800 border border-blue-200"
+            }`}
+          >
+            <Clock className="w-3.5 h-3.5 shrink-0" />
+            <span>Sedang Berjalan</span>
+            <span className={`px-1.5 py-0.2 rounded-full text-[10px] font-bold ${
+              statusFilter === "in_progress" ? "bg-white/25 text-white" : "bg-blue-200 text-blue-900"
+            }`}>
+              {summary.totalInProgress || 0}
             </span>
           </button>
         </div>
@@ -556,10 +592,15 @@ export default function ExamGradeRecapPanel({
                             <ShieldCheck className="w-3.5 h-3.5 text-emerald-600" />
                             <span>Terkunci & Aman</span>
                           </span>
-                        ) : (
+                        ) : item.canRecap ? (
                           <span className="px-2.5 py-0.5 rounded-full text-[11px] font-bold bg-amber-50 text-amber-800 border border-amber-200 flex items-center gap-1.5">
-                            <Clock className="w-3.5 h-3.5 text-amber-600" />
-                            <span>Belum Direkap</span>
+                            <CheckCircle2 className="w-3.5 h-3.5 text-amber-600" />
+                            <span>Selesai (Siap Direkap)</span>
+                          </span>
+                        ) : (
+                          <span className="px-2.5 py-0.5 rounded-full text-[11px] font-bold bg-blue-50 text-blue-800 border border-blue-200 flex items-center gap-1.5">
+                            <span className="w-2 h-2 rounded-full bg-blue-500 animate-ping" />
+                            <span>Sedang Berjalan (Belum Selesai)</span>
                           </span>
                         )}
                       </div>
@@ -592,13 +633,23 @@ export default function ExamGradeRecapPanel({
                           <div className="text-[10px] text-slate-500">Oleh: {item.lockedByName}</div>
                         )}
                       </div>
-                    ) : (
+                    ) : item.canRecap ? (
                       <div className="text-right">
                         <div className="text-[11px] font-bold text-amber-700">
                           {item.submittedCount} / {item.totalParticipants} Selesai
                         </div>
                         <div className="text-[10px] text-slate-500 mt-0.5">
-                          Siap diproses & dikunci
+                          Ujian selesai • Siap direkap
+                        </div>
+                      </div>
+                    ) : (
+                      <div className="text-right">
+                        <div className="text-[11px] font-bold text-blue-700 flex items-center gap-1 justify-end">
+                          <span className="w-2 h-2 rounded-full bg-blue-500 animate-ping" />
+                          <span>{item.submittedCount} / {item.totalParticipants} Mengerjakan</span>
+                        </div>
+                        <div className="text-[10px] text-slate-500 mt-0.5">
+                          Ujian sedang berlangsung
                         </div>
                       </div>
                     )}
@@ -638,12 +689,21 @@ export default function ExamGradeRecapPanel({
                       </div>
                     </div>
                   </div>
-                ) : (
+                ) : item.canRecap ? (
                   <div className="p-3 rounded-xl bg-amber-50/60 border border-amber-200 text-xs text-amber-900 flex items-center justify-between flex-wrap gap-2">
                     <div className="flex items-center gap-2">
                       <AlertTriangle className="w-4 h-4 text-amber-600 shrink-0" />
                       <span>
-                        Nilai ujian ini belum dikunci ke arsip sistem. Rekap sekarang agar data nilai aman jika jadwal ujian dibersihkan.
+                        Sesi ujian telah berakhir. Segera proses rekap nilai agar data nilai siswa terkunci dan terarsip aman.
+                      </span>
+                    </div>
+                  </div>
+                ) : (
+                  <div className="p-3 rounded-xl bg-blue-50/60 border border-blue-200 text-xs text-blue-900 flex items-center justify-between flex-wrap gap-2">
+                    <div className="flex items-center gap-2">
+                      <Clock className="w-4 h-4 text-blue-600 shrink-0" />
+                      <span>
+                        Ujian sedang berlangsung. Rekapitulasi nilai baru dapat dilakukan setelah sesi ujian selesai atau ditutup.
                       </span>
                     </div>
                   </div>
@@ -679,7 +739,7 @@ export default function ExamGradeRecapPanel({
                         {item.examinationId && (
                           <button
                             type="button"
-                            onClick={() => handleProcessRecap(item.examinationId, item.examTitle)}
+                            onClick={() => handleProcessRecap(item.examinationId, item.examTitle, true)}
                             disabled={isProcessing}
                             className="px-3 py-2 rounded-xl border border-slate-200 bg-white hover:bg-slate-50 text-slate-600 text-xs font-semibold flex items-center gap-1 transition cursor-pointer"
                             title="Perbarui snapshot rekap nilai jika terdapat koreksi esai susulan"
@@ -689,16 +749,31 @@ export default function ExamGradeRecapPanel({
                           </button>
                         )}
                       </>
-                    ) : (
+                    ) : item.canRecap ? (
                       <button
                         type="button"
-                        onClick={() => handleProcessRecap(item.examinationId, item.examTitle)}
+                        onClick={() => handleProcessRecap(item.examinationId, item.examTitle, true)}
                         disabled={isProcessing}
                         className="px-4 py-2 rounded-xl bg-purple-600 hover:bg-purple-700 text-white text-xs font-bold flex items-center gap-2 transition cursor-pointer shadow-xs disabled:opacity-50"
                       >
                         <Lock className={`w-4 h-4 ${isProcessing ? "animate-spin" : ""}`} />
                         <span>{isProcessing ? "Memproses Nilai..." : "Proses & Kunci Nilai Ujian"}</span>
                       </button>
+                    ) : (
+                      <div className="flex items-center gap-2 flex-wrap">
+                        <button
+                          type="button"
+                          disabled
+                          className="px-4 py-2 rounded-xl bg-slate-100 border border-slate-200 text-slate-400 text-xs font-semibold flex items-center gap-2 cursor-not-allowed shadow-none"
+                          title="Ujian masih berlangsung. Nilai baru dapat diproses dan direkap setelah sesi ujian berakhir atau ditutup."
+                        >
+                          <Clock className="w-4 h-4 text-slate-400" />
+                          <span>Ujian Masih Berjalan (Belum Dapat Direkap)</span>
+                        </button>
+                        <span className="text-[11px] text-blue-700 bg-blue-50 px-2.5 py-1 rounded-lg border border-blue-200">
+                          Menunggu ujian selesai
+                        </span>
+                      </div>
                     )}
                   </div>
 

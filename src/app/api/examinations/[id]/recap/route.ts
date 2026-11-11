@@ -36,6 +36,26 @@ export async function POST(
       return NextResponse.json({ success: false, error: "Jadwal ujian tidak ditemukan" }, { status: 404 });
     }
 
+    // Check if the examination is finished before allowing recap
+    const now = new Date();
+    const isPastSchedule = Boolean(exam.scheduledEnd && now > new Date(exam.scheduledEnd));
+    const isClosed =
+      exam.status === "closed" ||
+      exam.status === "finalized" ||
+      exam.status === "archived" ||
+      isPastSchedule;
+
+    if (!isClosed) {
+      return NextResponse.json(
+        {
+          success: false,
+          error:
+            "Ujian masih berlangsung dan belum selesai. Rekap nilai hanya dapat dilakukan setelah sesi ujian selesai atau ditutup.",
+        },
+        { status: 400 }
+      );
+    }
+
     // Fetch all participants
     const participants = await prisma.examinationParticipant.findMany({
       where: { examinationId },
