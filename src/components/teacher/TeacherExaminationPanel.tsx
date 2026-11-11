@@ -1611,37 +1611,6 @@ export default function TeacherExaminationPanel({
                   <Users className="w-3.5 h-3.5 text-[#65C443]" />
                   <span>Daftarkan Kelas ({exam._count?.participants || 0})</span>
                 </button>
-
-                <Link
-                  href={`/teacher/examinations/${exam.id}/proctor`}
-                  className={`px-3 py-1.5 rounded-lg text-xs font-semibold flex items-center gap-1.5 transition cursor-pointer shadow-xs ${
-                    effectiveInProgress
-                      ? "bg-emerald-600 hover:bg-emerald-500 text-white"
-                      : "border border-slate-200 bg-white hover:bg-slate-50 text-slate-700"
-                  }`}
-                  title="Buka Dasbor Pengawasan Live (Real-Time Proctoring)"
-                >
-                  <Eye className={`w-3.5 h-3.5 ${effectiveInProgress ? "text-white" : "text-[#65C443]"}`} />
-                  <span>Pengawasan Live</span>
-                </Link>
-
-                <Link
-                  href={`/teacher/examinations/${exam.id}/results`}
-                  className="px-3 py-1.5 rounded-lg border border-slate-200 bg-white hover:bg-slate-50 text-slate-700 text-xs font-semibold flex items-center gap-1.5 transition cursor-pointer shadow-xs"
-                  title="Buka Rekapitulasi Hasil & Nilai Siswa"
-                >
-                  <Award className="w-3.5 h-3.5 text-purple-600" />
-                  <span>Rekap Nilai</span>
-                </Link>
-
-                <Link
-                  href={`/teacher/examinations/${exam.id}/analysis`}
-                  className="px-3 py-1.5 rounded-lg border border-slate-200 bg-white hover:bg-slate-50 text-slate-700 text-xs font-semibold flex items-center gap-1.5 transition cursor-pointer shadow-xs"
-                  title="Buka Analisis Butir Soal, Daya Pembeda, dan Distribusi Jawaban"
-                >
-                  <PieChart className="w-3.5 h-3.5 text-indigo-600" />
-                  <span>Analisis Soal</span>
-                </Link>
               </div>
 
               <div className="text-[11px] text-slate-500 flex items-center gap-1.5">
@@ -2210,69 +2179,12 @@ export default function TeacherExaminationPanel({
                   : "Klik tombol Buat Jadwal Ujian Baru untuk menyusun paket asesmen lengkap."}
               </p>
             </div>
-          ) : viewMode === "monitoring" ? (
-            groupedByTypeExaminations.length === 0 ? (
-              <div className="bg-white p-10 text-center rounded-xl border border-slate-200 shadow-sm text-slate-500 space-y-3">
-                <Search className="w-8 h-8 mx-auto text-slate-300" />
-                <div className="font-semibold text-slate-800">Tidak Ada Ujian yang Sesuai Filter</div>
-                <p className="text-xs text-slate-500 max-w-sm mx-auto">
-                  Tidak ditemukan sesi ujian yang sesuai dengan kriteria filter kelas, jenis ujian, status, atau pencarian Anda.
-                </p>
-                <button
-                  type="button"
-                  onClick={() => {
-                    setExamSearchFilter("");
-                    setExamSubjectFilter("all");
-                    setExamClassFilter("all");
-                    setExamTypeFilter("all");
-                    setExamCategoryFilter(viewMode === "monitoring" ? "in_progress" : "all");
-                  }}
-                  className="px-3 py-1.5 rounded-lg bg-slate-100 hover:bg-slate-200 text-xs font-semibold text-slate-700 transition cursor-pointer"
-                >
-                  Reset Filter
-                </button>
-              </div>
-            ) : (
-              <div className="space-y-6">
-                {groupedByTypeExaminations.map((group) => (
-                  <div key={group.typeId} className="space-y-3">
-                    <div className="flex items-center justify-between pb-2.5 border-b border-slate-200 flex-wrap gap-2">
-                      <div className="flex items-center gap-2.5">
-                        <span className="p-1.5 rounded-lg bg-amber-50 text-amber-800 border border-amber-200 font-mono font-bold text-xs tracking-wider">
-                          {group.typeCode}
-                        </span>
-                        <h4 className="text-sm font-bold text-slate-900 flex items-center gap-2">
-                          <span>{group.typeName}</span>
-                          <span className="px-2 py-0.5 rounded-full text-[11px] font-bold bg-slate-100 text-slate-700 border border-slate-200">
-                            {group.exams.length} Ujian
-                          </span>
-                        </h4>
-                      </div>
-                      <div className="flex items-center gap-2 text-xs font-semibold">
-                        {group.activeStudentsCount > 0 ? (
-                          <span className="flex items-center gap-1.5 text-emerald-700 bg-emerald-50 px-2.5 py-1 rounded-lg border border-emerald-200">
-                            <span className="w-2 h-2 rounded-full bg-emerald-500 animate-ping" />
-                            {group.activeStudentsCount} Siswa Aktif Live
-                          </span>
-                        ) : (
-                          <span className="text-slate-500">{group.totalParticipantsCount} Peserta Terdaftar</span>
-                        )}
-                      </div>
-                    </div>
-
-                    <div className="grid grid-cols-1 gap-4">
-                      {group.exams.map(renderMonitoringExamCard)}
-                    </div>
-                  </div>
-                ))}
-              </div>
-            )
-          ) : totalMatches === 0 ? (
+          ) : groupedByTypeExaminations.length === 0 ? (
             <div className="bg-white p-10 text-center rounded-xl border border-slate-200 shadow-sm text-slate-500 space-y-3">
               <Search className="w-8 h-8 mx-auto text-slate-300" />
-              <div className="font-semibold text-slate-800">Tidak Ada Ujian yang Cocok</div>
+              <div className="font-semibold text-slate-800">Tidak Ada Ujian yang Sesuai Filter</div>
               <p className="text-xs text-slate-500 max-w-sm mx-auto">
-                Tidak ditemukan paket ujian yang sesuai dengan kriteria filter atau pencarian Anda.
+                Tidak ditemukan sesi ujian yang sesuai dengan kriteria filter kelas, jenis ujian, status, atau pencarian Anda.
               </p>
               <button
                 type="button"
@@ -2281,7 +2193,7 @@ export default function TeacherExaminationPanel({
                   setExamSubjectFilter("all");
                   setExamClassFilter("all");
                   setExamTypeFilter("all");
-                  setExamCategoryFilter("all");
+                  setExamCategoryFilter(viewMode === "monitoring" ? "in_progress" : "all");
                 }}
                 className="px-3 py-1.5 rounded-lg bg-slate-100 hover:bg-slate-200 text-xs font-semibold text-slate-700 transition cursor-pointer"
               >
@@ -2290,125 +2202,37 @@ export default function TeacherExaminationPanel({
             </div>
           ) : (
             <div className="space-y-6">
-              {/* SECTION: SEDANG BERJALAN */}
-              {(examCategoryFilter === "in_progress" || (examCategoryFilter === "all" && groupedExaminations.in_progress.length > 0)) && (
-                <div className="space-y-3">
-                  <div className="flex items-center justify-between pb-2 border-b border-emerald-200">
-                    <div className="flex items-center gap-2">
-                      <span className="w-2.5 h-2.5 rounded-full bg-emerald-500 animate-ping" />
+              {groupedByTypeExaminations.map((group) => (
+                <div key={group.typeId} className="space-y-3">
+                  <div className="flex items-center justify-between pb-2.5 border-b border-slate-200 flex-wrap gap-2">
+                    <div className="flex items-center gap-2.5">
+                      <span className="p-1.5 rounded-lg bg-amber-50 text-amber-800 border border-amber-200 font-mono font-bold text-xs tracking-wider">
+                        {group.typeCode}
+                      </span>
                       <h4 className="text-sm font-bold text-slate-900 flex items-center gap-2">
-                        <span>Sedang Berjalan</span>
-                        <span className="px-2 py-0.5 rounded-full text-[11px] font-bold bg-emerald-100 text-emerald-800 border border-emerald-300">
-                          {groupedExaminations.in_progress.length} Ujian
+                        <span>{group.typeName}</span>
+                        <span className="px-2 py-0.5 rounded-full text-[11px] font-bold bg-slate-100 text-slate-700 border border-slate-200">
+                          {group.exams.length} Ujian
                         </span>
                       </h4>
                     </div>
-                    <span className="text-xs text-slate-500 hidden sm:inline">
-                      Siswa dapat mengakses dan mengerjakan ujian sekarang
-                    </span>
-                  </div>
-
-                  {groupedExaminations.in_progress.length === 0 ? (
-                    <div className="p-6 rounded-xl border border-dashed border-slate-200 text-center text-xs text-slate-400 bg-white">
-                      Tidak ada ujian yang sedang berjalan saat ini.
-                    </div>
-                  ) : (
-                    <div className="grid grid-cols-1 gap-4">
-                      {groupedExaminations.in_progress.map(renderExamCard)}
-                    </div>
-                  )}
-                </div>
-              )}
-
-              {/* SECTION: AKAN DATANG */}
-              {(examCategoryFilter === "upcoming" || (examCategoryFilter === "all" && groupedExaminations.upcoming.length > 0)) && (
-                <div className="space-y-3">
-                  <div className="flex items-center justify-between pb-2 border-b border-blue-200">
-                    <div className="flex items-center gap-2">
-                      <Clock className="w-4 h-4 text-blue-600" />
-                      <h4 className="text-sm font-bold text-slate-900 flex items-center gap-2">
-                        <span>Akan Datang (Terjadwal)</span>
-                        <span className="px-2 py-0.5 rounded-full text-[11px] font-bold bg-blue-100 text-blue-800 border border-blue-300">
-                          {groupedExaminations.upcoming.length} Ujian
+                    <div className="flex items-center gap-2 text-xs font-semibold">
+                      {viewMode === "monitoring" && group.activeStudentsCount > 0 ? (
+                        <span className="flex items-center gap-1.5 text-emerald-700 bg-emerald-50 px-2.5 py-1 rounded-lg border border-emerald-200">
+                          <span className="w-2 h-2 rounded-full bg-emerald-500 animate-ping" />
+                          {group.activeStudentsCount} Siswa Aktif Live
                         </span>
-                      </h4>
+                      ) : (
+                        <span className="text-slate-500">{group.totalParticipantsCount} Peserta Terdaftar</span>
+                      )}
                     </div>
-                    <span className="text-xs text-slate-500 hidden sm:inline">
-                      Menunggu waktu jadwal pelaksanaan ujian dibuka
-                    </span>
                   </div>
 
-                  {groupedExaminations.upcoming.length === 0 ? (
-                    <div className="p-6 rounded-xl border border-dashed border-slate-200 text-center text-xs text-slate-400 bg-white">
-                      Tidak ada ujian terjadwal yang akan datang.
-                    </div>
-                  ) : (
-                    <div className="grid grid-cols-1 gap-4">
-                      {groupedExaminations.upcoming.map(renderExamCard)}
-                    </div>
-                  )}
-                </div>
-              )}
-
-              {/* SECTION: SELESAI */}
-              {(examCategoryFilter === "closed" || (examCategoryFilter === "all" && groupedExaminations.closed.length > 0)) && (
-                <div className="space-y-3">
-                  <div className="flex items-center justify-between pb-2 border-b border-slate-200">
-                    <div className="flex items-center gap-2">
-                      <CheckCircle2 className="w-4 h-4 text-slate-500" />
-                      <h4 className="text-sm font-bold text-slate-900 flex items-center gap-2">
-                        <span>Selesai (Ditutup)</span>
-                        <span className="px-2 py-0.5 rounded-full text-[11px] font-bold bg-slate-100 text-slate-700 border border-slate-300">
-                          {groupedExaminations.closed.length} Ujian
-                        </span>
-                      </h4>
-                    </div>
-                    <span className="text-xs text-slate-500 hidden sm:inline">
-                      Ujian telah berakhir. Rekap nilai dan evaluasi siap diakses.
-                    </span>
+                  <div className="grid grid-cols-1 gap-4">
+                    {group.exams.map(viewMode === "monitoring" ? renderMonitoringExamCard : renderExamCard)}
                   </div>
-
-                  {groupedExaminations.closed.length === 0 ? (
-                    <div className="p-6 rounded-xl border border-dashed border-slate-200 text-center text-xs text-slate-400 bg-white">
-                      Belum ada riwayat ujian yang selesai.
-                    </div>
-                  ) : (
-                    <div className="grid grid-cols-1 gap-4">
-                      {groupedExaminations.closed.map(renderExamCard)}
-                    </div>
-                  )}
                 </div>
-              )}
-
-              {/* SECTION: KONSEP / DRAFT */}
-              {(examCategoryFilter === "draft" || (examCategoryFilter === "all" && groupedExaminations.draft.length > 0)) && (
-                <div className="space-y-3">
-                  <div className="flex items-center justify-between pb-2 border-b border-amber-200">
-                    <div className="flex items-center gap-2">
-                      <FileSpreadsheet className="w-4 h-4 text-amber-600" />
-                      <h4 className="text-sm font-bold text-slate-900 flex items-center gap-2">
-                        <span>Konsep / Draft</span>
-                        <span className="px-2 py-0.5 rounded-full text-[11px] font-bold bg-amber-100 text-amber-800 border border-amber-300">
-                          {groupedExaminations.draft.length} Draft
-                        </span>
-                      </h4>
-                    </div>
-                    <span className="text-xs text-slate-500 hidden sm:inline">
-                      Paket ujian belum disetujui atau dijadwalkan
-                    </span>
-                  </div>
-
-                  {groupedExaminations.draft.length === 0 ? (
-                    <div className="p-6 rounded-xl border border-dashed border-slate-200 text-center text-xs text-slate-400 bg-white">
-                      Tidak ada draf ujian.
-                    </div>
-                  ) : (
-                    <div className="grid grid-cols-1 gap-4">
-                      {groupedExaminations.draft.map(renderExamCard)}
-                    </div>
-                  )}
-                </div>
-              )}
+              ))}
             </div>
           )}
         </div>
