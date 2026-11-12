@@ -16,11 +16,13 @@ import {
   LogOut,
   Sparkles,
 } from "lucide-react";
+import { formatNameWithTitle } from "@/lib/format-user";
 
 interface DevUser {
   id: string;
   username: string;
   displayName: string;
+  title?: string | null;
   email: string | null;
   nis: string | null;
   nip: string | null;
@@ -169,8 +171,8 @@ export default function DevModeBanner() {
                   <Sparkles className="w-3 h-3 text-[#65C443]" /> Dev Trial
                 </span>
                 {currentUser && (
-                  <span className="text-[10px] text-slate-300 font-medium leading-none mt-0.5 truncate max-w-[110px]">
-                    {currentUser.displayName}
+                  <span className="text-[10px] text-slate-300 font-medium leading-none mt-0.5 truncate max-w-[140px]">
+                    {formatNameWithTitle(currentUser.displayName, currentUser.title)}
                   </span>
                 )}
               </div>
@@ -323,7 +325,7 @@ export default function DevModeBanner() {
                         <div className="min-w-0">
                           <div className="flex items-center gap-2">
                             <span className="font-bold text-slate-900 text-xs truncate">
-                              {u.displayName}
+                              {formatNameWithTitle(u.displayName, u.title)}
                             </span>
                             {isCurrent && (
                               <span className="text-[9px] font-bold px-1.5 py-0.2 rounded bg-emerald-600 text-white">

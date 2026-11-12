@@ -28,6 +28,7 @@ import {
   Briefcase,
   Hash,
 } from "lucide-react";
+import { formatNameWithTitle } from "@/lib/format-user";
 import * as XLSX from "xlsx";
 
 interface ClassStudentsPageContentProps {
@@ -548,7 +549,14 @@ export default function ClassStudentsPageContent({ initialClassId }: ClassStuden
             <div className="text-xs text-slate-500 flex items-center gap-2 flex-wrap">
               <span>Jurusan: <strong className="text-slate-800">{classData.major?.name || "Umum"}</strong></span>
               <span>•</span>
-              <span>Wali Kelas: <strong className="text-slate-800">{classData.homeroomTeacher?.displayName || "Belum Ditentukan"}</strong></span>
+              <span>
+                Wali Kelas:{" "}
+                <strong className="text-slate-800">
+                  {classData.homeroomTeacher?.displayName
+                    ? formatNameWithTitle(classData.homeroomTeacher.displayName, classData.homeroomTeacher.title)
+                    : "Belum Ditentukan"}
+                </strong>
+              </span>
             </div>
           </div>
         </div>

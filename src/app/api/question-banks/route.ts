@@ -61,6 +61,7 @@ export async function GET(req: NextRequest) {
             id: true,
             username: true,
             displayName: true,
+            title: true,
             nip: true,
           },
         },
@@ -68,6 +69,7 @@ export async function GET(req: NextRequest) {
           select: {
             id: true,
             displayName: true,
+            title: true,
             username: true,
           },
         },
@@ -187,7 +189,7 @@ export async function POST(req: NextRequest) {
       },
       include: {
         subject: true,
-        teacher: { select: { id: true, displayName: true, nip: true, username: true } },
+        teacher: { select: { id: true, displayName: true, title: true, nip: true, username: true } },
       },
     });
 

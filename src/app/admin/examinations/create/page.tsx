@@ -65,6 +65,7 @@ export default async function AdminCreateExaminationPage() {
       select: {
         id: true,
         displayName: true,
+        title: true,
         username: true,
         nip: true,
         email: true,

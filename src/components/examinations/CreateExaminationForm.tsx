@@ -18,6 +18,7 @@ import {
   GraduationCap,
   Layers,
 } from "lucide-react";
+import { formatNameWithTitle } from "@/lib/format-user";
 
 interface MajorItem {
   id: string;
@@ -499,7 +500,7 @@ export default function CreateExaminationForm({
                     <option value="">-- Tetapkan Administrator Sebagai Penanggung Jawab --</option>
                     {teachers.map((t) => (
                       <option key={t.id} value={t.id}>
-                        {t.displayName || t.name || t.fullName || t.username} ({t.nip || t.email})
+                        {formatNameWithTitle(t.displayName || t.name || t.fullName || t.username, t.title)} ({t.nip || t.email})
                       </option>
                     ))}
                   </select>

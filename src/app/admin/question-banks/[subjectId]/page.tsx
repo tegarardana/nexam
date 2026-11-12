@@ -43,6 +43,7 @@ export default async function AdminQuestionBankPage({ params }: PageProps) {
       select: {
         id: true,
         displayName: true,
+        title: true,
         username: true,
         nip: true,
       },

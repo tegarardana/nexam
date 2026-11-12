@@ -32,6 +32,7 @@ import {
 } from "lucide-react";
 import { RichTextEditor } from "@/components/ui/RichTextEditor";
 import { RichTextRenderer } from "@/components/ui/RichTextRenderer";
+import { formatNameWithTitle } from "@/lib/format-user";
 
 interface Subject {
   id: string;
@@ -44,6 +45,7 @@ interface Subject {
 interface Teacher {
   id: string;
   displayName: string;
+  title?: string | null;
   nip?: string | null;
   username: string;
 }
@@ -1621,7 +1623,9 @@ export default function QuestionBankPageContent({
                         <p className="text-xs text-slate-500 mt-1">
                           Guru Pengampu:{" "}
                           <strong className="text-slate-800">
-                            {bank.teacher?.displayName || "Belum Ditentukan"}
+                            {bank.teacher?.displayName
+                              ? formatNameWithTitle(bank.teacher.displayName, bank.teacher.title)
+                              : "Belum Ditentukan"}
                           </strong>
                         </p>
                       </div>
@@ -1798,7 +1802,7 @@ export default function QuestionBankPageContent({
                     <option value="">-- Pilih Guru Pengampu --</option>
                     {teachers.map((t) => (
                       <option key={t.id} value={t.id}>
-                        {t.displayName} ({t.nip || t.username})
+                        {formatNameWithTitle(t.displayName, t.title)} ({t.nip || t.username})
                       </option>
                     ))}
                   </select>
@@ -2147,7 +2151,14 @@ export default function QuestionBankPageContent({
               <div className="flex items-center gap-3 text-slate-500 text-xs mt-1.5 flex-wrap">
                 <span>Tingkat {activeBank.gradeLevel}</span>
                 <span>•</span>
-                <span>Guru: <strong className="text-slate-800">{activeBank.teacher?.displayName || "Belum Ditugaskan"}</strong></span>
+                <span>
+                  Guru:{" "}
+                  <strong className="text-slate-800">
+                    {activeBank.teacher?.displayName
+                      ? formatNameWithTitle(activeBank.teacher.displayName, activeBank.teacher.title)
+                      : "Belum Ditugaskan"}
+                  </strong>
+                </span>
                 <span>•</span>
                 <span>Target: <strong className="text-[#65C443] font-mono">{activeBank.totalQuestions} Soal</strong></span>
               </div>

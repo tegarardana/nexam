@@ -34,6 +34,7 @@ import {
   Plus,
   Trash2,
 } from "lucide-react";
+import { formatNameWithTitle } from "@/lib/format-user";
 import * as XLSX from "xlsx";
 
 interface ClassDetailPageContentProps {
@@ -319,7 +320,9 @@ export default function ClassDetailPageContent({ initialClassId }: ClassDetailPa
 
     const styles = themeMap[theme];
     const isOccupied = Boolean(holder?.displayName || holder?.name);
-    const displayName = holder?.displayName || holder?.name || "Belum Ditetapkan";
+    const displayName = isOccupied
+      ? formatNameWithTitle(holder?.displayName || holder?.name, holder?.title)
+      : "Belum Ditetapkan";
     const idInfo = holder?.nis ? `NIS: ${holder.nis}` : holder?.nip ? `NIP: ${holder.nip}` : "Posisi Kosong";
 
     return (
@@ -639,7 +642,12 @@ export default function ClassDetailPageContent({ initialClassId }: ClassDetailPa
           </div>
           <div>
             <div className="text-base font-bold text-slate-900 truncate">
-              {classData.homeroomTeacher?.displayName || (
+              {classData.homeroomTeacher?.displayName ? (
+                formatNameWithTitle(
+                  classData.homeroomTeacher.displayName,
+                  classData.homeroomTeacher.title
+                )
+              ) : (
                 <span className="text-amber-600 font-semibold">Belum Ditentukan</span>
               )}
             </div>

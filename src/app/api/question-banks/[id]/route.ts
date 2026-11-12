@@ -34,6 +34,7 @@ export async function GET(req: NextRequest, { params }: RouteParams) {
             id: true,
             username: true,
             displayName: true,
+            title: true,
             nip: true,
           },
         },
@@ -41,6 +42,7 @@ export async function GET(req: NextRequest, { params }: RouteParams) {
           select: {
             id: true,
             displayName: true,
+            title: true,
             username: true,
           },
         },
@@ -141,7 +143,7 @@ export async function PUT(req: NextRequest, { params }: RouteParams) {
       },
       include: {
         subject: true,
-        teacher: { select: { id: true, displayName: true, nip: true, username: true } },
+        teacher: { select: { id: true, displayName: true, title: true, nip: true, username: true } },
       },
     });
 

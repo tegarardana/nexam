@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import prisma from "@/lib/prisma";
 import { getCurrentSession } from "@/lib/auth/session";
+import { formatNameWithTitle } from "@/lib/format-user";
 import * as XLSX from "xlsx";
 
 export async function POST(request: NextRequest) {
@@ -44,7 +45,7 @@ export async function POST(request: NextRequest) {
     const summaryData = [
       ["REKAPITULASI HASIL ASESMEN DAN UJIAN - NEXAM CBT"],
       [`Tanggal Ekspor: ${new Date().toLocaleDateString("id-ID", { timeZone: "Asia/Jakarta" })} ${new Date().toLocaleTimeString("id-ID", { timeZone: "Asia/Jakarta" })} WIB`],
-      [`Diekspor oleh: ${session.user.displayName || session.user.username} (${session.user.roles.join(", ")})`],
+      [`Diekspor oleh: ${formatNameWithTitle(session.user.displayName, session.user.title) || session.user.username} (${session.user.roles.join(", ")})`],
       [],
       [
         "No",

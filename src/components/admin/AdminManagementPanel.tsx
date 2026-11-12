@@ -51,6 +51,7 @@ import {
 import TeacherExaminationPanel from "@/components/teacher/TeacherExaminationPanel";
 import ExamGradeRecapPanel from "@/components/admin/ExamGradeRecapPanel";
 import InstitutionProfileSettings from "@/components/admin/InstitutionProfileSettings";
+import { formatNameWithTitle } from "@/lib/format-user";
 import * as XLSX from "xlsx";
 
 interface AdminStats {
@@ -355,6 +356,7 @@ export default function AdminManagementPanel({
   const [showAddTeacherModal, setShowAddTeacherModal] = useState(false);
   const [newTeacherNip, setNewTeacherNip] = useState("");
   const [newTeacherName, setNewTeacherName] = useState("");
+  const [newTeacherTitle, setNewTeacherTitle] = useState("");
   const [newTeacherUsername, setNewTeacherUsername] = useState("");
   const [newTeacherPassword, setNewTeacherPassword] = useState("");
   const [newTeacherEmail, setNewTeacherEmail] = useState("");
@@ -817,7 +819,7 @@ export default function AdminManagementPanel({
   // Open Edit Teacher Duty Modal
   const openEditTeacherDutyModal = async (teacher: any) => {
     setEditingTeacherId(teacher.id);
-    setEditTeacherDutyTeacherName(teacher.displayName);
+    setEditTeacherDutyTeacherName(formatNameWithTitle(teacher.displayName, teacher.title));
     setEditTeacherPosition(teacher.position || "Guru");
     setEditTeacherHomeroomClassId(teacher.homeroomClassId || "");
     fetchClassesAndMajors();
@@ -1819,6 +1821,7 @@ export default function AdminManagementPanel({
           nip: newTeacherNip,
           username: newTeacherUsername || newTeacherNip,
           displayName: newTeacherName,
+          title: newTeacherTitle || undefined,
           password: newTeacherPassword,
           email: newTeacherEmail || undefined,
           homeroomClassId: newTeacherHomeroomClassId || undefined,
@@ -1833,6 +1836,7 @@ export default function AdminManagementPanel({
         setShowAddTeacherModal(false);
         setNewTeacherNip("");
         setNewTeacherName("");
+        setNewTeacherTitle("");
         setNewTeacherUsername("");
         setNewTeacherPassword("");
         setNewTeacherEmail("");
@@ -2373,6 +2377,7 @@ export default function AdminManagementPanel({
     const matchesSearch =
       !userTeacherSearch ||
       t.displayName?.toLowerCase().includes(userTeacherSearch.toLowerCase()) ||
+      t.title?.toLowerCase().includes(userTeacherSearch.toLowerCase()) ||
       t.nip?.toLowerCase().includes(userTeacherSearch.toLowerCase()) ||
       t.username?.toLowerCase().includes(userTeacherSearch.toLowerCase()) ||
       t.email?.toLowerCase().includes(userTeacherSearch.toLowerCase());
@@ -3271,7 +3276,7 @@ export default function AdminManagementPanel({
                               </td>
                               <td className="py-3.5 px-4 text-center text-slate-400 font-mono">{idx + 1}</td>
                               <td className="py-3.5 px-4">
-                                <div className="font-bold text-slate-900">{t.displayName}</div>
+                                <div className="font-bold text-slate-900">{formatNameWithTitle(t.displayName, t.title)}</div>
                                 <div className="text-[11px] text-slate-400 font-mono mt-0.5">
                                   NIP: {t.nip || "-"}
                                 </div>
@@ -3894,8 +3899,7 @@ export default function AdminManagementPanel({
                           <td className="py-3 px-4">
                             <div className="flex items-center gap-1.5">
                               <span className="font-semibold text-slate-800">
-                                {t.displayName}
-                                {t.title ? `, ${t.title}` : ""}
+                                {formatNameWithTitle(t.displayName, t.title)}
                               </span>
                               {t.gender && (
                                 <span
@@ -4367,7 +4371,9 @@ export default function AdminManagementPanel({
                     <div className="text-slate-500 font-medium">Wali Kelas:</div>
                     <div className="font-semibold text-slate-800">
                       {c.homeroomTeacher?.displayName ? (
-                        <span className="text-emerald-700">{c.homeroomTeacher.displayName}</span>
+                        <span className="text-emerald-700">
+                          {formatNameWithTitle(c.homeroomTeacher.displayName, c.homeroomTeacher.title)}
+                        </span>
                       ) : (
                         <span className="text-amber-600">Belum Ditentukan</span>
                       )}
@@ -4970,7 +4976,14 @@ export default function AdminManagementPanel({
                 </div>
                 <p className="text-xs text-gray-400 mt-0.5">
                   Jurusan: <strong>{selectedClassForStudents.major?.name || "Umum"}</strong> • Wali Kelas:{" "}
-                  <strong>{selectedClassForStudents.homeroomTeacher?.displayName || "Belum Ditentukan"}</strong>
+                  <strong>
+                    {selectedClassForStudents.homeroomTeacher?.displayName
+                      ? formatNameWithTitle(
+                          selectedClassForStudents.homeroomTeacher.displayName,
+                          selectedClassForStudents.homeroomTeacher.title
+                        )
+                      : "Belum Ditentukan"}
+                  </strong>
                 </p>
               </div>
               <button
@@ -5611,16 +5624,28 @@ export default function AdminManagementPanel({
                 />
               </div>
 
-              <div>
-                <label className="block text-slate-700 mb-1 font-medium">Nama Lengkap & Gelar *</label>
-                <input
-                  required
-                  type="text"
-                  value={newTeacherName}
-                  onChange={(e) => setNewTeacherName(e.target.value)}
-                  placeholder="Contoh: Budi Prasetyo, S.Kom"
-                  className="w-full px-3 py-2 rounded-xl bg-white border border-slate-300 text-slate-900 placeholder:text-slate-400 focus:outline-none focus:border-[#65C443] focus:ring-1 focus:ring-[#65C443]"
-                />
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                <div>
+                  <label className="block text-slate-700 mb-1 font-medium">Nama Lengkap *</label>
+                  <input
+                    required
+                    type="text"
+                    value={newTeacherName}
+                    onChange={(e) => setNewTeacherName(e.target.value)}
+                    placeholder="Contoh: Budi Prasetyo"
+                    className="w-full px-3 py-2 rounded-xl bg-white border border-slate-300 text-slate-900 placeholder:text-slate-400 focus:outline-none focus:border-[#65C443] focus:ring-1 focus:ring-[#65C443]"
+                  />
+                </div>
+                <div>
+                  <label className="block text-slate-700 mb-1 font-medium">Gelar Akademik</label>
+                  <input
+                    type="text"
+                    value={newTeacherTitle}
+                    onChange={(e) => setNewTeacherTitle(e.target.value)}
+                    placeholder="Contoh: S.Pd., M.Kom."
+                    className="w-full px-3 py-2 rounded-xl bg-white border border-slate-300 text-slate-900 placeholder:text-slate-400 focus:outline-none focus:border-[#65C443] focus:ring-1 focus:ring-[#65C443]"
+                  />
+                </div>
               </div>
 
               <div>
@@ -6482,7 +6507,7 @@ export default function AdminManagementPanel({
                   <option value="">-- Pilih Guru Wali Kelas --</option>
                   {teachers.map((t) => (
                     <option key={t.id} value={t.id}>
-                      {t.displayName} ({t.nip || t.username})
+                      {formatNameWithTitle(t.displayName, t.title)} ({t.nip || t.username})
                     </option>
                   ))}
                 </select>

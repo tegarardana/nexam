@@ -4,6 +4,7 @@ import { getCurrentSession } from "@/lib/auth/session";
 import prisma from "@/lib/prisma";
 import Header from "@/components/layout/Header";
 import TeacherExaminationPanel from "@/components/teacher/TeacherExaminationPanel";
+import { formatNameWithTitle } from "@/lib/format-user";
 import {
   BookOpen,
   Users,
@@ -95,7 +96,7 @@ export default async function TeacherDashboardPage() {
                 <span>Portal Pengajar & Pengawas Ujian</span>
               </div>
               <h1 className="text-2xl sm:text-3xl font-bold text-slate-900 tracking-tight">
-                Selamat Datang, {session.user.displayName}
+                Selamat Datang, {formatNameWithTitle(session.user.displayName, session.user.title)}
               </h1>
               <p className="text-sm text-slate-500 mt-1">
                 NIP / Akun: <span className="text-[#0D274C] font-mono font-semibold">{session.user.username}</span> • Status Mengajar Aktif

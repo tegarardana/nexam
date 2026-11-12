@@ -25,6 +25,7 @@ import {
   RefreshCw,
   UserCheck,
 } from "lucide-react";
+import { formatNameWithTitle } from "@/lib/format-user";
 
 export default function LoginPage() {
   const router = useRouter();
@@ -753,7 +754,7 @@ export default function LoginPage() {
                           </div>
                           <div className="min-w-0">
                             <div className="font-bold text-slate-900 text-xs truncate group-hover:text-[#0D274C]">
-                              {u.displayName}
+                              {formatNameWithTitle(u.displayName, u.title)}
                             </div>
                             <div className="flex items-center gap-2 mt-0.5 text-[11px] text-slate-500">
                               <span className="font-mono">@{u.username}</span>

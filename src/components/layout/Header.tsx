@@ -4,11 +4,13 @@
 import React, { useState, useEffect } from "react";
 import { useRouter } from "next/navigation";
 import { ShieldCheck, LogOut, Calendar, User as UserIcon, Menu } from "lucide-react";
+import { formatNameWithTitle } from "@/lib/format-user";
 
 interface HeaderProps {
   user: {
     username: string;
     displayName: string;
+    title?: string | null;
     roles: string[];
   };
   activeYear?: string | null;
@@ -149,7 +151,7 @@ export default function Header({
             </div>
             <div className="hidden sm:block text-left">
               <div className="text-xs font-bold text-slate-800 leading-tight">
-                {user.displayName}
+                {formatNameWithTitle(user.displayName, user.title)}
               </div>
               <div className="flex items-center gap-1.5 mt-0.5">
                 <span

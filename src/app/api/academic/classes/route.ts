@@ -26,6 +26,7 @@ export async function GET(req: NextRequest) {
           select: {
             id: true,
             displayName: true,
+            title: true,
             username: true,
             nip: true,
             email: true,

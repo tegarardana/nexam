@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { getCurrentSession } from "@/lib/auth/session";
 import { hasAnyRole } from "@/lib/auth/rbac";
 import { prisma } from "@/lib/prisma";
+import { formatNameWithTitle } from "@/lib/format-user";
 
 export const dynamic = "force-dynamic";
 export const runtime = "nodejs";
@@ -86,6 +87,7 @@ export async function GET(
         actor: {
           select: {
             displayName: true,
+            title: true,
           },
         },
       },
@@ -156,7 +158,7 @@ export async function GET(
           studentName: evt.attempt.student.displayName,
           studentNis: evt.attempt.student.nis,
           eventType: evt.eventType,
-          actorName: evt.actor?.displayName || null,
+          actorName: evt.actor ? formatNameWithTitle(evt.actor.displayName, evt.actor.title) : null,
           interventionNote: evt.interventionNote,
           metadata: evt.metadata,
           timestamp: evt.serverTimestamp,

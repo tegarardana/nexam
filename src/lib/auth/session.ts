@@ -9,6 +9,7 @@ export interface SessionUser {
   id: string;
   username: string;
   displayName: string;
+  title?: string | null;
   email: string | null;
   isActive: boolean;
   roles: string[];
@@ -133,6 +134,7 @@ export async function validateSessionToken(token: string): Promise<ActiveSession
       id: session.user.id,
       username: session.user.username,
       displayName: session.user.displayName,
+      title: session.user.title ?? null,
       email: session.user.email,
       isActive: session.user.isActive,
       roles,

@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import prisma from "@/lib/prisma";
 import { getCurrentSession } from "@/lib/auth/session";
 import { logAudit } from "@/lib/audit";
+import { formatNameWithTitle } from "@/lib/format-user";
 
 export async function POST(
   request: NextRequest,
@@ -234,7 +235,7 @@ export async function POST(
       status: "locked",
       lockedAt: new Date(),
       lockedById: session.user.id,
-      lockedByName: session.user.displayName || session.user.username,
+      lockedByName: formatNameWithTitle(session.user.displayName, session.user.title) || session.user.username,
     };
 
     let recapRecord;
