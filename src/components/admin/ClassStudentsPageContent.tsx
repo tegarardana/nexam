@@ -2,6 +2,7 @@
 
 import React, { useState, useEffect, useMemo } from "react";
 import Link from "next/link";
+import { useRouter } from "next/navigation";
 import {
   ArrowLeft,
   Users,
@@ -34,9 +35,11 @@ interface ClassStudentsPageContentProps {
 }
 
 export default function ClassStudentsPageContent({ initialClassId }: ClassStudentsPageContentProps) {
+  const router = useRouter();
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [classData, setClassData] = useState<any>(null);
+  const [isDeleting, setIsDeleting] = useState(false);
 
   // Tabs: "roster" (Daftar & Penempatan Siswa) vs "bulk" (Update Data Sekelas)
   const [activeTab, setActiveTab] = useState<"roster" | "bulk">("roster");
@@ -387,6 +390,34 @@ export default function ClassStudentsPageContent({ initialClassId }: ClassStuden
     XLSX.writeFile(wb, `Data_Siswa_${classData.name.replace(/\s+/g, "_")}.xlsx`);
   };
 
+  const handleDeleteClass = async () => {
+    if (!classData) return;
+    const studentCount = enrollments.length;
+    const confirmMsg =
+      studentCount > 0
+        ? `Apakah Anda yakin ingin menghapus rombel kelas '${classData.name}'?\n\nPerhatian: Ada ${studentCount} siswa terdaftar di kelas ini. Status penempatan siswa di kelas ini akan dilepas (akun siswa tidak akan terhapus).`
+        : `Apakah Anda yakin ingin menghapus rombel kelas '${classData.name}'?`;
+
+    if (!confirm(confirmMsg)) return;
+
+    try {
+      setIsDeleting(true);
+      const res = await fetch(`/api/academic/classes/${initialClassId}`, {
+        method: "DELETE",
+      });
+      const json = await res.json();
+      if (res.ok && json.success) {
+        router.push("/admin?tab=classes");
+      } else {
+        alert(json.error || "Gagal menghapus rombel kelas.");
+        setIsDeleting(false);
+      }
+    } catch {
+      alert("Kesalahan jaringan saat menghapus rombel kelas.");
+      setIsDeleting(false);
+    }
+  };
+
   // Filtered Roster
   const filteredEnrollments = useMemo(() => {
     return enrollments.filter((e) => {
@@ -486,6 +517,15 @@ export default function ClassStudentsPageContent({ initialClassId }: ClassStuden
             >
               <span>Lihat Detail Kelas</span>
             </Link>
+            <button
+              onClick={handleDeleteClass}
+              disabled={isDeleting}
+              className="inline-flex items-center gap-1.5 px-3.5 py-2 rounded-xl bg-rose-50 hover:bg-rose-100 border border-rose-200 text-rose-600 hover:text-rose-700 text-xs font-semibold transition cursor-pointer shadow-xs disabled:opacity-50"
+              title="Hapus Rombongan Belajar Ini"
+            >
+              <Trash2 className="w-3.5 h-3.5" />
+              <span>{isDeleting ? "Menghapus..." : "Hapus Kelas"}</span>
+            </button>
           </div>
         </div>
       </div>

@@ -493,6 +493,7 @@ export default function AdminManagementPanel({
   // Classes & Majors state
   const [classes, setClasses] = useState<any[]>([]);
   const [majors, setMajors] = useState<any[]>([]);
+  const [deletingClassId, setDeletingClassId] = useState<string | null>(null);
   const [showAddClassModal, setShowAddClassModal] = useState(false);
   const [newClassName, setNewClassName] = useState("");
   const [newClassGrade, setNewClassGrade] = useState("10");
@@ -1700,6 +1701,36 @@ export default function AdminManagementPanel({
       }
     } catch {
       alert("Kesalahan jaringan.");
+    }
+  };
+
+  // Delete Class Group
+  const handleDeleteClass = async (classGroup: any) => {
+    const studentCount = classGroup._count?.studentEnrollments || 0;
+    const confirmMsg =
+      studentCount > 0
+        ? `Apakah Anda yakin ingin menghapus rombel kelas '${classGroup.name}'?\n\nPerhatian: Ada ${studentCount} siswa terdaftar di kelas ini. Status penempatan siswa di kelas ini akan dilepas (akun siswa tidak akan terhapus).`
+        : `Apakah Anda yakin ingin menghapus rombel kelas '${classGroup.name}'?`;
+
+    if (!confirm(confirmMsg)) return;
+
+    try {
+      setDeletingClassId(classGroup.id);
+      const res = await fetch(`/api/academic/classes/${classGroup.id}`, {
+        method: "DELETE",
+      });
+      const json = await res.json();
+      if (res.ok && json.success) {
+        fetchClassesAndMajors();
+        fetchStudents();
+        fetchTeachers();
+      } else {
+        alert(json.error || "Gagal menghapus rombel kelas.");
+      }
+    } catch {
+      alert("Kesalahan jaringan saat menghapus rombel kelas.");
+    } finally {
+      setDeletingClassId(null);
     }
   };
 
@@ -4366,6 +4397,16 @@ export default function AdminManagementPanel({
                         <UserCheck className="w-3.5 h-3.5 text-[#65C443]" />
                         <span>Siswa</span>
                       </Link>
+
+                      <button
+                        type="button"
+                        onClick={() => handleDeleteClass(c)}
+                        disabled={deletingClassId === c.id}
+                        className="p-1.5 rounded-xl border border-rose-200 bg-rose-50 hover:bg-rose-100 text-rose-600 transition cursor-pointer shadow-xs disabled:opacity-50"
+                        title="Hapus Rombel Kelas"
+                      >
+                        <Trash2 className="w-3.5 h-3.5" />
+                      </button>
                     </div>
                   </div>
                 </div>

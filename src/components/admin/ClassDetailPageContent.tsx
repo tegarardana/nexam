@@ -46,6 +46,7 @@ export default function ClassDetailPageContent({ initialClassId }: ClassDetailPa
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [classData, setClassData] = useState<any>(null);
+  const [isDeleting, setIsDeleting] = useState(false);
 
   // Search & Filter
   const [searchTerm, setSearchTerm] = useState("");
@@ -450,6 +451,34 @@ export default function ClassDetailPageContent({ initialClassId }: ClassDetailPa
     XLSX.writeFile(wb, `Daftar_Siswa_${classData.name.replace(/\s+/g, "_")}.xlsx`);
   };
 
+  const handleDeleteClass = async () => {
+    if (!classData) return;
+    const studentCount = classData.totalStudents || 0;
+    const confirmMsg =
+      studentCount > 0
+        ? `Apakah Anda yakin ingin menghapus rombel kelas '${classData.name}'?\n\nPerhatian: Ada ${studentCount} siswa terdaftar di kelas ini. Status penempatan siswa di kelas ini akan dilepas (akun siswa tidak akan terhapus).`
+        : `Apakah Anda yakin ingin menghapus rombel kelas '${classData.name}'?`;
+
+    if (!confirm(confirmMsg)) return;
+
+    try {
+      setIsDeleting(true);
+      const res = await fetch(`/api/academic/classes/${initialClassId}`, {
+        method: "DELETE",
+      });
+      const json = await res.json();
+      if (res.ok && json.success) {
+        router.push("/admin?tab=classes");
+      } else {
+        alert(json.error || "Gagal menghapus rombel kelas.");
+        setIsDeleting(false);
+      }
+    } catch {
+      alert("Kesalahan jaringan saat menghapus rombel kelas.");
+      setIsDeleting(false);
+    }
+  };
+
   if (loading) {
     return (
       <div className="flex-1 flex items-center justify-center py-24 text-slate-500 text-sm">
@@ -518,6 +547,17 @@ export default function ClassDetailPageContent({ initialClassId }: ClassDetailPa
             >
               <FileSpreadsheet className="w-4 h-4" />
               <span>Ekspor Siswa (Excel)</span>
+            </button>
+
+            <button
+              type="button"
+              onClick={handleDeleteClass}
+              disabled={isDeleting}
+              className="inline-flex items-center gap-2 px-3.5 py-2.5 rounded-xl bg-rose-50 border border-rose-200 hover:bg-rose-100 text-rose-700 text-xs font-bold transition cursor-pointer shadow-xs disabled:opacity-50"
+              title="Hapus Rombongan Belajar Ini"
+            >
+              <Trash2 className="w-4 h-4 text-rose-600" />
+              <span>{isDeleting ? "Menghapus..." : "Hapus Kelas"}</span>
             </button>
           </div>
         </div>

@@ -245,3 +245,61 @@ export async function PATCH(req: NextRequest, { params }: RouteParams) {
     );
   }
 }
+
+export async function DELETE(req: NextRequest, { params }: RouteParams) {
+  const auth = await authenticateApi("academic:delete");
+  if (auth instanceof NextResponse) return auth;
+
+  const { id } = await params;
+
+  try {
+    const existing = await prisma.classGroup.findUnique({
+      where: { id },
+      include: {
+        _count: {
+          select: {
+            studentEnrollments: true,
+            subjectOfferings: true,
+            examinationParticipants: true,
+          },
+        },
+      },
+    });
+
+    if (!existing) {
+      return NextResponse.json(
+        { success: false, error: "Rombongan belajar kelas tidak ditemukan." },
+        { status: 404 }
+      );
+    }
+
+    // Delete classGroup (cascade deletes studentEnrollments and subjectOfferings, sets examinationParticipants.classGroupId to null)
+    await prisma.classGroup.delete({
+      where: { id },
+    });
+
+    await logAudit({
+      actorId: auth.user.id,
+      action: "delete",
+      entityType: "class_groups",
+      entityId: id,
+      beforeValue: {
+        name: existing.name,
+        gradeLevel: existing.gradeLevel,
+        academicYearId: existing.academicYearId,
+        studentCount: existing._count.studentEnrollments,
+      },
+    });
+
+    return NextResponse.json({
+      success: true,
+      message: `Rombongan belajar kelas '${existing.name}' berhasil dihapus.`,
+    });
+  } catch (error: any) {
+    console.error("DELETE /api/academic/classes/[id] error:", error);
+    return NextResponse.json(
+      { success: false, error: error.message || "Gagal menghapus rombel kelas" },
+      { status: 500 }
+    );
+  }
+}
