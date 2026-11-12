@@ -134,6 +134,7 @@ export async function GET(
           recentEvents: recentEvents.map((evt) => ({
             id: evt.id,
             attemptId: evt.attemptId,
+            studentId: evt.attempt.student.id,
             studentName: evt.attempt.student.displayName,
             studentNis: evt.attempt.student.nis,
             eventType: evt.eventType,

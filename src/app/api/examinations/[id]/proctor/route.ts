@@ -7,6 +7,26 @@ import { formatNameWithTitle } from "@/lib/format-user";
 export const dynamic = "force-dynamic";
 export const runtime = "nodejs";
 
+function resolveStudentClass(
+  academicYearId: string,
+  directClassGroup?: { id: string; name: string } | null,
+  enrollments?: Array<{
+    academicYearId: string;
+    classGroup: { id: string; name: string } | null;
+  }>
+) {
+  if (directClassGroup?.name) {
+    return { classGroupId: directClassGroup.id, className: directClassGroup.name };
+  }
+  const matched =
+    enrollments?.find((e) => e.academicYearId === academicYearId && e.classGroup?.name) ??
+    enrollments?.find((e) => e.classGroup?.name);
+  return {
+    classGroupId: matched?.classGroup?.id ?? null,
+    className: matched?.classGroup?.name ?? "-",
+  };
+}
+
 export async function GET(
   request: NextRequest,
   { params }: { params: Promise<{ id: string }> }
@@ -32,10 +52,24 @@ export async function GET(
                 displayName: true,
                 username: true,
                 nis: true,
+                studentEnrollments: {
+                  where: { status: "active" },
+                  select: {
+                    academicYearId: true,
+                    classGroup: {
+                      select: {
+                        id: true,
+                        name: true,
+                      },
+                    },
+                  },
+                  orderBy: { enrolledAt: "desc" },
+                },
               },
             },
             classGroup: {
               select: {
+                id: true,
                 name: true,
               },
             },
@@ -49,6 +83,19 @@ export async function GET(
                 displayName: true,
                 username: true,
                 nis: true,
+                studentEnrollments: {
+                  where: { status: "active" },
+                  select: {
+                    academicYearId: true,
+                    classGroup: {
+                      select: {
+                        id: true,
+                        name: true,
+                      },
+                    },
+                  },
+                  orderBy: { enrolledAt: "desc" },
+                },
               },
             },
             answers: {
@@ -98,12 +145,18 @@ export async function GET(
     const participantsMap = new Map<string, any>();
     for (const part of examination.participants) {
       const studentAttempt = examination.attempts.find((a) => a.studentId === part.studentId);
+      const { classGroupId, className } = resolveStudentClass(
+        examination.academicYearId,
+        part.classGroup,
+        part.student.studentEnrollments
+      );
       participantsMap.set(part.studentId, {
         studentId: part.studentId,
         studentName: part.student.displayName,
         username: part.student.username,
         nis: part.student.nis,
-        className: part.classGroup?.name || "-",
+        classGroupId,
+        className,
         attemptId: studentAttempt?.id || null,
         status: studentAttempt?.status || "not_started",
         connectionStatus: studentAttempt?.connectionStatus || "unknown",
@@ -120,12 +173,18 @@ export async function GET(
     // Also ensure any student who has an attempt is included in the roster
     for (const att of examination.attempts) {
       if (!participantsMap.has(att.studentId)) {
+        const { classGroupId, className } = resolveStudentClass(
+          examination.academicYearId,
+          null,
+          att.student?.studentEnrollments
+        );
         participantsMap.set(att.studentId, {
           studentId: att.studentId,
           studentName: att.student?.displayName || "Siswa",
           username: att.student?.username || "-",
           nis: att.student?.nis || null,
-          className: "-",
+          classGroupId,
+          className,
           attemptId: att.id,
           status: att.status || "not_started",
           connectionStatus: att.connectionStatus || "unknown",
@@ -155,6 +214,7 @@ export async function GET(
         recentEvents: recentEvents.map((evt) => ({
           id: evt.id,
           attemptId: evt.attemptId,
+          studentId: evt.attempt.student.id,
           studentName: evt.attempt.student.displayName,
           studentNis: evt.attempt.student.nis,
           eventType: evt.eventType,

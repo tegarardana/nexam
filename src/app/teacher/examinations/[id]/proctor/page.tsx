@@ -31,6 +31,8 @@ import {
   KeyRound,
   Copy,
   Sparkles,
+  Filter,
+  X,
 } from "lucide-react";
 
 interface StudentRosterItem {
@@ -38,6 +40,7 @@ interface StudentRosterItem {
   studentName: string;
   username: string;
   nis: string | null;
+  classGroupId?: string | null;
   className: string;
   attemptId: string | null;
   status: "not_started" | "in_progress" | "warning" | "blocked" | "submitted" | "completed" | "grading_pending" | "expired";
@@ -54,6 +57,7 @@ interface StudentRosterItem {
 interface EventLogItem {
   id: string;
   attemptId: string;
+  studentId?: string;
   studentName: string;
   studentNis: string | null;
   eventType: string;
@@ -77,6 +81,7 @@ export default function ProctorDashboardPage() {
 
   // Filter & Search state
   const [searchQuery, setSearchQuery] = useState("");
+  const [classFilter, setClassFilter] = useState<string>("all");
   const [statusFilter, setStatusFilter] = useState<"all" | "attention" | "in_progress" | "submitted" | "disconnected">("all");
 
   // Intervention Modals State
@@ -206,21 +211,43 @@ export default function ProctorDashboardPage() {
     };
   }, [examId, fetchProctorData]);
 
-  // Statistics
+  // Available classes from roster
+  const availableClasses = useMemo(() => {
+    const counts = new Map<string, number>();
+    roster.forEach((student) => {
+      const cls = student.className || "-";
+      counts.set(cls, (counts.get(cls) || 0) + 1);
+    });
+    return Array.from(counts.entries())
+      .sort(([a], [b]) => {
+        if (a === "-") return 1;
+        if (b === "-") return -1;
+        return a.localeCompare(b, "id", { numeric: true });
+      })
+      .map(([name, count]) => ({ name, count }));
+  }, [roster]);
+
+  // Roster scoped to selected class
+  const classFilteredRoster = useMemo(() => {
+    if (classFilter === "all") return roster;
+    return roster.filter((student) => (student.className || "-") === classFilter);
+  }, [roster, classFilter]);
+
+  // Statistics (reflects selected class filter)
   const stats = useMemo(() => {
-    const total = roster.length;
-    const inProgress = roster.filter((r) => r.status === "in_progress").length;
-    const warning = roster.filter((r) => r.status === "warning").length;
-    const blocked = roster.filter((r) => r.status === "blocked").length;
-    const submitted = roster.filter((r) => ["submitted", "completed", "grading_pending"].includes(r.status)).length;
-    const disconnected = roster.filter((r) => r.connectionStatus === "disconnected").length;
+    const total = classFilteredRoster.length;
+    const inProgress = classFilteredRoster.filter((r) => r.status === "in_progress").length;
+    const warning = classFilteredRoster.filter((r) => r.status === "warning").length;
+    const blocked = classFilteredRoster.filter((r) => r.status === "blocked").length;
+    const submitted = classFilteredRoster.filter((r) => ["submitted", "completed", "grading_pending"].includes(r.status)).length;
+    const disconnected = classFilteredRoster.filter((r) => r.connectionStatus === "disconnected").length;
 
     return { total, inProgress, warning, blocked, submitted, disconnected };
-  }, [roster]);
+  }, [classFilteredRoster]);
 
   // Filtered roster
   const filteredRoster = useMemo(() => {
-    return roster.filter((student) => {
+    return classFilteredRoster.filter((student) => {
       const matchesSearch =
         !searchQuery ||
         student.studentName.toLowerCase().includes(searchQuery.toLowerCase()) ||
@@ -245,7 +272,19 @@ export default function ProctorDashboardPage() {
 
       return true;
     });
-  }, [roster, searchQuery, statusFilter]);
+  }, [classFilteredRoster, searchQuery, statusFilter]);
+
+  // Event logs scoped to selected class
+  const filteredEventLogs = useMemo(() => {
+    if (classFilter === "all") return eventLogs;
+    const studentIds = new Set(classFilteredRoster.map((s) => s.studentId));
+    const attemptIds = new Set(classFilteredRoster.map((s) => s.attemptId).filter(Boolean));
+    return eventLogs.filter(
+      (evt) =>
+        (evt.studentId && studentIds.has(evt.studentId)) ||
+        attemptIds.has(evt.attemptId)
+    );
+  }, [eventLogs, classFilter, classFilteredRoster]);
 
   // Handle Manual Warning
   const handleSendWarning = async (e: React.FormEvent) => {
@@ -664,11 +703,11 @@ export default function ProctorDashboardPage() {
         </div>
 
         {/* Filter & Search Bar */}
-        <div className="flex flex-col sm:flex-row items-stretch sm:items-center justify-between gap-3 p-3 rounded-xl bg-white border border-slate-200 shadow-xs text-xs">
+        <div className="flex flex-col lg:flex-row items-stretch lg:items-center justify-between gap-3 p-3 rounded-xl bg-white border border-slate-200 shadow-xs text-xs">
           <div className="flex items-center gap-1 overflow-x-auto">
             <button
               onClick={() => setStatusFilter("all")}
-              className={`px-3 py-1.5 rounded-lg font-semibold transition cursor-pointer ${
+              className={`px-3 py-1.5 rounded-lg font-semibold whitespace-nowrap transition cursor-pointer ${
                 statusFilter === "all" ? "bg-[#0D274C] text-white" : "text-slate-600 hover:bg-slate-100"
               }`}
             >
@@ -676,7 +715,7 @@ export default function ProctorDashboardPage() {
             </button>
             <button
               onClick={() => setStatusFilter("attention")}
-              className={`px-3 py-1.5 rounded-lg font-semibold transition cursor-pointer ${
+              className={`px-3 py-1.5 rounded-lg font-semibold whitespace-nowrap transition cursor-pointer ${
                 statusFilter === "attention"
                   ? "bg-amber-600 text-white"
                   : "text-amber-800 bg-amber-50 hover:bg-amber-100"
@@ -686,7 +725,7 @@ export default function ProctorDashboardPage() {
             </button>
             <button
               onClick={() => setStatusFilter("in_progress")}
-              className={`px-3 py-1.5 rounded-lg font-semibold transition cursor-pointer ${
+              className={`px-3 py-1.5 rounded-lg font-semibold whitespace-nowrap transition cursor-pointer ${
                 statusFilter === "in_progress"
                   ? "bg-[#65C443] text-white"
                   : "text-slate-600 hover:bg-slate-100"
@@ -696,7 +735,7 @@ export default function ProctorDashboardPage() {
             </button>
             <button
               onClick={() => setStatusFilter("submitted")}
-              className={`px-3 py-1.5 rounded-lg font-semibold transition cursor-pointer ${
+              className={`px-3 py-1.5 rounded-lg font-semibold whitespace-nowrap transition cursor-pointer ${
                 statusFilter === "submitted"
                   ? "bg-[#0D274C] text-white"
                   : "text-slate-600 hover:bg-slate-100"
@@ -706,7 +745,7 @@ export default function ProctorDashboardPage() {
             </button>
             <button
               onClick={() => setStatusFilter("disconnected")}
-              className={`px-3 py-1.5 rounded-lg font-semibold transition cursor-pointer ${
+              className={`px-3 py-1.5 rounded-lg font-semibold whitespace-nowrap transition cursor-pointer ${
                 statusFilter === "disconnected"
                   ? "bg-slate-700 text-white"
                   : "text-slate-600 hover:bg-slate-100"
@@ -716,15 +755,45 @@ export default function ProctorDashboardPage() {
             </button>
           </div>
 
-          <div className="relative w-full sm:w-72">
-            <Search className="w-4 h-4 absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" />
-            <input
-              type="text"
-              placeholder="Cari siswa, NIS, atau kelas..."
-              value={searchQuery}
-              onChange={(e) => setSearchQuery(e.target.value)}
-              className="w-full pl-9 pr-3 py-1.5 rounded-lg bg-slate-50 border border-slate-200 text-xs text-slate-900 placeholder:text-slate-400 focus:outline-none focus:border-[#65C443]"
-            />
+          <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-2">
+            {/* Filter Siswa Berdasarkan Kelas */}
+            <div className="relative">
+              <Filter className="w-3.5 h-3.5 absolute left-3 top-1/2 -translate-y-1/2 text-slate-400 pointer-events-none" />
+              <select
+                aria-label="Filter siswa berdasarkan kelas"
+                value={classFilter}
+                onChange={(e) => setClassFilter(e.target.value)}
+                className="w-full sm:w-auto min-w-[175px] pl-8 pr-3 py-1.5 rounded-lg bg-slate-50 border border-slate-200 text-xs font-semibold text-slate-700 focus:outline-none focus:border-[#65C443] cursor-pointer"
+              >
+                <option value="all">Semua Kelas ({roster.length})</option>
+                {availableClasses.map((cls) => (
+                  <option key={cls.name} value={cls.name}>
+                    {cls.name === "-" ? "Tanpa Kelas" : `Kelas: ${cls.name}`} ({cls.count})
+                  </option>
+                ))}
+              </select>
+            </div>
+
+            <div className="relative w-full sm:w-64">
+              <Search className="w-4 h-4 absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" />
+              <input
+                type="text"
+                placeholder="Cari siswa, NIS, atau kelas..."
+                value={searchQuery}
+                onChange={(e) => setSearchQuery(e.target.value)}
+                className="w-full pl-9 pr-8 py-1.5 rounded-lg bg-slate-50 border border-slate-200 text-xs text-slate-900 placeholder:text-slate-400 focus:outline-none focus:border-[#65C443]"
+              />
+              {searchQuery && (
+                <button
+                  type="button"
+                  onClick={() => setSearchQuery("")}
+                  className="absolute right-2.5 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600 cursor-pointer"
+                  title="Hapus pencarian"
+                >
+                  <X className="w-3.5 h-3.5" />
+                </button>
+              )}
+            </div>
           </div>
         </div>
 
@@ -733,8 +802,21 @@ export default function ProctorDashboardPage() {
           {/* Left: Students Grid (2 Cols) */}
           <div className="lg:col-span-2 space-y-4">
             {filteredRoster.length === 0 ? (
-              <div className="p-8 rounded-2xl bg-white border border-slate-200 text-center text-slate-500 shadow-xs">
-                Tidak ada peserta yang cocok dengan kriteria filter saat ini.
+              <div className="p-8 rounded-2xl bg-white border border-slate-200 text-center text-slate-500 shadow-xs space-y-3">
+                <p>Tidak ada peserta yang cocok dengan kriteria filter saat ini.</p>
+                {(classFilter !== "all" || statusFilter !== "all" || searchQuery) && (
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setClassFilter("all");
+                      setStatusFilter("all");
+                      setSearchQuery("");
+                    }}
+                    className="px-3 py-1.5 rounded-lg bg-slate-100 hover:bg-slate-200 text-slate-700 text-xs font-semibold transition cursor-pointer"
+                  >
+                    Reset Filter
+                  </button>
+                )}
               </div>
             ) : (
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-3.5">
@@ -920,17 +1002,19 @@ export default function ProctorDashboardPage() {
                 </h3>
               </div>
               <span className="text-[10px] text-slate-400 font-mono">
-                {eventLogs.length} Aktivitas
+                {filteredEventLogs.length} Aktivitas
               </span>
             </div>
 
             <div className="flex-1 overflow-y-auto space-y-2 pr-1 text-xs">
-              {eventLogs.length === 0 ? (
+              {filteredEventLogs.length === 0 ? (
                 <div className="text-center py-12 text-slate-400 text-xs italic">
-                  Belum ada aktivitas integritas atau insiden tercatat.
+                  {classFilter !== "all"
+                    ? `Belum ada aktivitas integritas untuk kelas ${classFilter === "-" ? "Tanpa Kelas" : classFilter}.`
+                    : "Belum ada aktivitas integritas atau insiden tercatat."}
                 </div>
               ) : (
-                eventLogs.map((evt) => {
+                filteredEventLogs.map((evt) => {
                   const badge = formatEventLabel(evt.eventType);
                   const timeStr = new Date(evt.timestamp).toLocaleTimeString("id-ID", {
                     hour: "2-digit",
