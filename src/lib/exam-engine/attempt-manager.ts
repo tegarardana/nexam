@@ -218,7 +218,14 @@ export async function getOrStartAttempt(
 
   // If latest attempt is submitted or completed, check max attempts (default 1)
   if (latestAttempt && ["submitted", "grading_pending", "completed", "expired"].includes(latestAttempt.status)) {
-    throw new Error("Anda sudah menyelesaikan ujian ini dan tidak dapat mengerjakan kembali.");
+    const wasReopened =
+      exam.scheduledStart &&
+      latestAttempt.submittedAt &&
+      latestAttempt.submittedAt < exam.scheduledStart;
+
+    if (!wasReopened) {
+      throw new Error("Anda sudah menyelesaikan ujian ini dan tidak dapat mengerjakan kembali.");
+    }
   }
 
   if (latestAttempt && latestAttempt.status === "blocked") {

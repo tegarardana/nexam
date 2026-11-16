@@ -349,6 +349,13 @@ export default function TeacherExaminationPanel({
   const [selectedClassIds, setSelectedClassIds] = useState<string[]>([]);
   const [savingParticipants, setSavingParticipants] = useState(false);
 
+  // Re-open / Reschedule Exam (Adakan Ulang Ujian) State
+  const [reopeningExam, setReopeningExam] = useState<Examination | null>(null);
+  const [reopenSemesterId, setReopenSemesterId] = useState<string>("");
+  const [reopenStartDate, setReopenStartDate] = useState<string>("");
+  const [reopenEndDate, setReopenEndDate] = useState<string>("");
+  const [submittingReopen, setSubmittingReopen] = useState(false);
+
   const [wizardSaving, setWizardSaving] = useState(false);
   const [errorMsg, setErrorMsg] = useState<string | null>(null);
   const [successMsg, setSuccessMsg] = useState<string | null>(null);
@@ -451,6 +458,10 @@ export default function TeacherExaminationPanel({
           setShowCategoryModal(false);
           return;
         }
+        if (reopeningExam) {
+          setReopeningExam(null);
+          return;
+        }
       }
     };
     window.addEventListener("keydown", handleKeyDown);
@@ -461,6 +472,7 @@ export default function TeacherExaminationPanel({
     managingExamQuestions,
     managingExamParticipants,
     showCategoryModal,
+    reopeningExam,
   ]);
 
   // Handle Image Upload
@@ -793,14 +805,74 @@ export default function TeacherExaminationPanel({
     }
   };
 
-  // Re-open / Reschedule Exam (Adakan Ulang Ujian)
-  const handleReopenExam = async (exam: Examination) => {
-    const confirmReopen = window.confirm(
-      `Apakah Anda ingin mengadakan ulang ujian "${exam.title}"? Status akan dikembalikan ke 'scheduled' agar dapat dijadwalkan dan dikerjakan kembali oleh siswa.`
-    );
-    if (!confirmReopen) return;
+  // Helper to format Date for input datetime-local in local timezone
+  const formatDateTimeLocal = (date: Date) => {
+    const pad = (n: number) => String(n).padStart(2, "0");
+    return `${date.getFullYear()}-${pad(date.getMonth() + 1)}-${pad(date.getDate())}T${pad(date.getHours())}:${pad(date.getMinutes())}`;
+  };
 
-    await handleTransitionStatus(exam.id, "scheduled");
+  // Re-open / Reschedule Exam (Adakan Ulang Ujian)
+  const handleReopenExam = (exam: Examination) => {
+    const now = new Date();
+    const startStr = formatDateTimeLocal(now);
+    const durationMinutes = exam.durationMinutes || 90;
+    const end = new Date(now.getTime() + durationMinutes * 60 * 1000);
+    const endStr = formatDateTimeLocal(end);
+
+    setReopeningExam(exam);
+    setReopenSemesterId(activeSemesterId || exam.semesterId || "");
+    setReopenStartDate(startStr);
+    setReopenEndDate(endStr);
+  };
+
+  const handleConfirmReopen = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!reopeningExam) return;
+
+    if (!reopenStartDate || !reopenEndDate) {
+      alert("Harap tentukan jadwal mulai dan selesai ujian.");
+      return;
+    }
+
+    if (new Date(reopenEndDate) <= new Date(reopenStartDate)) {
+      alert("Jadwal selesai harus lebih lambat dari jadwal mulai.");
+      return;
+    }
+
+    setSubmittingReopen(true);
+    try {
+      const res = await fetch(`/api/examinations/${reopeningExam.id}/transition`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          status: "scheduled",
+          scheduledStart: new Date(reopenStartDate).toISOString(),
+          scheduledEnd: new Date(reopenEndDate).toISOString(),
+          semesterId: reopenSemesterId || undefined,
+        }),
+      });
+      const json = await res.json();
+      if (!json.success) {
+        alert(json.error || "Gagal mengadakan ulang ujian");
+        return;
+      }
+
+      // Automatically switch semester filter if needed so user sees the newly scheduled exam
+      if (reopenSemesterId && examSemesterFilter !== "all" && examSemesterFilter !== reopenSemesterId) {
+        setExamSemesterFilter(reopenSemesterId);
+      }
+      setExamCategoryFilter("all");
+
+      setReopeningExam(null);
+      await loadExaminations();
+      setSuccessMsg(`Ujian "${reopeningExam.title}" berhasil diadakan ulang! Status kini Terjadwal.`);
+      setTimeout(() => setSuccessMsg(null), 4000);
+    } catch (err: any) {
+      console.error("Reopen exam error:", err);
+      alert(err.message || "Terjadi kesalahan server saat mengadakan ulang ujian.");
+    } finally {
+      setSubmittingReopen(false);
+    }
   };
 
   // Delete Closed Exam (Khusus Admin)
@@ -1330,6 +1402,17 @@ export default function TeacherExaminationPanel({
                 title="Tutup sesi ujian yang sedang berlangsung"
               >
                 <span>Tutup Ujian</span>
+              </button>
+            )}
+
+            {isClosed && (
+              <button
+                onClick={() => handleReopenExam(exam)}
+                className="px-3 py-1.5 rounded-xl bg-indigo-600 hover:bg-indigo-500 text-white text-xs font-semibold transition cursor-pointer shadow-xs flex items-center gap-1.5"
+                title="Adakan ulang ujian"
+              >
+                <RotateCcw className="w-3.5 h-3.5" />
+                <span>Adakan Ulang</span>
               </button>
             )}
           </div>
@@ -2996,6 +3079,119 @@ export default function TeacherExaminationPanel({
                   className="px-5 py-2 rounded-xl bg-[#65C443] hover:bg-[#52a835] text-white text-xs font-semibold shadow-xs transition cursor-pointer"
                 >
                   Simpan Kategori
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+
+      {/* ========================================================= */}
+      {/* MODAL: ADAKAN ULANG UJIAN (RE-OPEN / RESCHEDULE)         */}
+      {/* ========================================================= */}
+      {reopeningExam && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/40 backdrop-blur-xs animate-in fade-in">
+          <div className="w-full max-w-lg rounded-2xl bg-white border border-slate-200 p-6 shadow-2xl space-y-4 text-slate-800">
+            <div className="flex items-center justify-between border-b border-slate-200 pb-3">
+              <div className="space-y-0.5">
+                <h3 className="text-base font-bold text-slate-900 flex items-center gap-2">
+                  <RotateCcw className="w-5 h-5 text-indigo-600" />
+                  <span>Adakan Ulang Ujian</span>
+                </h3>
+                <p className="text-xs text-slate-500 font-medium">
+                  {reopeningExam.title} {reopeningExam.subject ? `• ${reopeningExam.subject.name}` : ""}
+                </p>
+              </div>
+              <button
+                type="button"
+                onClick={() => setReopeningExam(null)}
+                className="text-slate-400 hover:text-slate-600 p-1 rounded-lg hover:bg-slate-100 transition cursor-pointer"
+              >
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+
+            {reopeningExam.status === "archived" && (
+              <div className="p-3 rounded-xl bg-purple-50 border border-purple-200 flex items-start gap-2.5 text-purple-900 text-xs">
+                <FolderArchive className="w-4 h-4 text-purple-600 shrink-0 mt-0.5" />
+                <div className="space-y-0.5">
+                  <span className="font-bold">Ujian Arsip Semester Lalu</span>
+                  <p className="text-purple-700 leading-relaxed">
+                    Ujian ini sebelumnya diarsipkan. Mengadakan ulang akan memindahkan ujian ini ke semester yang Anda pilih di bawah dan memperbarui jadwalnya agar aktif kembali.
+                  </p>
+                </div>
+              </div>
+            )}
+
+            <form onSubmit={handleConfirmReopen} className="space-y-4">
+              <div>
+                <label className="text-xs text-slate-700 font-semibold block mb-1.5">
+                  Semester Pelaksanaan Baru <span className="text-rose-500">*</span>
+                </label>
+                <select
+                  value={reopenSemesterId}
+                  onChange={(e) => setReopenSemesterId(e.target.value)}
+                  className="w-full bg-slate-50 border border-slate-200 rounded-xl px-3 py-2 text-xs text-slate-900 focus:bg-white focus:outline-none focus:border-[#65C443]"
+                  required
+                >
+                  {allAvailableSemesters.map((s) => (
+                    <option key={s.id} value={s.id}>
+                      {s.name} {s.academicYearName ? `(${s.academicYearName})` : ""} {s.status === "active" ? "• Aktif Saat Ini" : ""}
+                    </option>
+                  ))}
+                </select>
+              </div>
+
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                <div>
+                  <label className="text-xs text-slate-700 font-semibold block mb-1.5 flex items-center gap-1.5">
+                    <Calendar className="w-3.5 h-3.5 text-slate-400" />
+                    <span>Jadwal Mulai Baru *</span>
+                  </label>
+                  <input
+                    type="datetime-local"
+                    required
+                    value={reopenStartDate}
+                    onChange={(e) => setReopenStartDate(e.target.value)}
+                    className="w-full bg-slate-50 border border-slate-200 rounded-xl px-3 py-2 text-xs text-slate-900 focus:bg-white focus:outline-none focus:border-[#65C443]"
+                  />
+                </div>
+
+                <div>
+                  <label className="text-xs text-slate-700 font-semibold block mb-1.5 flex items-center gap-1.5">
+                    <Clock className="w-3.5 h-3.5 text-slate-400" />
+                    <span>Jadwal Selesai Baru *</span>
+                  </label>
+                  <input
+                    type="datetime-local"
+                    required
+                    value={reopenEndDate}
+                    onChange={(e) => setReopenEndDate(e.target.value)}
+                    className="w-full bg-slate-50 border border-slate-200 rounded-xl px-3 py-2 text-xs text-slate-900 focus:bg-white focus:outline-none focus:border-[#65C443]"
+                  />
+                </div>
+              </div>
+
+              <div className="p-3 rounded-xl bg-slate-50 border border-slate-200 text-xs text-slate-600 flex items-center justify-between">
+                <span>Durasi pengerjaan: <strong>{reopeningExam.durationMinutes} menit</strong></span>
+                <span>Jumlah butir soal: <strong>{reopeningExam._count?.questions || 0} soal</strong></span>
+              </div>
+
+              <div className="flex items-center justify-end gap-2 pt-3 border-t border-slate-200">
+                <button
+                  type="button"
+                  onClick={() => setReopeningExam(null)}
+                  className="px-4 py-2 rounded-xl text-xs font-semibold text-slate-700 hover:bg-slate-100 border border-slate-200 transition cursor-pointer shadow-xs"
+                >
+                  Batal
+                </button>
+                <button
+                  type="submit"
+                  disabled={submittingReopen}
+                  className="px-5 py-2 rounded-xl bg-indigo-600 hover:bg-indigo-500 disabled:opacity-50 text-white text-xs font-semibold shadow-xs transition cursor-pointer flex items-center gap-1.5"
+                >
+                  <RotateCcw className="w-3.5 h-3.5" />
+                  <span>{submittingReopen ? "Memproses..." : "Adakan Ulang Sekarang"}</span>
                 </button>
               </div>
             </form>

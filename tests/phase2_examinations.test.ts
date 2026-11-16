@@ -59,6 +59,11 @@ describe("Phase 2: Examination Lifecycle & Validation", () => {
     expect(VALID_EXAM_TRANSITIONS.finalized).toContain("archived");
     expect(VALID_EXAM_TRANSITIONS.draft).toContain("archived");
 
+    // Archived can transition to scheduled, ready, or draft (e.g. adakan ulang / reschedule)
+    expect(VALID_EXAM_TRANSITIONS.archived).toContain("scheduled");
+    expect(VALID_EXAM_TRANSITIONS.archived).toContain("ready");
+    expect(VALID_EXAM_TRANSITIONS.archived).toContain("draft");
+
     // Finalized cannot transition to active states
     expect(VALID_EXAM_TRANSITIONS.finalized).not.toContain("draft");
     expect(VALID_EXAM_TRANSITIONS.finalized).not.toContain("in_progress");
@@ -85,5 +90,10 @@ describe("Phase 2: Examination Lifecycle & Validation", () => {
     };
     const resInvalid = CreateExaminationSchema.safeParse(invalidUuid);
     expect(resInvalid.success).toBe(false);
+  });
+
+  it("allows archived examinations to transition to scheduled or ready for adakan ulang", () => {
+    expect(VALID_EXAM_TRANSITIONS.archived).toContain("scheduled");
+    expect(VALID_EXAM_TRANSITIONS.archived).toContain("ready");
   });
 });

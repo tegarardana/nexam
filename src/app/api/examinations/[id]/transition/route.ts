@@ -33,12 +33,67 @@ export async function POST(
       );
     }
 
-    const exam = await prisma.examination.findUnique({ where: { id } });
+    const exam = await prisma.examination.findUnique({
+      where: { id },
+      include: { semester: true, academicYear: true },
+    });
     if (!exam) {
       return NextResponse.json({ success: false, error: "Ujian tidak ditemukan" }, { status: 404 });
     }
 
-    const validation = await validateExaminationTransition(id, targetStatus);
+    const now = new Date();
+    const isReopening =
+      (exam.status === "archived" || exam.status === "closed" || exam.status === "finalized") &&
+      (targetStatus === "scheduled" || targetStatus === "ready");
+
+    let newScheduledStart = exam.scheduledStart;
+    let newScheduledEnd = exam.scheduledEnd;
+    let newSemesterId = exam.semesterId;
+    let newAcademicYearId = exam.academicYearId;
+
+    if (body.scheduledStart) {
+      newScheduledStart = new Date(body.scheduledStart);
+    } else if (isReopening && exam.scheduledEnd < now) {
+      newScheduledStart = now;
+    }
+
+    if (body.scheduledEnd) {
+      newScheduledEnd = new Date(body.scheduledEnd);
+    } else if (isReopening && exam.scheduledEnd < now) {
+      const durationMs = (exam.durationMinutes || 90) * 60 * 1000;
+      newScheduledEnd = new Date(newScheduledStart.getTime() + durationMs);
+    }
+
+    // Ensure newScheduledEnd is strictly greater than newScheduledStart
+    if (newScheduledEnd <= newScheduledStart) {
+      const durationMs = (exam.durationMinutes || 90) * 60 * 1000;
+      newScheduledEnd = new Date(newScheduledStart.getTime() + durationMs);
+    }
+
+    // Reopen assignment to requested semester or active semester
+    if (body.semesterId) {
+      newSemesterId = body.semesterId;
+      if (body.academicYearId) {
+        newAcademicYearId = body.academicYearId;
+      } else {
+        const sem = await prisma.semester.findUnique({ where: { id: body.semesterId } });
+        if (sem?.academicYearId) newAcademicYearId = sem.academicYearId;
+      }
+    } else if (isReopening && (exam.status === "archived" || exam.semester?.status !== "active")) {
+      const activeSemester = await prisma.semester.findFirst({
+        where: { status: "active" },
+        include: { academicYear: true },
+      });
+      if (activeSemester) {
+        newSemesterId = activeSemester.id;
+        newAcademicYearId = activeSemester.academicYearId;
+      }
+    }
+
+    const validation = await validateExaminationTransition(id, targetStatus, {
+      scheduledStart: newScheduledStart,
+      scheduledEnd: newScheduledEnd,
+    });
     if (!validation.allowed) {
       return NextResponse.json(
         { success: false, error: validation.reason || "Transisi status ujian tidak diizinkan" },
@@ -51,15 +106,23 @@ export async function POST(
       data: {
         status: targetStatus,
         publishedAt: targetStatus === "scheduled" || targetStatus === "ready" ? new Date() : exam.publishedAt,
+        scheduledStart: newScheduledStart,
+        scheduledEnd: newScheduledEnd,
+        semesterId: newSemesterId,
+        academicYearId: newAcademicYearId,
+      },
+      include: {
+        semester: { select: { id: true, name: true, status: true } },
+        academicYear: { select: { id: true, name: true, status: true } },
       },
     });
 
-    // Auto-enroll eligible students from classes offering the subject if no participants yet
+    // Auto-enroll eligible students from classes offering the subject if no participants yet or moved to new academic year
     if (["ready", "scheduled", "in_progress"].includes(targetStatus)) {
       const participantCount = await prisma.examinationParticipant.count({
         where: { examinationId: id },
       });
-      if (participantCount === 0) {
+      if (participantCount === 0 || (isReopening && newAcademicYearId !== exam.academicYearId)) {
         const { autoEnrollEligibleStudents } = await import("@/lib/examination-participants");
         await autoEnrollEligibleStudents(id);
       }
@@ -70,8 +133,18 @@ export async function POST(
       action: `examination:transition:${targetStatus}`,
       entityType: "examinations",
       entityId: id,
-      beforeValue: { status: exam.status },
-      afterValue: { status: updated.status },
+      beforeValue: {
+        status: exam.status,
+        scheduledStart: exam.scheduledStart,
+        scheduledEnd: exam.scheduledEnd,
+        semesterId: exam.semesterId,
+      },
+      afterValue: {
+        status: updated.status,
+        scheduledStart: updated.scheduledStart,
+        scheduledEnd: updated.scheduledEnd,
+        semesterId: updated.semesterId,
+      },
       ipAddress: request.headers.get("x-forwarded-for") || undefined,
     });
 

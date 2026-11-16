@@ -14,12 +14,13 @@ export const VALID_EXAM_TRANSITIONS: Record<ExaminationStatus, ExaminationStatus
   closed: ["grading", "finalized", "archived", "scheduled", "ready", "in_progress"],
   grading: ["finalized", "closed", "archived"],
   finalized: ["archived", "scheduled"],
-  archived: [],
+  archived: ["scheduled", "ready", "draft"],
 };
 
 export async function validateExaminationTransition(
   examinationId: string,
-  targetStatus: ExaminationStatus
+  targetStatus: ExaminationStatus,
+  overrides?: { scheduledStart?: Date; scheduledEnd?: Date }
 ): Promise<TransitionResult> {
   const exam = await prisma.examination.findUnique({
     where: { id: examinationId },
@@ -48,7 +49,7 @@ export async function validateExaminationTransition(
     };
   }
 
-  // Preconditions for transitioning from 'draft' -> 'ready' or 'scheduled'
+  // Preconditions for transitioning from 'draft' or 'archived' -> 'ready' or 'scheduled'
   if (targetStatus === "ready" || targetStatus === "scheduled") {
     if (exam.questions.length === 0) {
       return {
@@ -64,7 +65,10 @@ export async function validateExaminationTransition(
       };
     }
 
-    if (exam.scheduledEnd <= exam.scheduledStart) {
+    const start = overrides?.scheduledStart || exam.scheduledStart;
+    const end = overrides?.scheduledEnd || exam.scheduledEnd;
+
+    if (end <= start) {
       return {
         allowed: false,
         reason: "Jadwal selesai ujian harus lebih lambat dari jadwal mulai.",
