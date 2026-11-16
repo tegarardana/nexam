@@ -33,6 +33,10 @@ import {
   Sparkles,
   Filter,
   X,
+  Info,
+  ChevronDown,
+  BookOpen,
+  ShieldCheck,
 } from "lucide-react";
 import { isStudentInAssignedRoom } from "@/lib/proctor-scope";
 
@@ -114,6 +118,34 @@ export default function ProctorDashboardPage() {
   const [tokenRequiredInput, setTokenRequiredInput] = useState(true);
   const [tokenSubmitting, setTokenSubmitting] = useState(false);
   const [tokenCopied, setTokenCopied] = useState(false);
+
+  // Detail Ujian Popover / Dropdown State
+  const [showExamDetail, setShowExamDetail] = useState(false);
+  const detailDropdownRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    function handleClickOutside(event: MouseEvent) {
+      if (
+        detailDropdownRef.current &&
+        !detailDropdownRef.current.contains(event.target as Node)
+      ) {
+        setShowExamDetail(false);
+      }
+    }
+    function handleKeyDown(event: KeyboardEvent) {
+      if (event.key === "Escape") {
+        setShowExamDetail(false);
+      }
+    }
+    if (showExamDetail) {
+      document.addEventListener("mousedown", handleClickOutside);
+      document.addEventListener("keydown", handleKeyDown);
+    }
+    return () => {
+      document.removeEventListener("mousedown", handleClickOutside);
+      document.removeEventListener("keydown", handleKeyDown);
+    };
+  }, [showExamDetail]);
 
   const handleCopyToken = () => {
     if (examInfo?.policy?.globalToken) {
@@ -585,71 +617,203 @@ export default function ProctorDashboardPage() {
     <div className="min-h-screen bg-[#F8FAFC] text-slate-800">
       {/* Top Header */}
       <header className="sticky top-0 z-30 bg-white/95 backdrop-blur-md border-b border-slate-200 px-4 sm:px-6 py-3 shadow-xs">
-        <div className="max-w-7xl mx-auto flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3">
-          <div className="flex items-center gap-3">
+        <div className="max-w-7xl mx-auto flex items-center justify-between gap-3">
+          {/* Left: Back Button, Title & Detail Ujian Button */}
+          <div className="flex items-center gap-2.5 sm:gap-3 min-w-0">
             <button
               onClick={() => router.back()}
-              className="p-2 rounded-xl bg-slate-100 hover:bg-slate-200 text-slate-700 transition cursor-pointer"
+              className="p-2 rounded-xl bg-slate-100 hover:bg-slate-200 text-slate-700 transition cursor-pointer shrink-0"
               title="Kembali"
             >
               <ArrowLeft className="w-4 h-4" />
             </button>
-            <div>
-              <div className="flex items-center gap-2">
-                <h1 className="text-base font-bold text-slate-900 truncate">
-                  {examInfo?.title || "Live Pengawasan Ujian"}
-                </h1>
-                <span className="text-[11px] px-2 py-0.5 rounded-full font-bold bg-[#0D274C]/10 text-[#0D274C] border border-[#0D274C]/20">
-                  {examInfo?.subject}
-                </span>
-              </div>
-              <p className="text-xs text-slate-500">
-                Durasi: {examInfo?.durationMinutes} Menit • Mode:{" "}
-                <strong className="uppercase font-semibold">{examInfo?.policy?.mode || "Standard"}</strong> • Toleransi:{" "}
-                <strong className={`font-semibold ${
-                  examInfo?.policy?.blockOnViolation === false
-                    ? "text-slate-600"
-                    : (examInfo?.policy?.maxTabSwitches ?? 3) === 0
-                    ? "text-rose-600"
-                    : "text-amber-700"
-                }`}>
-                  {examInfo?.policy?.blockOnViolation === false
-                    ? "Bebas (Pencatatan)"
-                    : (examInfo?.policy?.maxTabSwitches ?? 3) === 0
-                    ? "0x (Ketat / Blokir Langsung)"
-                    : `${examInfo?.policy?.maxTabSwitches ?? 3}x Tab`}
-                </strong>
-              </p>
 
-              {examInfo?.proctors && examInfo.proctors.length > 0 && (
-                <div className="flex items-center gap-1.5 flex-wrap pt-1 text-[11px] text-indigo-700">
-                  <UserCheck className="w-3.5 h-3.5 text-indigo-600" />
-                  <span className="font-semibold">Pengawas:</span>
-                  {examInfo.proctors.map((p: any) => (
-                    <span
-                      key={p.id}
-                      className="px-2 py-0.5 rounded-md bg-indigo-50 border border-indigo-200 text-indigo-900 font-medium flex items-center gap-1"
-                    >
-                      <span>{p.formattedName || p.displayName}</span>
-                      {p.roomName && (
-                        <span className="text-[10px] text-indigo-600 font-bold bg-white px-1.5 py-0.2 rounded border border-indigo-100">
-                          {p.roomName}
+            <div className="flex items-center gap-2 sm:gap-2.5 min-w-0">
+              <h1
+                className="text-base sm:text-lg font-bold text-slate-900 truncate max-w-[200px] sm:max-w-md lg:max-w-xl"
+                title={examInfo?.title || "Live Pengawasan Ujian"}
+              >
+                {examInfo?.title || "Live Pengawasan Ujian"}
+              </h1>
+
+              {/* Detail Ujian Popover Trigger */}
+              <div className="relative shrink-0" ref={detailDropdownRef}>
+                <button
+                  type="button"
+                  onClick={() => setShowExamDetail((prev) => !prev)}
+                  className={`inline-flex items-center gap-1.5 px-2.5 py-1 sm:py-1.5 rounded-xl border text-xs font-semibold transition cursor-pointer shadow-2xs ${
+                    showExamDetail
+                      ? "bg-indigo-50 border-indigo-300 text-indigo-900 ring-2 ring-indigo-200/50"
+                      : "bg-slate-50 hover:bg-slate-100 border-slate-200 text-slate-700"
+                  }`}
+                  title="Lihat Detail Informasi Ujian"
+                  aria-expanded={showExamDetail}
+                >
+                  <Info className="w-3.5 h-3.5 text-indigo-600 shrink-0" />
+                  <span className="hidden sm:inline">Detail Ujian</span>
+                  <ChevronDown
+                    className={`w-3.5 h-3.5 text-slate-400 transition-transform duration-200 ${
+                      showExamDetail ? "rotate-180 text-indigo-600" : ""
+                    }`}
+                  />
+                </button>
+
+                {/* Mobile Backdrop */}
+                {showExamDetail && (
+                  <div
+                    className="fixed inset-0 z-40 bg-slate-900/25 sm:hidden backdrop-blur-2xs animate-in fade-in"
+                    onClick={() => setShowExamDetail(false)}
+                  />
+                )}
+
+                {/* Popover Card */}
+                {showExamDetail && (
+                  <div className="fixed inset-x-4 top-16 sm:absolute sm:inset-auto sm:left-0 sm:top-full mt-2 sm:w-[420px] max-w-md sm:max-w-none mx-auto sm:mx-0 rounded-2xl bg-white border border-slate-200 shadow-2xl p-5 z-50 text-slate-800 animate-in fade-in zoom-in-95 space-y-4">
+                    {/* Popover Header */}
+                    <div className="flex items-center justify-between pb-3 border-b border-slate-100">
+                      <div className="flex items-center gap-2">
+                        <div className="w-7 h-7 rounded-lg bg-indigo-50 border border-indigo-200/80 text-indigo-600 flex items-center justify-center shrink-0">
+                          <Info className="w-4 h-4" />
+                        </div>
+                        <div>
+                          <h3 className="text-sm font-bold text-slate-900">Detail Informasi Ujian</h3>
+                          <p className="text-[11px] text-slate-500">Metadata & konfigurasi teknis CBT</p>
+                        </div>
+                      </div>
+                      <button
+                        type="button"
+                        onClick={() => setShowExamDetail(false)}
+                        className="p-1 rounded-lg text-slate-400 hover:text-slate-600 hover:bg-slate-100 transition cursor-pointer"
+                        title="Tutup"
+                      >
+                        <X className="w-4 h-4" />
+                      </button>
+                    </div>
+
+                    {/* Mata Pelajaran (Subject) */}
+                    <div className="flex items-center justify-between p-2.5 rounded-xl bg-slate-50 border border-slate-200/70">
+                      <span className="text-xs text-slate-500 font-medium flex items-center gap-1.5">
+                        <BookOpen className="w-3.5 h-3.5 text-slate-400" />
+                        Mata Pelajaran:
+                      </span>
+                      <span className="px-2.5 py-0.5 rounded-full text-xs font-bold bg-[#0D274C]/10 text-[#0D274C] border border-[#0D274C]/20">
+                        {examInfo?.subject || "-"}
+                      </span>
+                    </div>
+
+                    {/* Info Teknis Grid: Durasi, Mode, Toleransi */}
+                    <div className="grid grid-cols-2 gap-2.5">
+                      {/* Durasi */}
+                      <div className="p-3 rounded-xl bg-slate-50/80 border border-slate-200/70 space-y-1">
+                        <div className="flex items-center gap-1.5 text-[11px] text-slate-500 font-medium">
+                          <Clock className="w-3.5 h-3.5 text-blue-600 shrink-0" />
+                          <span>Durasi</span>
+                        </div>
+                        <div className="text-sm font-bold text-slate-900">
+                          {examInfo?.durationMinutes || 0} <span className="text-xs font-normal text-slate-500">Menit</span>
+                        </div>
+                      </div>
+
+                      {/* Mode Ujian */}
+                      <div className="p-3 rounded-xl bg-slate-50/80 border border-slate-200/70 space-y-1">
+                        <div className="flex items-center gap-1.5 text-[11px] text-slate-500 font-medium">
+                          <ShieldCheck className="w-3.5 h-3.5 text-emerald-600 shrink-0" />
+                          <span>Mode Pengawasan</span>
+                        </div>
+                        <div className="text-sm font-bold text-slate-900 uppercase tracking-wide">
+                          {examInfo?.policy?.mode || "Standard"}
+                        </div>
+                      </div>
+
+                      {/* Toleransi Tab Switch (Span 2 cols) */}
+                      <div className="col-span-2 p-3 rounded-xl bg-slate-50/80 border border-slate-200/70 flex items-center justify-between gap-2">
+                        <div className="flex items-center gap-2">
+                          <div className="w-7 h-7 rounded-lg bg-amber-50 text-amber-600 border border-amber-200/70 flex items-center justify-center shrink-0">
+                            <AlertTriangle className="w-3.5 h-3.5" />
+                          </div>
+                          <div>
+                            <div className="text-xs font-bold text-slate-800">Toleransi Pindah Tab</div>
+                            <div className="text-[10px] text-slate-500">Batas pelanggaran anti-cheat sebelum blokir</div>
+                          </div>
+                        </div>
+                        <span
+                          className={`text-xs font-bold px-2.5 py-1 rounded-lg border ${
+                            examInfo?.policy?.blockOnViolation === false
+                              ? "bg-slate-100 text-slate-700 border-slate-200"
+                              : (examInfo?.policy?.maxTabSwitches ?? 3) === 0
+                              ? "bg-rose-50 text-rose-700 border-rose-200"
+                              : "bg-amber-50 text-amber-800 border-amber-200"
+                          }`}
+                        >
+                          {examInfo?.policy?.blockOnViolation === false
+                            ? "Bebas (Pencatatan)"
+                            : (examInfo?.policy?.maxTabSwitches ?? 3) === 0
+                            ? "0x (Blokir Langsung)"
+                            : `${examInfo?.policy?.maxTabSwitches ?? 3}x Tab Switch`}
                         </span>
+                      </div>
+                    </div>
+
+                    {/* Info Pengawas */}
+                    <div className="pt-2 border-t border-slate-100 space-y-2">
+                      <div className="flex items-center justify-between text-xs font-semibold text-slate-800">
+                        <div className="flex items-center gap-1.5 text-indigo-900">
+                          <UserCheck className="w-4 h-4 text-indigo-600" />
+                          <span>Pengawas Ditugaskan</span>
+                        </div>
+                        <span className="text-[11px] font-normal text-slate-500">
+                          {examInfo?.proctors?.length || 0} Pengawas
+                        </span>
+                      </div>
+
+                      {examInfo?.proctors && examInfo.proctors.length > 0 ? (
+                        <div className="space-y-1.5 max-h-36 overflow-y-auto pr-1">
+                          {examInfo.proctors.map((p: any) => (
+                            <div
+                              key={p.id}
+                              className="flex items-center justify-between p-2 rounded-lg bg-slate-50 border border-slate-200/70 text-xs"
+                            >
+                              <div className="flex items-center gap-2 min-w-0">
+                                <div className="w-6 h-6 rounded-full bg-indigo-100 text-indigo-700 flex items-center justify-center font-bold text-[10px] shrink-0">
+                                  {(p.formattedName || p.displayName || "P").charAt(0).toUpperCase()}
+                                </div>
+                                <span
+                                  className="font-semibold text-slate-800 truncate"
+                                  title={p.formattedName || p.displayName}
+                                >
+                                  {p.formattedName || p.displayName}
+                                </span>
+                              </div>
+                              {p.roomName ? (
+                                <span className="text-[10px] font-bold text-indigo-700 bg-white px-2 py-0.5 rounded border border-indigo-200 shrink-0">
+                                  {p.roomName}
+                                </span>
+                              ) : (
+                                <span className="text-[10px] text-slate-400 italic shrink-0">Semua Ruang</span>
+                              )}
+                            </div>
+                          ))}
+                        </div>
+                      ) : (
+                        <p className="text-xs text-slate-400 italic bg-slate-50 p-2.5 rounded-lg border border-slate-200/60 text-center">
+                          Belum ada pengawas khusus yang ditugaskan untuk ujian ini.
+                        </p>
                       )}
-                    </span>
-                  ))}
-                </div>
-              )}
+                    </div>
+                  </div>
+                )}
+              </div>
             </div>
           </div>
 
-          <div className="flex items-center gap-2 self-end sm:self-center">
+          {/* Right: Rekap Nilai & Live SSE indicator */}
+          <div className="flex items-center gap-2 shrink-0">
             <Link
               href={`/teacher/examinations/${examId}/results`}
               className="flex items-center gap-1.5 px-3 py-1.5 rounded-full border border-slate-200 bg-white hover:bg-slate-50 text-xs font-semibold text-slate-700 shadow-xs transition"
             >
               <Award className="w-3.5 h-3.5 text-purple-600" />
-              <span>Rekap Nilai</span>
+              <span className="hidden sm:inline">Rekap Nilai</span>
             </Link>
 
             {/* Live SSE indicator */}
@@ -665,7 +829,10 @@ export default function ProctorDashboardPage() {
                   sseConnected ? "bg-[#65C443] animate-pulse" : "bg-rose-500"
                 }`}
               />
-              <span>{sseConnected ? "Live Terhubung (SSE)" : "Koneksi Terputus"}</span>
+              <span className="hidden sm:inline">
+                {sseConnected ? "Live Terhubung (SSE)" : "Koneksi Terputus"}
+              </span>
+              <span className="sm:hidden">{sseConnected ? "Live" : "Offline"}</span>
             </div>
           </div>
         </div>
