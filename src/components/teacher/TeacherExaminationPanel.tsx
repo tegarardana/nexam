@@ -182,6 +182,7 @@ interface TeacherExaminationPanelProps {
     nip?: string | null;
   }>;
   viewMode?: "schedule" | "monitoring" | "results" | "analysis" | "grades";
+  onViewModeChange?: (mode: "schedule" | "monitoring" | "results" | "analysis" | "grades") => void;
 }
 
 const QUESTION_TYPES = [
@@ -208,6 +209,7 @@ export default function TeacherExaminationPanel({
   userRoles = [],
   teachers = [],
   viewMode = "schedule",
+  onViewModeChange,
 }: TeacherExaminationPanelProps) {
   const availableClasses = (classGroups && classGroups.length > 0) ? classGroups : (classes || []);
   const isAdmin = userRoles.includes("administrator");
@@ -2200,6 +2202,7 @@ export default function TeacherExaminationPanel({
                 onClick={() => {
                   setActiveViewMode("schedule");
                   setExamCategoryFilter("all");
+                  onViewModeChange?.("schedule");
                 }}
                 className={`px-3 py-1.5 rounded-lg text-xs font-semibold flex items-center gap-1.5 transition cursor-pointer whitespace-nowrap ${
                   activeViewMode === "schedule"
@@ -2216,6 +2219,7 @@ export default function TeacherExaminationPanel({
                 onClick={() => {
                   setActiveViewMode("monitoring");
                   setExamCategoryFilter("in_progress");
+                  onViewModeChange?.("monitoring");
                 }}
                 className={`px-3 py-1.5 rounded-lg text-xs font-semibold flex items-center gap-1.5 transition cursor-pointer whitespace-nowrap ${
                   activeViewMode === "monitoring"
@@ -2247,6 +2251,7 @@ export default function TeacherExaminationPanel({
                 onClick={() => {
                   setActiveViewMode("results");
                   setExamCategoryFilter("closed");
+                  onViewModeChange?.("results");
                 }}
                 className={`px-3 py-1.5 rounded-lg text-xs font-semibold flex items-center gap-1.5 transition cursor-pointer whitespace-nowrap ${
                   activeViewMode === "results"
@@ -2263,6 +2268,7 @@ export default function TeacherExaminationPanel({
                 onClick={() => {
                   setActiveViewMode("analysis");
                   setExamCategoryFilter("closed");
+                  onViewModeChange?.("analysis");
                 }}
                 className={`px-3 py-1.5 rounded-lg text-xs font-semibold flex items-center gap-1.5 transition cursor-pointer whitespace-nowrap ${
                   activeViewMode === "analysis"
