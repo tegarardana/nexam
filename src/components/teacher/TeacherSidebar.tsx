@@ -15,10 +15,12 @@ import {
   ChevronLeft,
   X,
   ShieldCheck,
+  GraduationCap,
 } from "lucide-react";
 
 export type TeacherTab =
   | "dashboard"
+  | "class_management"
   | "question_banks"
   | "exam_schedules"
   | "exam_status"
@@ -34,6 +36,8 @@ interface TeacherSidebarProps {
   mobileOpen: boolean;
   onCloseMobile: () => void;
   assignedProctorCount?: number;
+  isHomeroomTeacher?: boolean;
+  homeroomClassName?: string;
 }
 
 export default function TeacherSidebar({
@@ -44,6 +48,8 @@ export default function TeacherSidebar({
   mobileOpen,
   onCloseMobile,
   assignedProctorCount = 0,
+  isHomeroomTeacher = false,
+  homeroomClassName,
 }: TeacherSidebarProps) {
   // Accordion state - Open by default for Pelaksanaan Ujian
   const [openAccordions, setOpenAccordions] = useState<Record<string, boolean>>({
@@ -152,7 +158,7 @@ export default function TeacherSidebar({
 
         {/* Sidebar Navigation Body (Scrollable) */}
         <nav className="flex-1 min-h-0 overflow-y-auto px-3 py-4 space-y-5 scrollbar-thin scrollbar-thumb-slate-200">
-          {/* 1. DASHBOARD OVERVIEW (Single Item) */}
+          {/* 1. DASHBOARD & MANAJEMEN KELAS (Single Items) */}
           <div className="space-y-1">
             <button
               onClick={() => handleItemClick("dashboard")}
@@ -170,6 +176,35 @@ export default function TeacherSidebar({
               />
               {!isCollapsed && <span className="truncate">Dashboard</span>}
             </button>
+
+            {/* Khusus Wali Kelas: Menu Manajemen Kelas */}
+            {isHomeroomTeacher && (
+              <button
+                onClick={() => handleItemClick("class_management")}
+                title={isCollapsed ? `Manajemen Kelas ${homeroomClassName ? `(${homeroomClassName})` : ""}` : undefined}
+                className={`w-full flex items-center gap-3 px-3 py-2.5 rounded-xl text-xs font-bold transition cursor-pointer group ${
+                  isTabActive("class_management")
+                    ? "bg-[#0D274C] text-white shadow-sm shadow-[#0D274C]/25"
+                    : "text-slate-600 hover:text-slate-900 hover:bg-slate-100"
+                }`}
+              >
+                <GraduationCap
+                  className={`w-4.5 h-4.5 shrink-0 ${
+                    isTabActive("class_management") ? "text-[#65C443]" : "text-slate-500 group-hover:text-[#0D274C]"
+                  }`}
+                />
+                {!isCollapsed && (
+                  <div className="flex items-center justify-between w-full min-w-0">
+                    <span className="truncate">Manajemen Kelas</span>
+                    {homeroomClassName && (
+                      <span className="text-[10px] bg-emerald-100 text-emerald-800 font-bold px-1.5 py-0.2 rounded border border-emerald-200 ml-1 shrink-0 truncate max-w-[70px]">
+                        {homeroomClassName}
+                      </span>
+                    )}
+                  </div>
+                )}
+              </button>
+            )}
           </div>
 
           {/* 2. ACCORDION: UJIAN / ULANGAN (Mirrors Admin Panel) */}

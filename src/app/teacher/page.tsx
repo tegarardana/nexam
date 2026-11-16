@@ -29,7 +29,16 @@ export default async function TeacherDashboardPage(props: TeacherDashboardPagePr
   });
 
   // Query platform resources for examination & question creation
-  const [allSubjects, academicYears, semesters, classGroups, allTeachers, assignedProctorCount] = await Promise.all([
+  const [
+    allSubjects,
+    academicYears,
+    semesters,
+    classGroups,
+    allTeachers,
+    assignedProctorCount,
+    homeroomClasses,
+    scheduledExamsCount,
+  ] = await Promise.all([
     prisma.subject.findMany({
       where: { isActive: true, archivedAt: null },
       orderBy: { name: "asc" },
@@ -79,6 +88,46 @@ export default async function TeacherDashboardPage(props: TeacherDashboardPagePr
         },
       },
     }),
+    prisma.classGroup.findMany({
+      where: {
+        homeroomTeacherId: session.user.id,
+        isActive: true,
+      },
+      include: {
+        major: { select: { id: true, name: true, code: true } },
+        academicYear: { select: { id: true, name: true, status: true } },
+        studentEnrollments: {
+          where: { status: "active" },
+          include: {
+            student: {
+              select: {
+                id: true,
+                username: true,
+                displayName: true,
+                nis: true,
+                nisn: true,
+                gender: true,
+                email: true,
+                isActive: true,
+              },
+            },
+          },
+          orderBy: { student: { displayName: "asc" } },
+        },
+        _count: {
+          select: {
+            studentEnrollments: { where: { status: "active" } },
+          },
+        },
+      },
+      orderBy: { name: "asc" },
+    }),
+    prisma.examination.count({
+      where: {
+        createdById: session.user.id,
+        status: { in: ["scheduled", "in_progress", "ready"] },
+      },
+    }),
   ]);
 
   // Teacher subject offerings
@@ -100,15 +149,14 @@ export default async function TeacherDashboardPage(props: TeacherDashboardPagePr
     },
   });
 
-  const totalStudents = assignments.reduce(
-    (sum, a) => sum + (a.subjectOffering.classGroup._count.studentEnrollments || 0),
-    0
-  );
+  const isHomeroomTeacher = homeroomClasses.length > 0;
 
   const tabParam = searchParams?.tab;
   const viewParam = searchParams?.view;
   let initialTab: TeacherTab = "dashboard";
-  if (tabParam === "question_banks") {
+  if (tabParam === "class_management" && isHomeroomTeacher) {
+    initialTab = "class_management";
+  } else if (tabParam === "question_banks") {
     initialTab = "question_banks";
   } else if (tabParam === "exam_schedules") {
     initialTab = "exam_schedules";
@@ -133,7 +181,8 @@ export default async function TeacherDashboardPage(props: TeacherDashboardPagePr
       teachers={allTeachers}
       assignments={JSON.parse(JSON.stringify(assignments))}
       assignedProctorCount={assignedProctorCount}
-      totalStudents={totalStudents}
+      homeroomClasses={JSON.parse(JSON.stringify(homeroomClasses))}
+      scheduledExamsCount={scheduledExamsCount}
       initialTab={initialTab}
     />
   );
