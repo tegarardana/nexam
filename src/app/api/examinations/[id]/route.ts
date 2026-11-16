@@ -52,7 +52,7 @@ export async function GET(
         },
         proctorAssignments: {
           include: {
-            proctor: { select: { id: true, displayName: true, username: true } },
+            proctor: { select: { id: true, displayName: true, username: true, title: true, nip: true } },
           },
         },
       },
@@ -181,6 +181,30 @@ export async function PUT(
             ...syncedPolicy,
           },
         });
+      }
+
+      // Sync proctor assignments if provided
+      if (parsed.data.proctors !== undefined || parsed.data.proctorIds !== undefined) {
+        const proctorList =
+          parsed.data.proctors ||
+          (parsed.data.proctorIds
+            ? parsed.data.proctorIds.map((pid) => ({ proctorId: pid, roomName: null }))
+            : []);
+
+        await tx.examinationProctorAssignment.deleteMany({
+          where: { examinationId: id },
+        });
+
+        if (proctorList.length > 0) {
+          await tx.examinationProctorAssignment.createMany({
+            data: proctorList.map((p) => ({
+              examinationId: id,
+              proctorId: p.proctorId,
+              roomName: p.roomName || null,
+            })),
+            skipDuplicates: true,
+          });
+        }
       }
 
       return exam;

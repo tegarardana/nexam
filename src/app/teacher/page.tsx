@@ -33,7 +33,7 @@ export default async function TeacherDashboardPage() {
   });
 
   // Query platform resources for examination & question creation
-  const [allSubjects, academicYears, semesters, classGroups] = await Promise.all([
+  const [allSubjects, academicYears, semesters, classGroups, allTeachers] = await Promise.all([
     prisma.subject.findMany({
       where: { isActive: true, archivedAt: null },
       orderBy: { name: "asc" },
@@ -51,6 +51,21 @@ export default async function TeacherDashboardPage() {
       where: { isActive: true },
       orderBy: { name: "asc" },
       select: { id: true, name: true, academicYearId: true },
+    }),
+    prisma.user.findMany({
+      where: {
+        userRoles: { some: { role: { name: "teacher" } } },
+        isActive: true,
+      },
+      orderBy: { displayName: "asc" },
+      select: {
+        id: true,
+        displayName: true,
+        title: true,
+        username: true,
+        nip: true,
+        email: true,
+      },
     }),
   ]);
 
@@ -129,6 +144,7 @@ export default async function TeacherDashboardPage() {
             assignments={JSON.parse(JSON.stringify(assignments))}
             currentTeacherId={session.user.id}
             userRoles={session.user.roles}
+            teachers={allTeachers}
           />
         </div>
       </main>

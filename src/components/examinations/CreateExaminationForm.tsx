@@ -17,6 +17,8 @@ import {
   AlertCircle,
   GraduationCap,
   Layers,
+  UserCheck,
+  Search,
 } from "lucide-react";
 import { formatNameWithTitle } from "@/lib/format-user";
 
@@ -127,6 +129,13 @@ export default function CreateExaminationForm({
     initialSubject?.majorId || "all"
   );
   const [selectedGradeFilter, setSelectedGradeFilter] = useState<number | "all">("all");
+
+  // Proctor Assignment State
+  const [selectedProctorIds, setSelectedProctorIds] = useState<string[]>(
+    !isAdmin && currentTeacherId ? [currentTeacherId] : []
+  );
+  const [proctorRooms, setProctorRooms] = useState<Record<string, string>>({});
+  const [proctorSearch, setProctorSearch] = useState("");
 
   // When subject changes, automatically update class major filter to match subject's major
   useEffect(() => {
@@ -374,6 +383,14 @@ export default function CreateExaminationForm({
         globalToken: polTokenReq ? polGlobalToken || undefined : undefined,
       },
       classGroupIds: selectedClassIds.length > 0 ? selectedClassIds : undefined,
+      proctorIds: selectedProctorIds.length > 0 ? selectedProctorIds : undefined,
+      proctors:
+        selectedProctorIds.length > 0
+          ? selectedProctorIds.map((pid) => ({
+              proctorId: pid,
+              roomName: proctorRooms[pid]?.trim() || null,
+            }))
+          : undefined,
     };
 
     try {
@@ -1023,7 +1040,151 @@ export default function CreateExaminationForm({
             </div>
           </div>
 
-          {/* SECTION 5: KEBIJAKAN ANTI-CHEAT */}
+          {/* SECTION 5: PENUNJUKAN PENGAWAS UJIAN (PROCTOR) */}
+          <div className="bg-white rounded-2xl border border-slate-200 p-6 shadow-xs space-y-4">
+            <div className="border-b border-slate-100 pb-3 flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+              <div className="flex items-center gap-2.5">
+                <div className="p-2 rounded-lg bg-indigo-50 text-indigo-700">
+                  <UserCheck className="w-4 h-4" />
+                </div>
+                <div>
+                  <div className="flex items-center gap-2">
+                    <h2 className="text-sm font-bold text-slate-900">
+                      5. Penunjukan Pengawas Ujian
+                    </h2>
+                    <span className="px-2 py-0.5 rounded-full text-[10px] font-semibold bg-indigo-50 text-indigo-700 border border-indigo-200">
+                      Opsional
+                    </span>
+                  </div>
+                  <p className="text-xs text-slate-500">
+                    Tunjuk guru yang bertugas mengawasi jalannya sesi ujian ini. Pengawas berwenang memantau live dan melakukan intervensi.
+                  </p>
+                </div>
+              </div>
+
+              {selectedProctorIds.length > 0 && (
+                <button
+                  type="button"
+                  onClick={() => setSelectedProctorIds([])}
+                  className="text-xs text-rose-600 hover:underline font-semibold cursor-pointer self-start sm:self-auto"
+                >
+                  Batal Pilih Semua Pengawas
+                </button>
+              )}
+            </div>
+
+            {/* Proctor Search & Quick Actions */}
+            <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-2.5">
+              <div className="relative flex-1">
+                <Search className="w-4 h-4 absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" />
+                <input
+                  type="text"
+                  placeholder="Cari guru pengawas berdasarkan nama, NIP, atau username..."
+                  value={proctorSearch}
+                  onChange={(e) => setProctorSearch(e.target.value)}
+                  className="w-full pl-9 pr-3 py-2 rounded-xl bg-slate-50 border border-slate-200 text-xs text-slate-900 placeholder:text-slate-400 focus:outline-none focus:border-[#65C443]"
+                />
+              </div>
+
+              {currentTeacherId && !selectedProctorIds.includes(currentTeacherId) && (
+                <button
+                  type="button"
+                  onClick={() => setSelectedProctorIds((prev) => [...prev, currentTeacherId])}
+                  className="px-3 py-2 rounded-xl bg-indigo-50 hover:bg-indigo-100 text-indigo-800 text-xs font-semibold border border-indigo-200 transition cursor-pointer flex items-center justify-center gap-1.5 shrink-0"
+                >
+                  <UserCheck className="w-3.5 h-3.5 text-indigo-600" />
+                  <span>Tunjuk Diri Sendiri</span>
+                </button>
+              )}
+            </div>
+
+            {/* Proctor List */}
+            {teachers.length === 0 ? (
+              <div className="p-4 rounded-xl bg-slate-50 border border-slate-200 text-center text-xs text-slate-500">
+                Tidak ada data guru yang tersedia untuk ditunjuk sebagai pengawas.
+              </div>
+            ) : (
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-3 max-h-72 overflow-y-auto p-1">
+                {teachers
+                  .filter((t: any) => {
+                    if (!proctorSearch.trim()) return true;
+                    const q = proctorSearch.toLowerCase().trim();
+                    const name = (t.displayName || t.name || "").toLowerCase();
+                    const username = (t.username || "").toLowerCase();
+                    const nip = (t.nip || "").toLowerCase();
+                    return name.includes(q) || username.includes(q) || nip.includes(q);
+                  })
+                  .map((t: any) => {
+                    const isSelected = selectedProctorIds.includes(t.id);
+                    const formattedName = formatNameWithTitle(t.displayName || t.name, t.title);
+                    return (
+                      <div
+                        key={t.id}
+                        className={`p-3 rounded-xl border transition flex flex-col justify-between gap-2.5 ${
+                          isSelected
+                            ? "bg-indigo-50/50 border-indigo-300 ring-1 ring-indigo-200"
+                            : "bg-slate-50/60 border-slate-200 hover:border-slate-300"
+                        }`}
+                      >
+                        <label className="flex items-start gap-3 cursor-pointer">
+                          <input
+                            type="checkbox"
+                            checked={isSelected}
+                            onChange={() => {
+                              setSelectedProctorIds((prev) =>
+                                prev.includes(t.id) ? prev.filter((id) => id !== t.id) : [...prev, t.id]
+                              );
+                            }}
+                            className="mt-0.5 rounded accent-indigo-600 w-4 h-4 cursor-pointer"
+                          />
+                          <div className="min-w-0 flex-1">
+                            <div className="text-xs font-bold text-slate-900 truncate">
+                              {formattedName}
+                            </div>
+                            <div className="text-[11px] text-slate-500 flex items-center gap-2 flex-wrap">
+                              {t.nip && <span>NIP: {t.nip}</span>}
+                              {t.username && <span>@{t.username}</span>}
+                            </div>
+                          </div>
+                        </label>
+
+                        {/* Optional Room Assignment Input */}
+                        {isSelected && (
+                          <div className="pt-2 border-t border-indigo-100 flex items-center gap-2">
+                            <span className="text-[10px] font-semibold text-indigo-700 whitespace-nowrap">
+                              Ruang Pengawasan:
+                            </span>
+                            <input
+                              type="text"
+                              placeholder="Opsional, misal: Ruang 01 / Lab CBT A"
+                              value={proctorRooms[t.id] || ""}
+                              onChange={(e) =>
+                                setProctorRooms((prev) => ({
+                                  ...prev,
+                                  [t.id]: e.target.value,
+                                }))
+                              }
+                              className="flex-1 px-2.5 py-1 rounded-lg bg-white border border-indigo-200 text-xs text-slate-800 placeholder:text-slate-400 focus:outline-none focus:border-indigo-500"
+                            />
+                          </div>
+                        )}
+                      </div>
+                    );
+                  })}
+              </div>
+            )}
+
+            <div className="text-[11px] text-slate-500 flex items-center justify-between pt-2 border-t border-slate-100">
+              <span>
+                <strong>{selectedProctorIds.length}</strong> pengawas ujian dipilih.
+              </span>
+              <span className="text-slate-400 italic">
+                Pengawas dapat ditambahkan atau diubah kapan saja setelah ujian dibuat.
+              </span>
+            </div>
+          </div>
+
+          {/* SECTION 6: KEBIJAKAN ANTI-CHEAT */}
           <div className="bg-white rounded-2xl border border-slate-200 p-6 shadow-xs space-y-4">
             <div className="border-b border-slate-100 pb-3 flex items-center gap-2.5">
               <div className="p-2 rounded-lg bg-rose-50 text-rose-700">
@@ -1031,7 +1192,7 @@ export default function CreateExaminationForm({
               </div>
               <div>
                 <h2 className="text-sm font-bold text-slate-900">
-                  5. Kebijakan Anti-Cheat & Integritas Ujian
+                  6. Kebijakan Anti-Cheat & Integritas Ujian
                 </h2>
                 <p className="text-xs text-slate-500">
                   Konfigurasikan perlindungan integritas selama siswa mengerjakan ujian.
@@ -1247,7 +1408,7 @@ export default function CreateExaminationForm({
             </div>
           </div>
 
-          {/* SECTION 6: TOKEN CBT */}
+          {/* SECTION 7: TOKEN CBT */}
           <div className="bg-white rounded-2xl border border-slate-200 p-6 shadow-xs space-y-4">
             <div className="border-b border-slate-100 pb-3 flex items-center justify-between">
               <div className="flex items-center gap-2.5">
@@ -1256,7 +1417,7 @@ export default function CreateExaminationForm({
                 </div>
                 <div>
                   <h2 className="text-sm font-bold text-slate-900">
-                    6. Konfigurasi Token Akses CBT
+                    7. Konfigurasi Token Akses CBT
                   </h2>
                   <p className="text-xs text-slate-500">
                     Wajibkan token sebelum siswa dapat mulai mengerjakan lembar ujian.

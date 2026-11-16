@@ -26,7 +26,7 @@ export default async function TeacherCreateExaminationPage() {
   });
 
   // Query platform resources
-  const [allSubjects, academicYears, semesters, classes, allMajors] = await Promise.all([
+  const [allSubjects, academicYears, semesters, classes, allMajors, teacherUsers] = await Promise.all([
     prisma.subject.findMany({
       where: { isActive: true, archivedAt: null },
       orderBy: { name: "asc" },
@@ -63,6 +63,21 @@ export default async function TeacherCreateExaminationPage() {
       orderBy: { name: "asc" },
       select: { id: true, name: true, code: true },
     }),
+    prisma.user.findMany({
+      where: {
+        userRoles: { some: { role: { name: "teacher" } } },
+        isActive: true,
+      },
+      orderBy: { displayName: "asc" },
+      select: {
+        id: true,
+        displayName: true,
+        title: true,
+        username: true,
+        nip: true,
+        email: true,
+      },
+    }),
   ]);
 
   return (
@@ -74,6 +89,7 @@ export default async function TeacherCreateExaminationPage() {
       semesters={semesters}
       classes={classes}
       majors={allMajors}
+      teachers={teacherUsers}
       currentTeacherId={session.user.id}
       activeYearId={activeYear?.id || null}
       activeSemesterId={activeYear?.semesters[0]?.id || null}

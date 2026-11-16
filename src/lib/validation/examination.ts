@@ -44,6 +44,15 @@ export const CreateExaminationSchema = z
     sessionId: z.string().uuid("ID sesi ujian tidak valid").optional().nullable(),
     questionBankId: z.string().uuid("ID bank soal tidak valid").optional().nullable(),
     classGroupIds: z.array(z.string().uuid()).optional(),
+    proctorIds: z.array(z.string().uuid()).optional(),
+    proctors: z
+      .array(
+        z.object({
+          proctorId: z.string().uuid("ID pengawas tidak valid"),
+          roomName: z.string().max(100).optional().nullable(),
+        })
+      )
+      .optional(),
   })
   .refine((data) => data.scheduledEnd > data.scheduledStart, {
     message: "Waktu selesai ujian harus setelah waktu mulai ujian",

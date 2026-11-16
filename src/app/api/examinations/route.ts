@@ -35,16 +35,29 @@ export async function GET(request: NextRequest) {
         semester: { select: { id: true, name: true, status: true } },
         createdBy: { select: { id: true, displayName: true } },
         policySettings: true,
+        proctorAssignments: {
+          include: {
+            proctor: {
+              select: {
+                id: true,
+                displayName: true,
+                username: true,
+                title: true,
+              },
+            },
+          },
+        },
         participants: {
           select: {
+            studentId: true,
             classGroupId: true,
             classGroup: { select: { id: true, name: true, gradeLevel: true } },
           },
-          distinct: ["classGroupId"],
         },
         attempts: {
           select: {
             id: true,
+            studentId: true,
             status: true,
             incidentCount: true,
           },
@@ -179,7 +192,7 @@ export async function POST(request: NextRequest) {
             questionId: q.id,
             questionVersionId: q.versions[0].id,
             sequenceOrder: idx + 1,
-            points: (q.versions[0].gradingConfig as any)?.points || 1,
+            points: (q.versions[0].gradingConfig as { points?: number } | null)?.points || 1,
             isOptional: false,
           }));
 
@@ -188,6 +201,24 @@ export async function POST(request: NextRequest) {
             data: questionData,
           });
         }
+      }
+
+      // Assign proctors if provided
+      const proctorList =
+        parsed.data.proctors ||
+        (parsed.data.proctorIds
+          ? parsed.data.proctorIds.map((pid) => ({ proctorId: pid, roomName: null }))
+          : []);
+
+      if (proctorList.length > 0) {
+        await tx.examinationProctorAssignment.createMany({
+          data: proctorList.map((p) => ({
+            examinationId: exam.id,
+            proctorId: p.proctorId,
+            roomName: p.roomName || null,
+          })),
+          skipDuplicates: true,
+        });
       }
 
       return exam;

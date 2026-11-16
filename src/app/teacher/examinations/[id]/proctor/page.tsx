@@ -575,6 +575,26 @@ export default function ProctorDashboardPage() {
                     : `${examInfo?.policy?.maxTabSwitches ?? 3}x Tab`}
                 </strong>
               </p>
+
+              {examInfo?.proctors && examInfo.proctors.length > 0 && (
+                <div className="flex items-center gap-1.5 flex-wrap pt-1 text-[11px] text-indigo-700">
+                  <UserCheck className="w-3.5 h-3.5 text-indigo-600" />
+                  <span className="font-semibold">Pengawas:</span>
+                  {examInfo.proctors.map((p: any) => (
+                    <span
+                      key={p.id}
+                      className="px-2 py-0.5 rounded-md bg-indigo-50 border border-indigo-200 text-indigo-900 font-medium flex items-center gap-1"
+                    >
+                      <span>{p.formattedName || p.displayName}</span>
+                      {p.roomName && (
+                        <span className="text-[10px] text-indigo-600 font-bold bg-white px-1.5 py-0.2 rounded border border-indigo-100">
+                          {p.roomName}
+                        </span>
+                      )}
+                    </span>
+                  ))}
+                </div>
+              )}
             </div>
           </div>
 

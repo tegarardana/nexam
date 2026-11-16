@@ -8,7 +8,11 @@ import {
   subjectSchema,
   studentEnrollmentSchema,
 } from "../src/lib/validation/academic";
-import { ExaminationTypeSchema, ExaminationSessionSchema } from "../src/lib/validation/examination";
+import {
+  ExaminationTypeSchema,
+  ExaminationSessionSchema,
+  CreateExaminationSchema,
+} from "../src/lib/validation/examination";
 import {
   createUserSchema,
   bulkStudentRowSchema,
@@ -323,6 +327,59 @@ describe("Validation Schemas (Zod)", () => {
       code: "",
     });
     expect(missingCode.success).toBe(false);
+  });
+
+  it("should validate examination creation with proctor assignments and room names", () => {
+    const validWithProctors = CreateExaminationSchema.safeParse({
+      title: "Penilaian Akhir Semester Ganjil - Matematika",
+      academicYearId: "123e4567-e89b-12d3-a456-426614174000",
+      semesterId: "123e4567-e89b-12d3-a456-426614174001",
+      durationMinutes: 90,
+      scheduledStart: "2026-11-20T07:30:00Z",
+      scheduledEnd: "2026-11-20T09:30:00Z",
+      proctorIds: [
+        "123e4567-e89b-12d3-a456-426614174002",
+        "123e4567-e89b-12d3-a456-426614174003",
+      ],
+      proctors: [
+        {
+          proctorId: "123e4567-e89b-12d3-a456-426614174002",
+          roomName: "Lab Komputer A",
+        },
+        {
+          proctorId: "123e4567-e89b-12d3-a456-426614174003",
+          roomName: null,
+        },
+      ],
+    });
+    expect(validWithProctors.success).toBe(true);
+
+    const invalidProctorUuid = CreateExaminationSchema.safeParse({
+      title: "Penilaian Harian",
+      academicYearId: "123e4567-e89b-12d3-a456-426614174000",
+      semesterId: "123e4567-e89b-12d3-a456-426614174001",
+      durationMinutes: 60,
+      scheduledStart: "2026-11-20T07:30:00Z",
+      scheduledEnd: "2026-11-20T08:30:00Z",
+      proctorIds: ["not-a-valid-uuid"],
+    });
+    expect(invalidProctorUuid.success).toBe(false);
+
+    const invalidProctorObj = CreateExaminationSchema.safeParse({
+      title: "Penilaian Harian",
+      academicYearId: "123e4567-e89b-12d3-a456-426614174000",
+      semesterId: "123e4567-e89b-12d3-a456-426614174001",
+      durationMinutes: 60,
+      scheduledStart: "2026-11-20T07:30:00Z",
+      scheduledEnd: "2026-11-20T08:30:00Z",
+      proctors: [
+        {
+          proctorId: "invalid-id",
+          roomName: "Ruang 1",
+        },
+      ],
+    });
+    expect(invalidProctorObj.success).toBe(false);
   });
 });
 

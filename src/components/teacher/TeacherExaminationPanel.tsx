@@ -39,7 +39,10 @@ import {
   Radio,
   AlertTriangle,
   Tag,
+  UserCheck,
 } from "lucide-react";
+import { formatNameWithTitle } from "@/lib/format-user";
+import ProctorManagementModal from "@/components/examinations/ProctorManagementModal";
 
 interface Subject {
   id: string;
@@ -125,13 +128,28 @@ interface Examination {
     globalToken?: string;
   };
   participants?: Array<{
+    studentId?: string;
     classGroupId?: string | null;
     classGroup?: { id: string; name: string; gradeLevel?: number | null } | null;
   }>;
   attempts?: Array<{
     id: string;
+    studentId?: string;
     status: string;
     incidentCount?: number;
+  }>;
+  proctorAssignments?: Array<{
+    id: string;
+    proctorId: string;
+    roomName?: string | null;
+    assignedAt?: string;
+    proctor: {
+      id: string;
+      displayName: string;
+      title?: string | null;
+      username?: string;
+      nip?: string | null;
+    };
   }>;
   _count?: {
     questions: number;
@@ -152,7 +170,15 @@ interface TeacherExaminationPanelProps {
   activeSemesterId?: string | null;
   activeSemesterName?: string | null;
   userRoles?: string[];
-  teachers?: Array<{ id: string; name?: string; username?: string; displayName?: string | null; email?: string; nip?: string | null }>;
+  teachers?: Array<{
+    id: string;
+    name?: string;
+    username?: string;
+    displayName?: string | null;
+    title?: string | null;
+    email?: string | null;
+    nip?: string | null;
+  }>;
   viewMode?: "schedule" | "monitoring" | "results" | "analysis" | "grades";
 }
 
@@ -234,6 +260,10 @@ export default function TeacherExaminationPanel({
   const [examTypeFilter, setExamTypeFilter] = useState("all");
   const [examSemesterFilter, setExamSemesterFilter] = useState<string>(activeSemesterId || "all");
   const [examYearFilter, setExamYearFilter] = useState<string>(activeYearId || "all");
+
+  // Proctor Management & Monitoring State
+  const [proctorModalExam, setProctorModalExam] = useState<Examination | null>(null);
+  const [monitoringClassFilter, setMonitoringClassFilter] = useState<Record<string, string>>({});
 
   useEffect(() => {
     if (activeSemesterId) {
@@ -1254,20 +1284,42 @@ export default function TeacherExaminationPanel({
     const effectiveInProgress = !isClosed && (exam.status === "in_progress" || isAutoStarted);
     const effectiveScheduled = !isClosed && !effectiveInProgress && (exam.status === "scheduled" || exam.status === "ready");
 
-    // Student attempt progress calculation
+    // Participating classes
+    const uniqueClassMap = new Map<string, { id: string; name: string }>();
+    exam.participants?.forEach((p) => {
+      if (p.classGroup && p.classGroupId) {
+        uniqueClassMap.set(p.classGroupId, { id: p.classGroupId, name: p.classGroup.name });
+      }
+    });
+    const uniqueClasses = Array.from(uniqueClassMap.values());
+    const classList = uniqueClasses.length > 0 ? uniqueClasses : (exam.participants?.map((p) => p.classGroup).filter(Boolean) || []);
+
+    // Filter by class in this monitoring card
+    const selectedClassFilter = monitoringClassFilter[exam.id] || "all";
     const attempts = exam.attempts || [];
-    const inProgressCount = attempts.filter((a) => a.status === "in_progress" || a.status === "warning" || a.status === "blocked").length;
-    const submittedCount = attempts.filter((a) => a.status === "submitted" || a.status === "completed" || a.status === "grading_pending").length;
-    const totalParticipants = exam._count?.participants || 0;
-    const notStartedCount = Math.max(0, totalParticipants - (inProgressCount + submittedCount));
-    const incidentCount = attempts.filter((a) => (a.incidentCount || 0) > 0 || a.status === "warning" || a.status === "blocked").length;
+    let relevantAttempts = attempts;
+    let effectiveTotalParticipants = exam._count?.participants || 0;
+
+    if (selectedClassFilter !== "all") {
+      const classStudentIds = new Set(
+        exam.participants
+          ?.filter((p) => p.classGroupId === selectedClassFilter)
+          .map((p) => p.studentId)
+          .filter(Boolean) as string[]
+      );
+      effectiveTotalParticipants = classStudentIds.size;
+      relevantAttempts = attempts.filter((a) => a.studentId && classStudentIds.has(a.studentId));
+    }
+
+    // Student attempt progress calculation
+    const inProgressCount = relevantAttempts.filter((a) => a.status === "in_progress" || a.status === "warning" || a.status === "blocked").length;
+    const submittedCount = relevantAttempts.filter((a) => a.status === "submitted" || a.status === "completed" || a.status === "grading_pending").length;
+    const notStartedCount = Math.max(0, effectiveTotalParticipants - (inProgressCount + submittedCount));
+    const incidentCount = relevantAttempts.filter((a) => (a.incidentCount || 0) > 0 || a.status === "warning" || a.status === "blocked").length;
 
     // Percentages for progress bar
-    const submittedPct = totalParticipants > 0 ? (submittedCount / totalParticipants) * 100 : 0;
-    const inProgressPct = totalParticipants > 0 ? (inProgressCount / totalParticipants) * 100 : 0;
-
-    // Participating classes
-    const classList = exam.participants?.map((p) => p.classGroup).filter(Boolean) || [];
+    const submittedPct = effectiveTotalParticipants > 0 ? (submittedCount / effectiveTotalParticipants) * 100 : 0;
+    const inProgressPct = effectiveTotalParticipants > 0 ? (inProgressCount / effectiveTotalParticipants) * 100 : 0;
 
     return (
       <div
@@ -1356,6 +1408,41 @@ export default function TeacherExaminationPanel({
                 <span className="text-slate-400 text-[11px] italic">Belum ada kelas terdaftar</span>
               )}
             </div>
+
+            {/* Pengawas Ujian */}
+            <div className="flex items-center gap-1.5 flex-wrap pt-0.5">
+              <span className="text-[11px] font-semibold text-indigo-700 flex items-center gap-1">
+                <UserCheck className="w-3.5 h-3.5 text-indigo-600" />
+                Pengawas:
+              </span>
+              {exam.proctorAssignments && exam.proctorAssignments.length > 0 ? (
+                exam.proctorAssignments.map((pa) => (
+                  <span
+                    key={pa.id}
+                    className="px-2 py-0.5 rounded-md bg-indigo-50 border border-indigo-200 text-indigo-900 text-[11px] font-medium flex items-center gap-1"
+                  >
+                    <span>{formatNameWithTitle(pa.proctor.displayName, pa.proctor.title)}</span>
+                    {pa.roomName && (
+                      <span className="text-[10px] text-indigo-600 font-semibold bg-white px-1.5 py-0.2 rounded border border-indigo-100">
+                        {pa.roomName}
+                      </span>
+                    )}
+                  </span>
+                ))
+              ) : (
+                <span className="text-slate-400 text-[11px] italic">Belum ada pengawas khusus</span>
+              )}
+
+              <button
+                type="button"
+                onClick={() => setProctorModalExam(exam)}
+                className="text-[11px] text-indigo-700 hover:text-indigo-900 hover:underline font-semibold cursor-pointer"
+              >
+                {exam.proctorAssignments && exam.proctorAssignments.length > 0
+                  ? "[Kelola Pengawas]"
+                  : "[+ Tunjuk Pengawas]"}
+              </button>
+            </div>
           </div>
 
           {/* Quick Exam State Control & Token */}
@@ -1419,12 +1506,47 @@ export default function TeacherExaminationPanel({
         </div>
 
         {/* Live Student Progress Bar & Counters */}
-        <div className="p-3.5 rounded-xl bg-slate-50 border border-slate-200 space-y-2.5">
-          <div className="flex items-center justify-between text-xs font-semibold flex-wrap gap-2">
+        <div className="p-3.5 rounded-xl bg-slate-50 border border-slate-200 space-y-3">
+          <div className="flex flex-col sm:flex-row sm:items-center justify-between text-xs font-semibold gap-2 pb-1 border-b border-slate-200/60">
             <span className="text-slate-700 flex items-center gap-1.5">
               <Users className="w-3.5 h-3.5 text-slate-500" />
-              Progres Peserta: <strong className="text-slate-900">{totalParticipants} Siswa Terdaftar</strong>
+              Progres Peserta:{" "}
+              <strong className="text-slate-900">
+                {effectiveTotalParticipants} Siswa {selectedClassFilter !== "all" ? "(Kelas Terpilih)" : "Terdaftar"}
+              </strong>
             </span>
+
+            {/* Filter Rombel / Kelas Live */}
+            {uniqueClasses.length > 0 && (
+              <div className="flex items-center gap-1.5 self-start sm:self-auto">
+                <span className="text-[11px] font-semibold text-slate-500 whitespace-nowrap">Filter Kelas:</span>
+                <select
+                  aria-label="Filter siswa berdasarkan kelas"
+                  value={selectedClassFilter}
+                  onChange={(e) =>
+                    setMonitoringClassFilter((prev) => ({
+                      ...prev,
+                      [exam.id]: e.target.value,
+                    }))
+                  }
+                  className="px-2.5 py-1 rounded-lg bg-white border border-slate-200 text-xs font-semibold text-slate-700 focus:outline-none focus:border-[#65C443] cursor-pointer"
+                >
+                  <option value="all">Semua Kelas ({exam._count?.participants || 0} Siswa)</option>
+                  {uniqueClasses.map((cls) => {
+                    const cnt =
+                      exam.participants?.filter((p) => p.classGroupId === cls.id).length || 0;
+                    return (
+                      <option key={cls.id} value={cls.id}>
+                        {cls.name} ({cnt} Siswa)
+                      </option>
+                    );
+                  })}
+                </select>
+              </div>
+            )}
+          </div>
+
+          <div className="flex items-center justify-between text-xs font-semibold flex-wrap gap-2">
             <div className="flex items-center gap-3 text-[11px] font-semibold flex-wrap">
               <span className="text-emerald-700 flex items-center gap-1">
                 <span className="w-2 h-2 rounded-full bg-emerald-500" />
@@ -1669,6 +1791,65 @@ export default function TeacherExaminationPanel({
                 ? "Ketat (0x / Langsung Blokir)"
                 : `Aktif (${exam.policySettings?.maxTabSwitches ?? 3}x Tab)`}
             </strong></span>
+          </div>
+        </div>
+
+        {/* Target Classes & Proctors */}
+        <div className="flex flex-col gap-1.5 pt-2 border-t border-slate-100 text-xs">
+          <div className="flex items-center gap-1.5 flex-wrap">
+            <span className="text-[11px] font-semibold text-slate-500">Target Rombel:</span>
+            {exam.participants && exam.participants.length > 0 ? (
+              Array.from(
+                new Map(
+                  exam.participants
+                    .filter((p) => p.classGroup && p.classGroupId)
+                    .map((p) => [p.classGroupId, p.classGroup!.name])
+                ).entries()
+              ).map(([id, name]) => (
+                <span
+                  key={id}
+                  className="px-2 py-0.5 rounded-md bg-slate-100 border border-slate-200 text-slate-800 text-[11px] font-medium"
+                >
+                  {name}
+                </span>
+              ))
+            ) : (
+              <span className="text-slate-400 text-[11px] italic">Belum ada kelas terdaftar</span>
+            )}
+          </div>
+
+          <div className="flex items-center gap-1.5 flex-wrap">
+            <span className="text-[11px] font-semibold text-indigo-700 flex items-center gap-1">
+              <UserCheck className="w-3.5 h-3.5 text-indigo-600" />
+              Pengawas:
+            </span>
+            {exam.proctorAssignments && exam.proctorAssignments.length > 0 ? (
+              exam.proctorAssignments.map((pa) => (
+                <span
+                  key={pa.id}
+                  className="px-2 py-0.5 rounded-md bg-indigo-50 border border-indigo-200 text-indigo-900 text-[11px] font-medium flex items-center gap-1"
+                >
+                  <span>{formatNameWithTitle(pa.proctor.displayName, pa.proctor.title)}</span>
+                  {pa.roomName && (
+                    <span className="text-[10px] text-indigo-600 font-semibold bg-white px-1.5 py-0.2 rounded border border-indigo-100">
+                      {pa.roomName}
+                    </span>
+                  )}
+                </span>
+              ))
+            ) : (
+              <span className="text-slate-400 text-[11px] italic">Belum ada pengawas khusus</span>
+            )}
+
+            <button
+              type="button"
+              onClick={() => setProctorModalExam(exam)}
+              className="text-[11px] text-indigo-700 hover:text-indigo-900 hover:underline font-semibold cursor-pointer"
+            >
+              {exam.proctorAssignments && exam.proctorAssignments.length > 0
+                ? "[Kelola Pengawas]"
+                : "[+ Tunjuk Pengawas]"}
+            </button>
           </div>
         </div>
 
@@ -3197,6 +3378,32 @@ export default function TeacherExaminationPanel({
             </form>
           </div>
         </div>
+      )}
+
+      {/* Modal Kelola Pengawas Ujian */}
+      {proctorModalExam && (
+        <ProctorManagementModal
+          key={proctorModalExam.id}
+          isOpen={Boolean(proctorModalExam)}
+          onClose={() => setProctorModalExam(null)}
+          examinationId={proctorModalExam.id}
+          examinationTitle={proctorModalExam.title}
+          initialProctors={
+            proctorModalExam.proctorAssignments?.map((pa) => ({
+              id: pa.id,
+              proctorId: pa.proctorId,
+              displayName: pa.proctor.displayName,
+              title: pa.proctor.title,
+              username: pa.proctor.username,
+              nip: pa.proctor.nip,
+              roomName: pa.roomName,
+            })) || []
+          }
+          allTeachers={teacherOptions}
+          onSuccess={() => {
+            loadExaminations(true);
+          }}
+        />
       )}
     </div>
   );
