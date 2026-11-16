@@ -69,6 +69,22 @@ describe("Proctor Room & Class Scoping Logic", () => {
       ).toBe(true);
     });
 
+    it("matches when dash and spaces differ (compact normalization)", () => {
+      expect(
+        isStudentInAssignedRoom(
+          { className: "X RPL 1" },
+          "X-RPL-1"
+        )
+      ).toBe(true);
+
+      expect(
+        isStudentInAssignedRoom(
+          { className: "X-RPL-1" },
+          "Ruang X RPL 1"
+        )
+      ).toBe(true);
+    });
+
     it("matches direct classGroupId", () => {
       const groupId = "d7313835-1811-4fa3-80b7-c6b63ca00bb1";
       expect(
@@ -150,6 +166,32 @@ describe("Proctor Room & Class Scoping Logic", () => {
       expect(scope.isScoped).toBe(false);
       expect(scope.canAccessAll).toBe(true);
       expect(scope.assignedRoom).toBeNull();
+    });
+
+    it("preserves assignedRoom for creator or admin if assigned to a room, while keeping canAccessAll true", () => {
+      const examWithCreatorAssigned = {
+        createdById: "creator-uuid-1",
+        proctorAssignments: [
+          { proctorId: "creator-uuid-1", roomName: "Ruang Lab 1" },
+          { proctorId: "admin-uuid", roomName: "Ruang 02" },
+        ],
+      };
+
+      const creatorScope = getProctorScope(examWithCreatorAssigned, {
+        id: "creator-uuid-1",
+        roles: ["teacher"],
+      });
+      expect(creatorScope.isScoped).toBe(true);
+      expect(creatorScope.assignedRoom).toBe("Ruang Lab 1");
+      expect(creatorScope.canAccessAll).toBe(true);
+
+      const adminScope = getProctorScope(examWithCreatorAssigned, {
+        id: "admin-uuid",
+        roles: ["administrator"],
+      });
+      expect(adminScope.isScoped).toBe(true);
+      expect(adminScope.assignedRoom).toBe("Ruang 02");
+      expect(adminScope.canAccessAll).toBe(true);
     });
   });
 });

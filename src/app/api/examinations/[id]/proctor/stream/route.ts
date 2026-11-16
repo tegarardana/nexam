@@ -109,6 +109,7 @@ export async function GET(
     const studentClass = part.classGroup?.name || "-";
     if (
       proctorScope.isScoped &&
+      !proctorScope.canAccessAll &&
       !isStudentInAssignedRoom(
         { classGroupId: part.classGroupId, className: studentClass },
         proctorScope.assignedRoom

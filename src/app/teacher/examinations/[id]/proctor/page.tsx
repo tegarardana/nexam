@@ -34,6 +34,7 @@ import {
   Filter,
   X,
 } from "lucide-react";
+import { isStudentInAssignedRoom } from "@/lib/proctor-scope";
 
 interface StudentRosterItem {
   studentId: string;
@@ -237,10 +238,44 @@ export default function ProctorDashboardPage() {
       .map(([name, count]) => ({ name, count }));
   }, [roster]);
 
+  // Auto-focus class filter to assigned room or URL query param on initial load
+  const hasInitializedFilter = useRef(false);
+  useEffect(() => {
+    if (hasInitializedFilter.current) return;
+
+    if (typeof window !== "undefined") {
+      const urlParams = new URLSearchParams(window.location.search);
+      const qClass = urlParams.get("class");
+      if (qClass) {
+        setClassFilter(qClass);
+        hasInitializedFilter.current = true;
+        return;
+      }
+    }
+
+    if (proctorScope?.assignedRoom && availableClasses.length > 0) {
+      const matching = availableClasses.find((cls) =>
+        isStudentInAssignedRoom({ className: cls.name }, proctorScope.assignedRoom)
+      );
+      if (matching) {
+        setClassFilter(matching.name);
+        hasInitializedFilter.current = true;
+      } else if (proctorScope.assignedRoom) {
+        setClassFilter(proctorScope.assignedRoom);
+        hasInitializedFilter.current = true;
+      }
+    }
+  }, [proctorScope?.assignedRoom, availableClasses]);
+
   // Roster scoped to selected class
   const classFilteredRoster = useMemo(() => {
     if (classFilter === "all") return roster;
-    return roster.filter((student) => (student.className || "-") === classFilter);
+    return roster.filter((student) =>
+      isStudentInAssignedRoom(
+        { classGroupId: student.classGroupId, className: student.className },
+        classFilter
+      )
+    );
   }, [roster, classFilter]);
 
   // Statistics (reflects selected class filter)
@@ -700,8 +735,8 @@ export default function ProctorDashboardPage() {
         </div>
 
         {/* Proctor Scope Information Banner (Scoped to specific room/class) */}
-        {proctorScope?.isScoped && proctorScope.assignedRoom && (
-          <div className="p-3.5 rounded-xl bg-blue-50/80 border border-blue-200 text-blue-950 flex flex-col sm:flex-row sm:items-center justify-between gap-2 shadow-xs">
+        {proctorScope?.assignedRoom && (
+          <div className="p-3.5 rounded-xl bg-blue-50/80 border border-blue-200 text-blue-950 flex flex-col sm:flex-row sm:items-center justify-between gap-3 shadow-xs">
             <div className="flex items-center gap-2.5">
               <div className="w-8 h-8 rounded-lg bg-blue-600 text-white flex items-center justify-center shrink-0">
                 <ShieldAlert className="w-4 h-4" />
@@ -714,12 +749,37 @@ export default function ProctorDashboardPage() {
                   </span>
                 </div>
                 <div className="text-[11px] text-blue-800/80 mt-0.5">
-                  Tampilan live monitoring dan aksi intervensi dibatasi khusus untuk siswa pada ruang / kelas yang ditugaskan.
+                  {classFilter === "all"
+                    ? "Menampilkan seluruh kelas. Klik tombol di kanan untuk fokus ke ruang tugas Anda."
+                    : `Menampilkan siswa untuk: ${classFilter}.`}
                 </div>
               </div>
             </div>
-            <div className="text-xs font-semibold text-blue-800 bg-white/80 px-2.5 py-1 rounded-lg border border-blue-200/60 self-start sm:self-center shrink-0">
-              {roster.length} Siswa Terdaftar di Ruang Ini
+
+            <div className="flex items-center gap-2 self-start sm:self-center shrink-0">
+              {classFilter !== proctorScope.assignedRoom && (
+                <button
+                  type="button"
+                  onClick={() => {
+                    const matching = availableClasses.find((cls) =>
+                      isStudentInAssignedRoom({ className: cls.name }, proctorScope.assignedRoom)
+                    );
+                    setClassFilter(matching ? matching.name : proctorScope.assignedRoom!);
+                  }}
+                  className="px-2.5 py-1 rounded-lg bg-blue-600 hover:bg-blue-700 text-white text-xs font-semibold shadow-xs transition cursor-pointer"
+                >
+                  Fokus Ruang Tugas
+                </button>
+              )}
+              {classFilter !== "all" && proctorScope.canAccessAll && (
+                <button
+                  type="button"
+                  onClick={() => setClassFilter("all")}
+                  className="px-2.5 py-1 rounded-lg bg-white hover:bg-slate-50 border border-blue-200 text-blue-800 text-xs font-semibold shadow-xs transition cursor-pointer"
+                >
+                  Tampilkan Semua Kelas
+                </button>
+              )}
             </div>
           </div>
         )}
@@ -814,28 +874,28 @@ export default function ProctorDashboardPage() {
             {/* Filter Siswa Berdasarkan Kelas */}
             <div className="relative">
               <Filter className="w-3.5 h-3.5 absolute left-3 top-1/2 -translate-y-1/2 text-slate-400 pointer-events-none" />
-              {proctorScope?.isScoped && proctorScope.assignedRoom ? (
-                <div className="w-full sm:w-auto min-w-[190px] pl-8 pr-3 py-1.5 rounded-lg bg-blue-50 border border-blue-200 text-xs font-semibold text-blue-900 flex items-center justify-between gap-2 shadow-2xs">
-                  <span>Ruang: {proctorScope.assignedRoom}</span>
-                  <span className="text-[10px] bg-white px-1.5 py-0.5 rounded border border-blue-200 text-blue-700 font-mono">
-                    {roster.length} Siswa
-                  </span>
-                </div>
-              ) : (
-                <select
-                  aria-label="Filter siswa berdasarkan kelas"
-                  value={classFilter}
-                  onChange={(e) => setClassFilter(e.target.value)}
-                  className="w-full sm:w-auto min-w-[175px] pl-8 pr-3 py-1.5 rounded-lg bg-slate-50 border border-slate-200 text-xs font-semibold text-slate-700 focus:outline-none focus:border-[#65C443] cursor-pointer"
-                >
-                  <option value="all">Semua Kelas ({roster.length})</option>
-                  {availableClasses.map((cls) => (
+              <select
+                aria-label="Filter siswa berdasarkan kelas"
+                value={classFilter}
+                onChange={(e) => setClassFilter(e.target.value)}
+                className="w-full sm:w-auto min-w-[190px] pl-8 pr-3 py-1.5 rounded-lg bg-slate-50 border border-slate-200 text-xs font-semibold text-slate-700 focus:outline-none focus:border-[#65C443] cursor-pointer"
+              >
+                {/* Opsi Semua Kelas */}
+                {(!proctorScope?.isScoped || proctorScope.canAccessAll || availableClasses.length > 1) && (
+                  <option value="all">Semua Kelas ({roster.length} Siswa)</option>
+                )}
+                {availableClasses.map((cls) => {
+                  const isAssigned =
+                    proctorScope?.assignedRoom &&
+                    isStudentInAssignedRoom({ className: cls.name }, proctorScope.assignedRoom);
+                  return (
                     <option key={cls.name} value={cls.name}>
-                      {cls.name === "-" ? "Tanpa Kelas" : `Kelas: ${cls.name}`} ({cls.count})
+                      {cls.name === "-" ? "Tanpa Kelas" : `Kelas: ${cls.name}`}
+                      {isAssigned ? " ★ (Ruang Tugas)" : ""} ({cls.count})
                     </option>
-                  ))}
-                </select>
-              )}
+                  );
+                })}
+              </select>
             </div>
 
             <div className="relative w-full sm:w-64">

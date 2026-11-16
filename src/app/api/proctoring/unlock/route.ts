@@ -3,7 +3,7 @@ import { getCurrentSession } from "@/lib/auth/session";
 import { hasAnyRole } from "@/lib/auth/rbac";
 import { evaluateAntiCheatEvent } from "@/lib/anti-cheat/policy-evaluator";
 import { prisma } from "@/lib/prisma";
-import { verifyProctorCanAccessAttempt } from "@/lib/proctor-scope";
+import { verifyProctorCanAccessAttempt } from "@/lib/proctor-scope-server";
 
 export async function POST(request: NextRequest) {
   const session = await getCurrentSession();

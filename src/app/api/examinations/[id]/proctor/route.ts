@@ -185,9 +185,10 @@ export async function GET(
         part.student.studentEnrollments
       );
 
-      // If proctor is scoped to a specific room or class, only include matching students
+      // If proctor is scoped strictly to a specific room or class (non-admin, non-creator)
       if (
         proctorScope.isScoped &&
+        !proctorScope.canAccessAll &&
         !isStudentInAssignedRoom({ classGroupId, className }, proctorScope.assignedRoom)
       ) {
         continue;
@@ -224,6 +225,7 @@ export async function GET(
 
         if (
           proctorScope.isScoped &&
+          !proctorScope.canAccessAll &&
           !isStudentInAssignedRoom({ classGroupId, className }, proctorScope.assignedRoom)
         ) {
           continue;
