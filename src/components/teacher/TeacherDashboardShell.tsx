@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useState } from "react";
+import React, { useState, useEffect } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import * as XLSX from "xlsx";
@@ -28,6 +28,15 @@ import {
   XCircle,
   UserCheck,
   AlertCircle,
+  Crown,
+  Award,
+  FileText,
+  Wallet,
+  Coins,
+  Plus,
+  Edit2,
+  ShieldCheck,
+  Check,
 } from "lucide-react";
 
 interface TeacherDashboardShellProps {
@@ -72,26 +81,58 @@ export default function TeacherDashboardShell({
 }: TeacherDashboardShellProps) {
   const router = useRouter();
 
-  // Sidebar collapse & mobile drawer state (mirrors admin panel)
+  // Sidebar collapse & mobile drawer state
   const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
   const [mobileSidebarOpen, setMobileSidebarOpen] = useState(false);
   const [activeTab, setActiveTab] = useState<TeacherTab>(initialTab);
   const [qbSearchTerm, setQbSearchTerm] = useState("");
 
-  // Homeroom Class Management State
+  // Homeroom Classes State (editable for organizational structure updates)
+  const [classesData, setClassesData] = useState<any[]>(homeroomClasses);
   const [selectedClassId, setSelectedClassId] = useState<string>(
     homeroomClasses?.[0]?.id || ""
   );
+
+  // Class Management Sub-tabs: "structure" | "roster"
+  const [classSubTab, setClassSubTab] = useState<"structure" | "roster">("structure");
   const [studentSearch, setStudentSearch] = useState("");
   const [genderFilter, setGenderFilter] = useState<"all" | "L" | "P">("all");
   const [statusFilter, setStatusFilter] = useState<"all" | "active" | "inactive">("all");
 
-  const isHomeroomTeacher = Boolean(homeroomClasses && homeroomClasses.length > 0);
+  // Role Assignment Modal State
+  const [roleModalOpen, setRoleModalOpen] = useState(false);
+  const [modalRoleTitle, setModalRoleTitle] = useState("");
+  const [modalCurrentHolderName, setModalCurrentHolderName] = useState<string | null>(null);
+  const [modalCurrentEnrollmentId, setModalCurrentEnrollmentId] = useState<string | null>(null);
+  const [modalSelectedEnrollmentId, setModalSelectedEnrollmentId] = useState<string>("");
+  const [roleUpdating, setRoleUpdating] = useState(false);
+  const [roleSuccessMessage, setRoleSuccessMessage] = useState<string | null>(null);
+
+  // Sync with prop updates
+  useEffect(() => {
+    setClassesData(homeroomClasses);
+    if (!selectedClassId && homeroomClasses?.[0]?.id) {
+      setSelectedClassId(homeroomClasses[0].id);
+    }
+  }, [homeroomClasses, selectedClassId]);
+
+  // Close role modal on Escape key
+  useEffect(() => {
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (e.key === "Escape" && roleModalOpen) {
+        setRoleModalOpen(false);
+      }
+    };
+    window.addEventListener("keydown", handleKeyDown);
+    return () => window.removeEventListener("keydown", handleKeyDown);
+  }, [roleModalOpen]);
+
+  const isHomeroomTeacher = Boolean(classesData && classesData.length > 0);
   const currentHomeroomClass =
-    homeroomClasses.find((c: any) => c.id === selectedClassId) || homeroomClasses?.[0];
+    classesData.find((c: any) => c.id === selectedClassId) || classesData?.[0];
 
   const homeroomStudentCount =
-    homeroomClasses?.reduce(
+    classesData?.reduce(
       (acc, c) => acc + (c._count?.studentEnrollments || c.studentEnrollments?.length || 0),
       0
     ) || 0;
@@ -178,55 +219,270 @@ export default function TeacherDashboardShell({
     }
   };
 
-  // Filter students in current homeroom class
+  // Build students list & structure hierarchy from current class
   const classEnrollments = currentHomeroomClass?.studentEnrollments || [];
-  const filteredEnrollments = classEnrollments.filter((e: any) => {
-    const student = e.student;
-    if (!student) return false;
+  const studentsList = classEnrollments.map((en: any, index: number) => ({
+    enrollmentId: en.id,
+    studentId: en.student?.id,
+    number: index + 1,
+    displayName: en.student?.displayName || "-",
+    username: en.student?.username || "-",
+    nis: en.student?.nis || "-",
+    nisn: en.student?.nisn || "-",
+    gender: en.student?.gender === "L" ? "Laki-laki" : en.student?.gender === "P" ? "Perempuan" : "-",
+    genderCode: en.student?.gender || "-",
+    email: en.student?.email || "-",
+    isActive: Boolean(en.student?.isActive),
+    status: en.status || "active",
+    roleInClass: en.notes || "Anggota Kelas",
+    enrolledAt: en.enrolledAt,
+  }));
 
+  const structure = {
+    homeroomTeacher: currentHomeroomClass?.homeroomTeacher
+      ? {
+          id: currentHomeroomClass.homeroomTeacher.id,
+          name: currentHomeroomClass.homeroomTeacher.displayName,
+          nip: currentHomeroomClass.homeroomTeacher.nip || "-",
+          title: currentHomeroomClass.homeroomTeacher.title || "-",
+          position: "Wali Kelas",
+        }
+      : {
+          id: user.id,
+          name: user.displayName,
+          nip: (user as any).nip || user.username,
+          title: user.title || "-",
+          position: "Wali Kelas",
+        },
+    leader:
+      studentsList.find(
+        (s: any) =>
+          s.roleInClass.toLowerCase().includes("ketua kelas") ||
+          s.roleInClass.toLowerCase() === "ketua"
+      ) || null,
+    viceLeader:
+      studentsList.find((s: any) =>
+        s.roleInClass.toLowerCase().includes("wakil ketua")
+      ) || null,
+    secretary1:
+      studentsList.find(
+        (s: any) =>
+          s.roleInClass.toLowerCase() === "sekretaris 1" ||
+          s.roleInClass.toLowerCase() === "sekretaris"
+      ) || null,
+    secretary2:
+      studentsList.find(
+        (s: any) => s.roleInClass.toLowerCase() === "sekretaris 2"
+      ) || null,
+    treasurer1:
+      studentsList.find(
+        (s: any) =>
+          s.roleInClass.toLowerCase() === "bendahara 1" ||
+          s.roleInClass.toLowerCase() === "bendahara"
+      ) || null,
+    treasurer2:
+      studentsList.find(
+        (s: any) => s.roleInClass.toLowerCase() === "bendahara 2"
+      ) || null,
+    sections: studentsList.filter(
+      (s: any) =>
+        s.roleInClass.toLowerCase().startsWith("seksi") ||
+        s.roleInClass.toLowerCase().startsWith("koordinator")
+    ),
+    customRoles: studentsList.filter(
+      (s: any) =>
+        s.roleInClass !== "Anggota Kelas" &&
+        !s.roleInClass.toLowerCase().includes("ketua") &&
+        !s.roleInClass.toLowerCase().includes("sekretaris") &&
+        !s.roleInClass.toLowerCase().includes("bendahara") &&
+        !s.roleInClass.toLowerCase().startsWith("seksi") &&
+        !s.roleInClass.toLowerCase().startsWith("koordinator")
+    ),
+  };
+
+  // Filter students for Roster table
+  const filteredEnrollments = studentsList.filter((s: any) => {
     if (studentSearch.trim()) {
       const q = studentSearch.toLowerCase();
-      const matchName = student.displayName?.toLowerCase().includes(q);
-      const matchNis = student.nis?.toLowerCase().includes(q);
-      const matchNisn = student.nisn?.toLowerCase().includes(q);
-      const matchUser = student.username?.toLowerCase().includes(q);
-      if (!matchName && !matchNis && !matchNisn && !matchUser) return false;
+      const matchName = s.displayName?.toLowerCase().includes(q);
+      const matchNis = s.nis?.toLowerCase().includes(q);
+      const matchNisn = s.nisn?.toLowerCase().includes(q);
+      const matchUser = s.username?.toLowerCase().includes(q);
+      const matchRole = s.roleInClass?.toLowerCase().includes(q);
+      if (!matchName && !matchNis && !matchNisn && !matchUser && !matchRole) return false;
     }
 
     if (genderFilter !== "all") {
-      if (student.gender !== genderFilter) return false;
+      if (s.genderCode !== genderFilter) return false;
     }
 
     if (statusFilter !== "all") {
-      const isActive = student.isActive;
-      if (statusFilter === "active" && !isActive) return false;
-      if (statusFilter === "inactive" && isActive) return false;
+      if (statusFilter === "active" && !s.isActive) return false;
+      if (statusFilter === "inactive" && s.isActive) return false;
     }
 
     return true;
   });
 
-  const classTotalStudents = classEnrollments.length;
-  const classMaleCount = classEnrollments.filter((e: any) => e.student?.gender === "L").length;
-  const classFemaleCount = classEnrollments.filter((e: any) => e.student?.gender === "P").length;
-  const classActiveCount = classEnrollments.filter((e: any) => e.student?.isActive).length;
+  const classTotalStudents = studentsList.length;
+  const classMaleCount = studentsList.filter((s: any) => s.genderCode === "L").length;
+  const classFemaleCount = studentsList.filter((s: any) => s.genderCode === "P").length;
+  const classActiveCount = studentsList.filter((s: any) => s.isActive).length;
 
-  // Export class students to Excel
+  // Open Assign Modal From Structure Card
+  const openAssignModalForRole = (roleName: string, currentHolder?: any) => {
+    setModalRoleTitle(roleName);
+    setModalCurrentHolderName(currentHolder?.displayName || currentHolder?.name || null);
+    setModalCurrentEnrollmentId(currentHolder?.enrollmentId || null);
+    setModalSelectedEnrollmentId(currentHolder?.enrollmentId || "");
+    setRoleSuccessMessage(null);
+    setRoleModalOpen(true);
+  };
+
+  // Open Assign Modal From Student Table Row
+  const openAssignModalForStudent = (student: any) => {
+    setModalRoleTitle(student.roleInClass === "Anggota Kelas" ? "" : student.roleInClass);
+    setModalCurrentHolderName(student.displayName);
+    setModalCurrentEnrollmentId(student.enrollmentId);
+    setModalSelectedEnrollmentId(student.enrollmentId);
+    setRoleSuccessMessage(null);
+    setRoleModalOpen(true);
+  };
+
+  // Handle Save Role Assignment
+  const handleSaveRoleAssignment = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!currentHomeroomClass) return;
+    if (!modalSelectedEnrollmentId) {
+      alert("Silakan pilih siswa yang akan ditugaskan.");
+      return;
+    }
+    setRoleUpdating(true);
+    setRoleSuccessMessage(null);
+    try {
+      // If position had a different previous holder, clear previous holder first
+      if (modalCurrentEnrollmentId && modalCurrentEnrollmentId !== modalSelectedEnrollmentId) {
+        await fetch(`/api/academic/classes/${currentHomeroomClass.id}`, {
+          method: "PATCH",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            action: "update_student_role",
+            enrollmentId: modalCurrentEnrollmentId,
+            roleInClass: null,
+          }),
+        });
+      }
+
+      // Assign role to selected student
+      const res = await fetch(`/api/academic/classes/${currentHomeroomClass.id}`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          action: "update_student_role",
+          enrollmentId: modalSelectedEnrollmentId,
+          roleInClass: modalRoleTitle.trim() || null,
+        }),
+      });
+      const json = await res.json();
+      if (!res.ok || !json.success) {
+        throw new Error(json.error || "Gagal memperbarui jabatan siswa");
+      }
+
+      // Update local state
+      setClassesData((prevClasses) =>
+        prevClasses.map((c) => {
+          if (c.id !== currentHomeroomClass.id) return c;
+          return {
+            ...c,
+            studentEnrollments: (c.studentEnrollments || []).map((en: any) => {
+              if (
+                modalCurrentEnrollmentId &&
+                en.id === modalCurrentEnrollmentId &&
+                modalCurrentEnrollmentId !== modalSelectedEnrollmentId
+              ) {
+                return { ...en, notes: null };
+              }
+              if (en.id === modalSelectedEnrollmentId) {
+                return { ...en, notes: modalRoleTitle.trim() || null };
+              }
+              return en;
+            }),
+          };
+        })
+      );
+
+      setRoleSuccessMessage(json.message || "Jabatan berhasil diperbarui.");
+      setTimeout(() => {
+        setRoleModalOpen(false);
+        setRoleSuccessMessage(null);
+        router.refresh();
+      }, 700);
+    } catch (err: any) {
+      alert(err.message);
+    } finally {
+      setRoleUpdating(false);
+    }
+  };
+
+  // Handle Clear Role Assignment
+  const handleClearRoleAssignment = async () => {
+    if (!currentHomeroomClass || !modalCurrentEnrollmentId) return;
+    if (!confirm(`Kosongkan jabatan '${modalRoleTitle}' dari siswa saat ini?`)) return;
+    setRoleUpdating(true);
+    setRoleSuccessMessage(null);
+    try {
+      const res = await fetch(`/api/academic/classes/${currentHomeroomClass.id}`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          action: "update_student_role",
+          enrollmentId: modalCurrentEnrollmentId,
+          roleInClass: null,
+        }),
+      });
+      const json = await res.json();
+      if (!res.ok || !json.success) {
+        throw new Error(json.error || "Gagal mengosongkan jabatan siswa");
+      }
+
+      // Update local state
+      setClassesData((prevClasses) =>
+        prevClasses.map((c) => {
+          if (c.id !== currentHomeroomClass.id) return c;
+          return {
+            ...c,
+            studentEnrollments: (c.studentEnrollments || []).map((en: any) =>
+              en.id === modalCurrentEnrollmentId ? { ...en, notes: null } : en
+            ),
+          };
+        })
+      );
+
+      setRoleSuccessMessage("Jabatan berhasil dikosongkan.");
+      setTimeout(() => {
+        setRoleModalOpen(false);
+        setRoleSuccessMessage(null);
+        router.refresh();
+      }, 700);
+    } catch (err: any) {
+      alert(err.message);
+    } finally {
+      setRoleUpdating(false);
+    }
+  };
+
+  // Export class students to Excel (.xlsx)
   const handleExportClassStudents = () => {
-    if (!currentHomeroomClass || classEnrollments.length === 0) return;
-    const rows = classEnrollments.map((e: any, idx: number) => ({
+    if (!currentHomeroomClass || studentsList.length === 0) return;
+    const rows = studentsList.map((s: any, idx: number) => ({
       No: idx + 1,
-      "Nama Siswa": e.student.displayName || "-",
-      NIS: e.student.nis || "-",
-      NISN: e.student.nisn || "-",
-      Username: e.student.username || "-",
-      "Jenis Kelamin":
-        e.student.gender === "L"
-          ? "Laki-laki"
-          : e.student.gender === "P"
-          ? "Perempuan"
-          : "-",
-      "Status Akun": e.student.isActive ? "Aktif" : "Non-Aktif",
+      "Nama Siswa": s.displayName,
+      NIS: s.nis,
+      NISN: s.nisn,
+      Username: s.username,
+      "Jabatan di Kelas": s.roleInClass,
+      "Jenis Kelamin": s.gender,
+      "Status Akun": s.isActive ? "Aktif" : "Non-Aktif",
     }));
 
     const ws = XLSX.utils.json_to_sheet(rows);
@@ -236,6 +492,7 @@ export default function TeacherDashboardShell({
       { wch: 16 },
       { wch: 18 },
       { wch: 20 },
+      { wch: 22 },
       { wch: 16 },
       { wch: 14 },
     ];
@@ -244,6 +501,127 @@ export default function TeacherDashboardShell({
     XLSX.writeFile(
       wb,
       `Data_Siswa_${currentHomeroomClass.name.replace(/\s+/g, "_")}.xlsx`
+    );
+  };
+
+  // Officer Card Component for Organizational Chart
+  const renderOfficerCard = ({
+    roleTitle,
+    holder,
+    icon: IconComponent,
+    theme,
+    isStudentRole = true,
+  }: {
+    roleTitle: string;
+    holder: any;
+    icon: any;
+    theme: "amber" | "sky" | "teal" | "purple" | "emerald";
+    isStudentRole?: boolean;
+  }) => {
+    const themeMap = {
+      emerald: {
+        badge: "bg-emerald-50 text-emerald-700 border border-emerald-200",
+        iconBox: "bg-emerald-50 border border-emerald-200 text-emerald-600",
+        hoverBorder: "hover:border-emerald-400",
+      },
+      amber: {
+        badge: "bg-amber-50 text-amber-700 border border-amber-200",
+        iconBox: "bg-amber-50 border border-amber-200 text-amber-600",
+        hoverBorder: "hover:border-amber-400",
+      },
+      sky: {
+        badge: "bg-sky-50 text-sky-700 border border-sky-200",
+        iconBox: "bg-sky-50 border border-sky-200 text-sky-600",
+        hoverBorder: "hover:border-sky-400",
+      },
+      teal: {
+        badge: "bg-teal-50 text-teal-700 border border-teal-200",
+        iconBox: "bg-teal-50 border border-teal-200 text-teal-600",
+        hoverBorder: "hover:border-teal-400",
+      },
+      purple: {
+        badge: "bg-purple-50 text-purple-700 border border-purple-200",
+        iconBox: "bg-purple-50 border border-purple-200 text-purple-600",
+        hoverBorder: "hover:border-purple-400",
+      },
+    };
+
+    const styles = themeMap[theme];
+    const isOccupied = Boolean(holder?.displayName || holder?.name);
+    const displayName = isOccupied
+      ? formatNameWithTitle(holder?.displayName || holder?.name, holder?.title)
+      : "Belum Ditetapkan";
+    const idInfo = holder?.nis
+      ? `NIS: ${holder.nis}`
+      : holder?.nip
+      ? `NIP: ${holder.nip}`
+      : "Posisi Kosong";
+
+    return (
+      <div
+        className={`rounded-2xl p-6 sm:p-7 bg-white border border-slate-200 shadow-sm transition flex flex-col justify-between ${styles.hoverBorder} hover:shadow-md min-h-[175px] relative group space-y-4`}
+      >
+        {/* Top Bar: Role badge + Action */}
+        <div className="flex items-center justify-between gap-3 mb-2">
+          <span
+            className={`inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full text-[11px] font-bold uppercase tracking-wider ${styles.badge}`}
+          >
+            <IconComponent className="w-3.5 h-3.5" />
+            <span>{roleTitle}</span>
+          </span>
+
+          {isStudentRole ? (
+            <button
+              type="button"
+              onClick={() => openAssignModalForRole(roleTitle, holder)}
+              className="px-3 py-1.5 rounded-lg bg-slate-100 hover:bg-[#0D274C] hover:text-white border border-slate-200 text-slate-700 transition text-xs font-semibold inline-flex items-center gap-1.5 cursor-pointer shrink-0 shadow-2xs group/btn"
+              title={`Atur atau ganti penugasan ${roleTitle}`}
+            >
+              <Edit2 className="w-3.5 h-3.5 text-[#65C443] group-hover/btn:text-white" />
+              <span>{isOccupied ? "Ubah" : "+ Tetapkan"}</span>
+            </button>
+          ) : (
+            <span className="text-[10px] text-emerald-700 font-bold bg-emerald-50 px-2.5 py-1 rounded-full border border-emerald-200">
+              Pengampu Utama
+            </span>
+          )}
+        </div>
+
+        {/* Body: Avatar box + Holder Info */}
+        <div className="flex items-center gap-4 my-1">
+          <div
+            className={`w-13 h-13 rounded-2xl flex items-center justify-center shrink-0 ${styles.iconBox}`}
+          >
+            <IconComponent className="w-6 h-6" />
+          </div>
+          <div className="overflow-hidden min-w-0 flex-1">
+            <div
+              className={`text-base font-bold truncate ${
+                isOccupied ? "text-slate-900" : "text-slate-400 italic"
+              }`}
+            >
+              {displayName}
+            </div>
+            <div className="text-xs text-slate-500 font-mono mt-1 truncate flex items-center gap-2">
+              <span>{idInfo}</span>
+            </div>
+          </div>
+        </div>
+
+        {/* Footer / Status */}
+        <div className="pt-3 border-t border-slate-100 flex items-center justify-between text-[11px]">
+          <span className="text-slate-400">
+            {isStudentRole ? "Pengurus Rombel Murid" : "Pembina & Wali Kelas"}
+          </span>
+          <span
+            className={`font-semibold ${
+              isOccupied ? "text-slate-700" : "text-amber-600"
+            }`}
+          >
+            {isOccupied ? "Aktif Bertugas" : "Perlu Penugasan"}
+          </span>
+        </div>
+      </div>
     );
   };
 
@@ -372,7 +750,7 @@ export default function TeacherDashboardShell({
               </div>
 
               {/* Statistical Summary Cards (Mirip Admin Panel) */}
-              {/* Jika Wali Kelas: 4 Kolom. Jika Bukan Wali Kelas: 3 Kolom (Total Siswa Kelas dihilangkan total) */}
+              {/* Jika Wali Kelas: 4 Kolom. Jika Bukan Wali Kelas: 3 Kolom */}
               <div
                 className={`grid gap-4 ${
                   isHomeroomTeacher ? "grid-cols-2 sm:grid-cols-4" : "grid-cols-1 sm:grid-cols-3"
@@ -570,50 +948,19 @@ export default function TeacherDashboardShell({
                         <GraduationCap className="w-4 h-4" />
                       </div>
                       <div className="text-xs font-bold text-emerald-900">
-                        Kelola Siswa
+                        Kelola Kelas & Struktur
                       </div>
                       <div className="text-[11px] text-emerald-700 mt-0.5 line-clamp-1">
-                        Data siswa kelas {currentHomeroomClass?.name || ""}
+                        Siswa & struktur {currentHomeroomClass?.name || ""}
                       </div>
                     </button>
                   )}
                 </div>
               </div>
-
-              {/* Pelaksanaan Ujian Terkini */}
-              <div className="space-y-4 pt-2">
-                <div className="flex items-center justify-between">
-                  <div>
-                    <h3 className="text-base font-bold text-slate-900">
-                      Jadwal & Pelaksanaan Ujian Terkini
-                    </h3>
-                    <p className="text-xs text-slate-500 mt-0.5">
-                      Kelola jadwal sesi ujian yang Anda buat atau mulai publikasi ujian untuk peserta.
-                    </p>
-                  </div>
-                </div>
-
-                <TeacherExaminationPanel
-                  subjects={subjects}
-                  academicYears={academicYears}
-                  semesters={semesters}
-                  classGroups={classGroups}
-                  activeYearId={activeYear?.id}
-                  activeYearName={activeYear?.name}
-                  activeSemesterId={activeSemester?.id || null}
-                  activeSemesterName={activeSemester?.name || null}
-                  assignments={assignments}
-                  currentTeacherId={user.id}
-                  userRoles={user.roles}
-                  teachers={teachers}
-                  viewMode="schedule"
-                  onViewModeChange={handlePanelModeChange}
-                />
-              </div>
             </div>
           )}
 
-          {/* VIEW: MANAJEMEN KELAS (KHUSUS WALI KELAS) */}
+          {/* VIEW: MANAJEMEN KELAS & STRUKTUR ORGANISASI (KHUSUS WALI KELAS) */}
           {activeTab === "class_management" && (
             <div className="space-y-6 animate-in fade-in duration-200">
               {!isHomeroomTeacher ? (
@@ -638,12 +985,12 @@ export default function TeacherDashboardShell({
               ) : (
                 <>
                   {/* Multi-class switcher if teacher has more than 1 class */}
-                  {homeroomClasses.length > 1 && (
+                  {classesData.length > 1 && (
                     <div className="flex items-center gap-2 overflow-x-auto pb-1">
                       <span className="text-xs font-bold text-slate-600 shrink-0 mr-1">
                         Pilih Kelas:
                       </span>
-                      {homeroomClasses.map((c: any) => (
+                      {classesData.map((c: any) => (
                         <button
                           key={c.id}
                           type="button"
@@ -765,164 +1112,532 @@ export default function TeacherDashboardShell({
                     </div>
                   </div>
 
-                  {/* Student Table & Filters Card */}
-                  <div className="rounded-2xl bg-white border border-slate-200 shadow-sm overflow-hidden">
-                    {/* Filter & Search Header */}
-                    <div className="p-4 sm:p-5 border-b border-slate-200 flex flex-col md:flex-row md:items-center justify-between gap-3">
-                      <div>
-                        <h3 className="text-sm font-bold text-slate-900">
-                          Daftar Siswa Kelas {currentHomeroomClass?.name || ""}
-                        </h3>
-                        <p className="text-xs text-slate-500 mt-0.5">
-                          Menampilkan {filteredEnrollments.length} dari {classTotalStudents} siswa aktif
-                        </p>
-                      </div>
+                  {/* Sub-tab Navigation (Struktur Organisasi vs Daftar Siswa) */}
+                  <div className="flex items-center gap-1 p-1 bg-slate-200/80 rounded-2xl w-fit">
+                    <button
+                      type="button"
+                      onClick={() => setClassSubTab("structure")}
+                      className={`px-4 py-2 rounded-xl text-xs font-bold transition flex items-center gap-2 cursor-pointer ${
+                        classSubTab === "structure"
+                          ? "bg-white text-[#0D274C] shadow-xs"
+                          : "text-slate-600 hover:text-slate-900"
+                      }`}
+                    >
+                      <Crown className="w-4 h-4 text-amber-500" />
+                      <span>Struktur Organisasi Kelas</span>
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => setClassSubTab("roster")}
+                      className={`px-4 py-2 rounded-xl text-xs font-bold transition flex items-center gap-2 cursor-pointer ${
+                        classSubTab === "roster"
+                          ? "bg-white text-[#0D274C] shadow-xs"
+                          : "text-slate-600 hover:text-slate-900"
+                      }`}
+                    >
+                      <Users className="w-4 h-4 text-slate-500" />
+                      <span>Daftar Siswa Rombel ({classTotalStudents})</span>
+                    </button>
+                  </div>
 
-                      <div className="flex flex-wrap items-center gap-2.5">
-                        {/* Search Input */}
-                        <div className="relative">
-                          <Search className="w-3.5 h-3.5 absolute left-3 top-1/2 -translate-y-1/2 text-slate-400 pointer-events-none" />
-                          <input
-                            type="text"
-                            placeholder="Cari nama, NIS, atau akun..."
-                            value={studentSearch}
-                            onChange={(e) => setStudentSearch(e.target.value)}
-                            className="pl-8 pr-3 py-1.5 rounded-xl bg-slate-50 border border-slate-200 text-xs text-slate-800 placeholder:text-slate-400 focus:outline-none focus:border-[#65C443] focus:bg-white w-48 sm:w-56"
-                          />
+                  {/* SUB-VIEW 1: STRUKTUR ORGANISASI KELAS (BAGAN VISUAL & PENGATURAN) */}
+                  {classSubTab === "structure" && (
+                    <div className="space-y-10 animate-in fade-in duration-150">
+                      <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4 pb-6 border-b border-slate-200">
+                        <div>
+                          <h3 className="text-base font-bold text-slate-900 flex items-center gap-2">
+                            <Crown className="w-5 h-5 text-amber-500" />
+                            <span>Bagan Struktur Kepengurusan Kelas {currentHomeroomClass?.name}</span>
+                          </h3>
+                          <p className="text-xs text-slate-500 mt-1">
+                            Sebagai wali kelas, Anda dapat mengatur dan mengubah penugasan pengurus kelas. Klik tombol{" "}
+                            <strong className="text-slate-700">Ubah</strong> atau{" "}
+                            <strong className="text-slate-700">+ Tetapkan</strong> pada posisi mana saja.
+                          </p>
                         </div>
 
-                        {/* Gender Filter */}
-                        <select
-                          value={genderFilter}
-                          onChange={(e) => setGenderFilter(e.target.value as any)}
-                          className="px-2.5 py-1.5 rounded-xl bg-slate-50 border border-slate-200 text-xs text-slate-700 font-medium focus:outline-none focus:border-[#65C443] focus:bg-white cursor-pointer"
-                        >
-                          <option value="all">Semua Gender</option>
-                          <option value="L">Laki-laki (L)</option>
-                          <option value="P">Perempuan (P)</option>
-                        </select>
+                        <div className="flex items-center gap-2.5">
+                          <button
+                            type="button"
+                            onClick={() => openAssignModalForRole("Seksi ", null)}
+                            className="px-3.5 py-2 rounded-xl bg-[#65C443] hover:bg-[#52a835] text-white text-xs font-semibold inline-flex items-center gap-1.5 transition cursor-pointer shadow-xs"
+                          >
+                            <Plus className="w-3.5 h-3.5" />
+                            <span>+ Seksi Bidang</span>
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() => setClassSubTab("roster")}
+                            className="px-3.5 py-2 rounded-xl bg-white hover:bg-slate-50 border border-slate-200 text-slate-700 text-xs font-semibold inline-flex items-center gap-1.5 transition cursor-pointer shadow-2xs"
+                          >
+                            <Users className="w-3.5 h-3.5 text-slate-500" />
+                            <span>Lihat Daftar Siswa</span>
+                          </button>
+                        </div>
+                      </div>
 
-                        {/* Status Filter */}
-                        <select
-                          value={statusFilter}
-                          onChange={(e) => setStatusFilter(e.target.value as any)}
-                          className="px-2.5 py-1.5 rounded-xl bg-slate-50 border border-slate-200 text-xs text-slate-700 font-medium focus:outline-none focus:border-[#65C443] focus:bg-white cursor-pointer"
-                        >
-                          <option value="all">Semua Status</option>
-                          <option value="active">Akun Aktif</option>
-                          <option value="inactive">Akun Non-Aktif</option>
-                        </select>
+                      {/* Hierarchical Hierarchy Board */}
+                      <div className="space-y-12 py-2">
+                        {/* LEVEL 1: WALI KELAS */}
+                        <div className="flex flex-col items-center">
+                          <div className="text-center mb-4">
+                            <span className="text-[11px] uppercase font-bold tracking-wider text-emerald-800 px-4 py-1.5 rounded-full bg-emerald-50 border border-emerald-200 inline-flex items-center gap-2 shadow-2xs">
+                              <ShieldCheck className="w-3.5 h-3.5 text-emerald-600" />
+                              <span>Level 1 • Pembina & Wali Kelas</span>
+                            </span>
+                          </div>
+                          <div className="w-full max-w-lg mx-auto">
+                            {renderOfficerCard({
+                              roleTitle: "Wali Kelas",
+                              holder: structure.homeroomTeacher,
+                              icon: ShieldCheck,
+                              theme: "emerald",
+                              isStudentRole: false,
+                            })}
+                          </div>
+
+                          {/* Connecting Line Down */}
+                          <div className="w-0.5 h-10 bg-slate-300 my-4" />
+                        </div>
+
+                        {/* LEVEL 2: KETUA & WAKIL KETUA KELAS */}
+                        <div>
+                          <div className="text-center mb-4">
+                            <span className="text-[11px] uppercase font-bold tracking-wider text-amber-800 px-4 py-1.5 rounded-full bg-amber-50 border border-amber-200 inline-flex items-center gap-2 shadow-2xs">
+                              <Crown className="w-3.5 h-3.5 text-amber-600" />
+                              <span>Level 2 • Pimpinan Murid (Ketua & Wakil Ketua)</span>
+                            </span>
+                          </div>
+                          <div className="grid grid-cols-1 sm:grid-cols-2 gap-6 lg:gap-8 max-w-4xl mx-auto">
+                            {renderOfficerCard({
+                              roleTitle: "Ketua Kelas",
+                              holder: structure.leader,
+                              icon: Crown,
+                              theme: "amber",
+                              isStudentRole: true,
+                            })}
+                            {renderOfficerCard({
+                              roleTitle: "Wakil Ketua Kelas",
+                              holder: structure.viceLeader,
+                              icon: Award,
+                              theme: "amber",
+                              isStudentRole: true,
+                            })}
+                          </div>
+
+                          {/* Connecting Line Down */}
+                          <div className="w-0.5 h-10 bg-slate-300 mx-auto my-4" />
+                        </div>
+
+                        {/* LEVEL 3: SEKRETARIS & BENDAHARA */}
+                        <div>
+                          <div className="text-center mb-4">
+                            <span className="text-[11px] uppercase font-bold tracking-wider text-sky-800 px-4 py-1.5 rounded-full bg-sky-50 border border-sky-200 inline-flex items-center gap-2 shadow-2xs">
+                              <BookOpen className="w-3.5 h-3.5 text-sky-600" />
+                              <span>Level 3 • Pengurus Administrasi & Keuangan</span>
+                            </span>
+                          </div>
+                          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 lg:gap-6 max-w-6xl mx-auto">
+                            {renderOfficerCard({
+                              roleTitle: "Sekretaris 1",
+                              holder: structure.secretary1,
+                              icon: BookOpen,
+                              theme: "sky",
+                              isStudentRole: true,
+                            })}
+                            {renderOfficerCard({
+                              roleTitle: "Sekretaris 2",
+                              holder: structure.secretary2,
+                              icon: FileText,
+                              theme: "sky",
+                              isStudentRole: true,
+                            })}
+                            {renderOfficerCard({
+                              roleTitle: "Bendahara 1",
+                              holder: structure.treasurer1,
+                              icon: Wallet,
+                              theme: "teal",
+                              isStudentRole: true,
+                            })}
+                            {renderOfficerCard({
+                              roleTitle: "Bendahara 2",
+                              holder: structure.treasurer2,
+                              icon: Coins,
+                              theme: "teal",
+                              isStudentRole: true,
+                            })}
+                          </div>
+
+                          {/* Connecting Line Down */}
+                          <div className="w-0.5 h-10 bg-slate-300 mx-auto my-4" />
+                        </div>
+
+                        {/* LEVEL 4: SEKSI-SEKSI & KOORDINATOR BIDANG */}
+                        <div>
+                          <div className="text-center mb-4">
+                            <span className="text-[11px] uppercase font-bold tracking-wider text-purple-800 px-4 py-1.5 rounded-full bg-purple-50 border border-purple-200 inline-flex items-center gap-2 shadow-2xs">
+                              <Sparkles className="w-3.5 h-3.5 text-purple-600" />
+                              <span>Level 4 • Seksi-Seksi & Koordinator Bidang</span>
+                            </span>
+                          </div>
+
+                          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6 lg:gap-8 max-w-6xl mx-auto">
+                            {/* Render All Assigned Sections & Custom Roles */}
+                            {[...(structure.sections || []), ...(structure.customRoles || [])].map((sec: any) => (
+                              <div key={sec.enrollmentId}>
+                                {renderOfficerCard({
+                                  roleTitle: sec.roleInClass,
+                                  holder: sec,
+                                  icon: Sparkles,
+                                  theme: "purple",
+                                  isStudentRole: true,
+                                })}
+                              </div>
+                            ))}
+
+                            {/* Add New Section Action Card */}
+                            <button
+                              type="button"
+                              onClick={() => openAssignModalForRole("Seksi ", null)}
+                              className="rounded-2xl p-6 border-2 border-dashed border-slate-300 hover:border-[#65C443] bg-white hover:bg-slate-50/80 transition flex flex-col items-center justify-center text-center gap-2 text-slate-600 hover:text-[#0D274C] min-h-[175px] cursor-pointer group shadow-sm"
+                            >
+                              <div className="w-12 h-12 rounded-2xl bg-[#65C443]/10 border border-[#65C443]/20 flex items-center justify-center text-[#65C443] group-hover:scale-105 group-hover:bg-[#65C443]/20 transition shrink-0">
+                                <Plus className="w-6 h-6" />
+                              </div>
+                              <div className="text-xs font-bold text-slate-900 group-hover:text-[#0D274C] transition">
+                                + Tambah Seksi Bidang
+                              </div>
+                              <div className="text-[10px] text-slate-500 max-w-[220px]">
+                                Seksi Kebersihan, Keamanan, Perlengkapan, Kerohanian, Absensi, dll.
+                              </div>
+                            </button>
+                          </div>
+                        </div>
                       </div>
                     </div>
+                  )}
 
-                    {/* Table View */}
-                    <div className="overflow-x-auto">
-                      <table className="w-full text-left border-collapse text-xs">
-                        <thead>
-                          <tr className="bg-slate-50/80 border-b border-slate-200 text-slate-600 font-bold uppercase tracking-wider text-[11px]">
-                            <th className="py-3 px-4 w-12 text-center">No</th>
-                            <th className="py-3 px-4">NIS / NISN</th>
-                            <th className="py-3 px-4">Nama Lengkap Siswa</th>
-                            <th className="py-3 px-4">Username Akun</th>
-                            <th className="py-3 px-4 text-center">Jenis Kelamin</th>
-                            <th className="py-3 px-4 text-center">Status Akun</th>
-                          </tr>
-                        </thead>
-                        <tbody className="divide-y divide-slate-100">
-                          {filteredEnrollments.length === 0 ? (
-                            <tr>
-                              <td colSpan={6} className="py-12 text-center text-slate-400">
-                                <div className="space-y-2">
-                                  <Users className="w-8 h-8 text-slate-300 mx-auto" />
-                                  <div className="text-sm font-semibold text-slate-600">
-                                    Tidak ada data siswa yang cocok
-                                  </div>
-                                  <p className="text-xs text-slate-400">
-                                    Coba ubah kata kunci pencarian atau reset filter.
-                                  </p>
-                                </div>
-                              </td>
+                  {/* SUB-VIEW 2: DAFTAR SISWA (ROSTER TABLE & ROLE MANAGEMENT) */}
+                  {classSubTab === "roster" && (
+                    <div className="rounded-2xl bg-white border border-slate-200 shadow-sm overflow-hidden animate-in fade-in duration-150">
+                      {/* Filter & Search Header */}
+                      <div className="p-4 sm:p-5 border-b border-slate-200 flex flex-col md:flex-row md:items-center justify-between gap-3">
+                        <div>
+                          <h3 className="text-sm font-bold text-slate-900">
+                            Daftar Siswa Kelas {currentHomeroomClass?.name || ""}
+                          </h3>
+                          <p className="text-xs text-slate-500 mt-0.5">
+                            Menampilkan {filteredEnrollments.length} dari {classTotalStudents} siswa aktif
+                          </p>
+                        </div>
+
+                        <div className="flex flex-wrap items-center gap-2.5">
+                          {/* Search Input */}
+                          <div className="relative">
+                            <Search className="w-3.5 h-3.5 absolute left-3 top-1/2 -translate-y-1/2 text-slate-400 pointer-events-none" />
+                            <input
+                              type="text"
+                              placeholder="Cari nama, NIS, atau jabatan..."
+                              value={studentSearch}
+                              onChange={(e) => setStudentSearch(e.target.value)}
+                              className="pl-8 pr-3 py-1.5 rounded-xl bg-slate-50 border border-slate-200 text-xs text-slate-800 placeholder:text-slate-400 focus:outline-none focus:border-[#65C443] focus:bg-white w-48 sm:w-56"
+                            />
+                          </div>
+
+                          {/* Gender Filter */}
+                          <select
+                            value={genderFilter}
+                            onChange={(e) => setGenderFilter(e.target.value as any)}
+                            className="px-2.5 py-1.5 rounded-xl bg-slate-50 border border-slate-200 text-xs text-slate-700 font-medium focus:outline-none focus:border-[#65C443] focus:bg-white cursor-pointer"
+                          >
+                            <option value="all">Semua Gender</option>
+                            <option value="L">Laki-laki (L)</option>
+                            <option value="P">Perempuan (P)</option>
+                          </select>
+
+                          {/* Status Filter */}
+                          <select
+                            value={statusFilter}
+                            onChange={(e) => setStatusFilter(e.target.value as any)}
+                            className="px-2.5 py-1.5 rounded-xl bg-slate-50 border border-slate-200 text-xs text-slate-700 font-medium focus:outline-none focus:border-[#65C443] focus:bg-white cursor-pointer"
+                          >
+                            <option value="all">Semua Status</option>
+                            <option value="active">Akun Aktif</option>
+                            <option value="inactive">Akun Non-Aktif</option>
+                          </select>
+                        </div>
+                      </div>
+
+                      {/* Table View */}
+                      <div className="overflow-x-auto">
+                        <table className="w-full text-left border-collapse text-xs">
+                          <thead>
+                            <tr className="bg-slate-50/80 border-b border-slate-200 text-slate-600 font-bold uppercase tracking-wider text-[11px]">
+                              <th className="py-3 px-4 w-12 text-center">No</th>
+                              <th className="py-3 px-4">NIS / NISN</th>
+                              <th className="py-3 px-4">Nama Lengkap Siswa</th>
+                              <th className="py-3 px-4">Username Akun</th>
+                              <th className="py-3 px-4 text-center">Jabatan Kelas</th>
+                              <th className="py-3 px-4 text-center">Jenis Kelamin</th>
+                              <th className="py-3 px-4 text-center">Status Akun</th>
+                              <th className="py-3 px-4 text-center">Aksi Struktur</th>
                             </tr>
-                          ) : (
-                            filteredEnrollments.map((enrollment: any, idx: number) => {
-                              const s = enrollment.student;
-                              return (
-                                <tr
-                                  key={enrollment.id}
-                                  className="hover:bg-slate-50/80 transition group"
-                                >
-                                  <td className="py-3 px-4 text-center text-slate-400 font-medium">
-                                    {idx + 1}
-                                  </td>
-                                  <td className="py-3 px-4">
-                                    <div className="flex items-center gap-1.5">
-                                      <span className="font-mono font-semibold text-slate-800">
-                                        {s?.nis || "-"}
+                          </thead>
+                          <tbody className="divide-y divide-slate-100">
+                            {filteredEnrollments.length === 0 ? (
+                              <tr>
+                                <td colSpan={8} className="py-12 text-center text-slate-400">
+                                  <div className="space-y-2">
+                                    <Users className="w-8 h-8 text-slate-300 mx-auto" />
+                                    <div className="text-sm font-semibold text-slate-600">
+                                      Tidak ada data siswa yang cocok
+                                    </div>
+                                    <p className="text-xs text-slate-400">
+                                      Coba ubah kata kunci pencarian atau reset filter.
+                                    </p>
+                                  </div>
+                                </td>
+                              </tr>
+                            ) : (
+                              filteredEnrollments.map((s: any, idx: number) => {
+                                const hasRole = s.roleInClass && s.roleInClass !== "Anggota Kelas";
+                                return (
+                                  <tr
+                                    key={s.enrollmentId}
+                                    className="hover:bg-slate-50/80 transition group"
+                                  >
+                                    <td className="py-3 px-4 text-center text-slate-400 font-medium">
+                                      {idx + 1}
+                                    </td>
+                                    <td className="py-3 px-4">
+                                      <div className="flex items-center gap-1.5">
+                                        <span className="font-mono font-semibold text-slate-800">
+                                          {s.nis || "-"}
+                                        </span>
+                                        {s.nisn && (
+                                          <span className="text-[10px] text-slate-400 font-mono">
+                                            / {s.nisn}
+                                          </span>
+                                        )}
+                                      </div>
+                                    </td>
+                                    <td className="py-3 px-4">
+                                      <div className="font-bold text-slate-900 group-hover:text-[#0D274C] transition">
+                                        {s.displayName || "-"}
+                                      </div>
+                                      {s.email && (
+                                        <div className="text-[11px] text-slate-400 truncate max-w-xs">
+                                          {s.email}
+                                        </div>
+                                      )}
+                                    </td>
+                                    <td className="py-3 px-4">
+                                      <span className="font-mono text-[11px] px-2 py-0.5 rounded bg-slate-100 text-slate-700 font-semibold border border-slate-200">
+                                        {s.username}
                                       </span>
-                                      {s?.nisn && (
-                                        <span className="text-[10px] text-slate-400 font-mono">
-                                          / {s.nisn}
+                                    </td>
+                                    <td className="py-3 px-4 text-center">
+                                      {hasRole ? (
+                                        <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-[10px] font-bold bg-purple-50 text-purple-700 border border-purple-200">
+                                          <Crown className="w-3 h-3 text-purple-600" />
+                                          <span>{s.roleInClass}</span>
+                                        </span>
+                                      ) : (
+                                        <span className="text-slate-400 text-[11px]">Anggota Kelas</span>
+                                      )}
+                                    </td>
+                                    <td className="py-3 px-4 text-center">
+                                      {s.genderCode === "L" ? (
+                                        <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-bold bg-blue-50 text-blue-700 border border-blue-200">
+                                          Laki-laki
+                                        </span>
+                                      ) : s.genderCode === "P" ? (
+                                        <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-bold bg-rose-50 text-rose-700 border border-rose-200">
+                                          Perempuan
+                                        </span>
+                                      ) : (
+                                        <span className="text-slate-400">-</span>
+                                      )}
+                                    </td>
+                                    <td className="py-3 px-4 text-center">
+                                      {s.isActive ? (
+                                        <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-bold bg-emerald-50 text-emerald-700 border border-emerald-200">
+                                          <CheckCircle2 className="w-3 h-3 text-emerald-600" />
+                                          <span>Aktif</span>
+                                        </span>
+                                      ) : (
+                                        <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-bold bg-slate-100 text-slate-600 border border-slate-200">
+                                          <XCircle className="w-3 h-3 text-slate-400" />
+                                          <span>Non-Aktif</span>
                                         </span>
                                       )}
-                                    </div>
-                                  </td>
-                                  <td className="py-3 px-4">
-                                    <div className="font-bold text-slate-900 group-hover:text-[#0D274C] transition">
-                                      {s?.displayName || "-"}
-                                    </div>
-                                    {s?.email && (
-                                      <div className="text-[11px] text-slate-400 truncate max-w-xs">
-                                        {s.email}
-                                      </div>
-                                    )}
-                                  </td>
-                                  <td className="py-3 px-4">
-                                    <span className="font-mono text-[11px] px-2 py-0.5 rounded bg-slate-100 text-slate-700 font-semibold border border-slate-200">
-                                      {s?.username}
-                                    </span>
-                                  </td>
-                                  <td className="py-3 px-4 text-center">
-                                    {s?.gender === "L" ? (
-                                      <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-bold bg-blue-50 text-blue-700 border border-blue-200">
-                                        Laki-laki
-                                      </span>
-                                    ) : s?.gender === "P" ? (
-                                      <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-bold bg-rose-50 text-rose-700 border border-rose-200">
-                                        Perempuan
-                                      </span>
-                                    ) : (
-                                      <span className="text-slate-400">-</span>
-                                    )}
-                                  </td>
-                                  <td className="py-3 px-4 text-center">
-                                    {s?.isActive ? (
-                                      <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-bold bg-emerald-50 text-emerald-700 border border-emerald-200">
-                                        <CheckCircle2 className="w-3 h-3 text-emerald-600" />
-                                        <span>Aktif</span>
-                                      </span>
-                                    ) : (
-                                      <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-bold bg-slate-100 text-slate-600 border border-slate-200">
-                                        <XCircle className="w-3 h-3 text-slate-400" />
-                                        <span>Non-Aktif</span>
-                                      </span>
-                                    )}
-                                  </td>
-                                </tr>
-                              );
-                            })
-                          )}
-                        </tbody>
-                      </table>
-                    </div>
+                                    </td>
+                                    <td className="py-3 px-4 text-center">
+                                      <button
+                                        type="button"
+                                        onClick={() => openAssignModalForStudent(s)}
+                                        className="px-2.5 py-1 rounded-lg bg-slate-100 hover:bg-[#0D274C] hover:text-white text-slate-700 border border-slate-200 transition text-[11px] font-semibold inline-flex items-center gap-1 cursor-pointer shadow-2xs group/btn"
+                                        title="Atur Jabatan Siswa di Struktur Kelas"
+                                      >
+                                        <Edit2 className="w-3 h-3 text-[#65C443] group-hover/btn:text-white" />
+                                        <span>Atur Jabatan</span>
+                                      </button>
+                                    </td>
+                                  </tr>
+                                );
+                              })
+                            )}
+                          </tbody>
+                        </table>
+                      </div>
 
-                    {/* Table Footer */}
-                    <div className="p-3 bg-slate-50/60 border-t border-slate-200 text-slate-500 text-xs flex items-center justify-between">
-                      <span>Total Data: {filteredEnrollments.length} Siswa</span>
-                      <span className="text-[11px] text-slate-400">
-                        Sinkronisasi Rombongan Belajar Nexam CBT
-                      </span>
+                      {/* Table Footer */}
+                      <div className="p-3 bg-slate-50/60 border-t border-slate-200 text-slate-500 text-xs flex items-center justify-between">
+                        <span>Total Data: {filteredEnrollments.length} Siswa</span>
+                        <span className="text-[11px] text-slate-400">
+                          Sinkronisasi Rombongan Belajar Nexam CBT
+                        </span>
+                      </div>
                     </div>
-                  </div>
+                  )}
+
+                  {/* UNIFIED MODAL: ATUR JABATAN STRUKTUR SISWA */}
+                  {roleModalOpen && (
+                    <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/40 backdrop-blur-xs animate-in fade-in duration-200">
+                      <div className="w-full max-w-lg rounded-2xl p-6 bg-white border border-slate-200 shadow-2xl space-y-4">
+                        <div className="flex items-center justify-between border-b border-slate-200 pb-3">
+                          <h3 className="text-sm font-bold text-slate-900 flex items-center gap-2">
+                            <Crown className="w-4 h-4 text-amber-500" />
+                            <span>Atur Jabatan Pengurus Kelas</span>
+                          </h3>
+                          <button
+                            type="button"
+                            onClick={() => setRoleModalOpen(false)}
+                            className="text-slate-400 hover:text-slate-600 cursor-pointer"
+                          >
+                            <XCircle className="w-5 h-5" />
+                          </button>
+                        </div>
+
+                        <form onSubmit={handleSaveRoleAssignment} className="space-y-4 text-xs">
+                          {/* Nama Posisi / Jabatan */}
+                          <div className="space-y-1.5">
+                            <label className="font-semibold text-slate-700">Posisi / Nama Jabatan:</label>
+                            <input
+                              type="text"
+                              value={modalRoleTitle}
+                              onChange={(e) => setModalRoleTitle(e.target.value)}
+                              placeholder="Contoh: Ketua Kelas, Wakil Ketua Kelas, Sekretaris 1, Bendahara, Seksi Kebersihan"
+                              required
+                              className="w-full px-3.5 py-2.5 rounded-xl bg-slate-50 border border-slate-200 text-slate-900 placeholder:text-slate-400 focus:outline-none focus:border-[#65C443] focus:ring-1 focus:ring-[#65C443] font-medium text-xs"
+                            />
+
+                            {/* Preset Suggestions */}
+                            <div className="space-y-1 pt-1">
+                              <span className="text-[10px] text-slate-500 font-semibold uppercase">Pilihan Cepat:</span>
+                              <div className="flex flex-wrap gap-1.5">
+                                {[
+                                  "Ketua Kelas",
+                                  "Wakil Ketua Kelas",
+                                  "Sekretaris 1",
+                                  "Sekretaris 2",
+                                  "Bendahara 1",
+                                  "Bendahara 2",
+                                  "Seksi Kebersihan",
+                                  "Seksi Keamanan",
+                                  "Seksi Perlengkapan",
+                                  "Seksi Kerohanian",
+                                  "Seksi Absensi",
+                                ].map((role) => (
+                                  <button
+                                    key={role}
+                                    type="button"
+                                    onClick={() => setModalRoleTitle(role)}
+                                    className={`px-2 py-0.5 rounded text-[10px] border transition cursor-pointer ${
+                                      modalRoleTitle === role
+                                        ? "bg-[#0D274C] text-white border-[#0D274C]"
+                                        : "bg-slate-100 hover:bg-slate-200 border-slate-200 text-slate-700 hover:text-slate-900"
+                                    }`}
+                                  >
+                                    {role}
+                                  </button>
+                                ))}
+                              </div>
+                            </div>
+                          </div>
+
+                          {/* Pilih Siswa */}
+                          <div className="space-y-1.5">
+                            <label className="font-semibold text-slate-700">Siswa yang Mengemban Jabatan:</label>
+                            <select
+                              value={modalSelectedEnrollmentId}
+                              onChange={(e) => setModalSelectedEnrollmentId(e.target.value)}
+                              required
+                              className="w-full px-3.5 py-2.5 rounded-xl bg-slate-50 border border-slate-200 text-slate-900 focus:outline-none focus:border-[#65C443] focus:ring-1 focus:ring-[#65C443] font-medium text-xs cursor-pointer"
+                            >
+                              <option value="">-- Pilih Siswa dari Rombel ({studentsList.length} Siswa) --</option>
+                              {studentsList.map((s: any) => (
+                                <option key={s.enrollmentId} value={s.enrollmentId}>
+                                  {s.displayName} (NIS: {s.nis}) {s.roleInClass && s.roleInClass !== "Anggota Kelas" ? `[Saat ini: ${s.roleInClass}]` : ""}
+                                </option>
+                              ))}
+                            </select>
+                          </div>
+
+                          {/* Current Occupant Alert & Clear Option */}
+                          {modalCurrentHolderName && (
+                            <div className="p-3 rounded-xl bg-slate-50 border border-slate-200 flex items-center justify-between text-xs">
+                              <div className="text-slate-600">
+                                Pemegang saat ini: <strong className="text-slate-900">{modalCurrentHolderName}</strong>
+                              </div>
+                              <button
+                                type="button"
+                                onClick={handleClearRoleAssignment}
+                                disabled={roleUpdating}
+                                className="text-rose-600 hover:text-rose-800 font-semibold cursor-pointer text-xs disabled:opacity-50"
+                              >
+                                Kosongkan Posisi
+                              </button>
+                            </div>
+                          )}
+
+                          {/* Success Message Banner */}
+                          {roleSuccessMessage && (
+                            <div className="p-3 rounded-xl bg-emerald-50 border border-emerald-200 text-emerald-800 text-xs font-semibold flex items-center gap-2">
+                              <Check className="w-4 h-4 text-emerald-600 shrink-0" />
+                              <span>{roleSuccessMessage}</span>
+                            </div>
+                          )}
+
+                          {/* Action Buttons */}
+                          <div className="flex items-center justify-end gap-2.5 pt-3 border-t border-slate-200">
+                            <button
+                              type="button"
+                              onClick={() => setRoleModalOpen(false)}
+                              disabled={roleUpdating}
+                              className="px-4 py-2 rounded-xl bg-slate-100 hover:bg-slate-200 text-slate-700 font-semibold transition cursor-pointer"
+                            >
+                              Batal
+                            </button>
+                            <button
+                              type="submit"
+                              disabled={roleUpdating}
+                              className="px-5 py-2 rounded-xl bg-[#0D274C] hover:bg-[#163B6E] text-white font-bold transition flex items-center gap-2 cursor-pointer disabled:opacity-50 shadow-xs"
+                            >
+                              {roleUpdating ? (
+                                <span>Menyimpan...</span>
+                              ) : (
+                                <>
+                                  <Check className="w-4 h-4 text-[#65C443]" />
+                                  <span>Simpan Penugasan</span>
+                                </>
+                              )}
+                            </button>
+                          </div>
+                        </form>
+                      </div>
+                    </div>
+                  )}
                 </>
               )}
             </div>

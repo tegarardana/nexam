@@ -96,6 +96,15 @@ export default async function TeacherDashboardPage(props: TeacherDashboardPagePr
       include: {
         major: { select: { id: true, name: true, code: true } },
         academicYear: { select: { id: true, name: true, status: true } },
+        homeroomTeacher: {
+          select: {
+            id: true,
+            displayName: true,
+            title: true,
+            nip: true,
+            username: true,
+          },
+        },
         studentEnrollments: {
           where: { status: "active" },
           include: {

@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import prisma from "@/lib/prisma";
-import { authenticateApi } from "@/lib/auth/rbac";
+import { authenticateApi, hasPermission } from "@/lib/auth/rbac";
 import { logAudit } from "@/lib/audit";
 
 interface RouteParams {
@@ -157,7 +157,7 @@ export async function GET(req: NextRequest, { params }: RouteParams) {
 }
 
 export async function PATCH(req: NextRequest, { params }: RouteParams) {
-  const auth = await authenticateApi("academic:update");
+  const auth = await authenticateApi();
   if (auth instanceof NextResponse) return auth;
 
   const { id } = await params;
@@ -167,6 +167,25 @@ export async function PATCH(req: NextRequest, { params }: RouteParams) {
 
     // Check action type: update role in class structure vs update class details
     if (body.action === "update_student_role") {
+      const isPrivileged =
+        auth.user.roles.includes("administrator") || hasPermission(auth.user, "academic:update");
+
+      if (!isPrivileged) {
+        const classGroup = await prisma.classGroup.findUnique({
+          where: { id },
+          select: { homeroomTeacherId: true },
+        });
+        if (!classGroup || classGroup.homeroomTeacherId !== auth.user.id) {
+          return NextResponse.json(
+            {
+              success: false,
+              error: "Hanya wali kelas atau administrator yang berwenang mengubah struktur organisasi kelas ini.",
+            },
+            { status: 403 }
+          );
+        }
+      }
+
       const { enrollmentId, roleInClass } = body;
       if (!enrollmentId) {
         return NextResponse.json(
@@ -207,6 +226,13 @@ export async function PATCH(req: NextRequest, { params }: RouteParams) {
     }
 
     // Default: update class details (name, gradeLevel, majorId, homeroomTeacherId, isActive)
+    // Requires administrator or academic:update permission
+    if (!auth.user.roles.includes("administrator") && !hasPermission(auth.user, "academic:update")) {
+      return NextResponse.json(
+        { success: false, error: "Forbidden: insufficient permissions", code: "FORBIDDEN" },
+        { status: 403 }
+      );
+    }
     const { name, gradeLevel, majorId, homeroomTeacherId, isActive } = body;
     const updateData: any = {};
     if (name !== undefined) updateData.name = name;
