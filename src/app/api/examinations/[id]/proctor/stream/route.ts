@@ -25,6 +25,7 @@ export async function GET(
     include: {
       policySettings: true,
       subject: true,
+      proctorAssignments: true,
       participants: {
         include: {
           student: {
@@ -58,6 +59,16 @@ export async function GET(
 
   if (!examination) {
     return new Response("Examination not found", { status: 404 });
+  }
+
+  const isAdmin = session.user.roles.includes("administrator");
+  const isCreator = examination.createdById === session.user.id;
+  const isAssignedProctor = examination.proctorAssignments.some(
+    (pa) => pa.proctorId === session.user.id
+  );
+
+  if (!isAdmin && !isCreator && !isAssignedProctor) {
+    return new Response("Forbidden: Akses pengawasan hanya untuk pembuat ujian atau pengawas yang ditugaskan.", { status: 403 });
   }
 
   // Fetch recent events for initial state

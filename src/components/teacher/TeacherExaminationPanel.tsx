@@ -111,6 +111,8 @@ interface Examination {
   status: string;
   totalPoints: number;
   passingScore?: number;
+  createdById?: string;
+  createdBy?: { id: string; displayName: string };
   subject?: Subject;
   examinationType?: { id: string; name: string; code: string } | null;
   examinationTypeId?: string | null;
@@ -250,10 +252,16 @@ export default function TeacherExaminationPanel({
   const [newCatSubjectId, setNewCatSubjectId] = useState(subjects[0]?.id || "");
 
   // Examinations State
+  const [activeViewMode, setActiveViewMode] = useState<"schedule" | "monitoring" | "results" | "analysis" | "grades">(viewMode);
+
+  useEffect(() => {
+    setActiveViewMode(viewMode);
+  }, [viewMode]);
+
   const [examinations, setExaminations] = useState<Examination[]>([]);
   const [loadingExams, setLoadingLoadingExams] = useState(false);
   const [showExamWizard, setShowExamWizard] = useState(false);
-  const [examCategoryFilter, setExamCategoryFilter] = useState<"all" | "in_progress" | "upcoming" | "closed" | "draft">("all");
+  const [examCategoryFilter, setExamCategoryFilter] = useState<"all" | "in_progress" | "upcoming" | "closed" | "draft" | "proctor">("all");
   const [examSearchFilter, setExamSearchFilter] = useState("");
   const [examSubjectFilter, setExamSubjectFilter] = useState("all");
   const [examClassFilter, setExamClassFilter] = useState("all");
@@ -336,18 +344,18 @@ export default function TeacherExaminationPanel({
     }
   }, [examSubjectId]);
 
-  // Adjust default category filter based on viewMode
+  // Adjust default category filter based on activeViewMode
   useEffect(() => {
-    if (viewMode === "monitoring") {
+    if (activeViewMode === "monitoring") {
       setExamCategoryFilter("in_progress");
-    } else if (viewMode === "results" || viewMode === "grades") {
+    } else if (activeViewMode === "results" || activeViewMode === "grades") {
       setExamCategoryFilter("closed");
-    } else if (viewMode === "analysis") {
+    } else if (activeViewMode === "analysis") {
       setExamCategoryFilter("closed");
-    } else if (viewMode === "schedule") {
+    } else if (activeViewMode === "schedule") {
       setExamCategoryFilter("all");
     }
-  }, [viewMode]);
+  }, [activeViewMode]);
 
   const generateRandomToken = (len = 6) => {
     const chars = "ABCDEFGHJKLMNPQRSTUVWXYZ23456789";
@@ -1032,6 +1040,7 @@ export default function TeacherExaminationPanel({
       upcoming: 0,
       closed: 0,
       draft: 0,
+      proctor: 0,
       all: 0,
     };
 
@@ -1039,7 +1048,24 @@ export default function TeacherExaminationPanel({
       if (examSemesterFilter !== "all" && exam.semesterId !== examSemesterFilter) return;
       if (examYearFilter !== "all" && exam.academicYearId !== examYearFilter) return;
 
+      // Non-admin teacher: only include exams they created or are assigned to proctor
+      if (!isAdmin && currentTeacherId) {
+        const isCreator = exam.createdById === currentTeacherId;
+        const isProctor = exam.proctorAssignments?.some(
+          (pa) => pa.proctorId === currentTeacherId
+        );
+        if (!isCreator && !isProctor) return;
+      }
+
       counts.all++;
+
+      const isMyProctorExam = Boolean(
+        currentTeacherId &&
+        exam.proctorAssignments?.some((pa) => pa.proctorId === currentTeacherId)
+      );
+      if (isMyProctorExam) {
+        counts.proctor++;
+      }
       const isPastSchedule = Boolean(exam.scheduledEnd && now > new Date(exam.scheduledEnd));
       const isDraft = exam.status === "draft";
       const isClosed = exam.status === "closed" || exam.status === "finalized" || exam.status === "archived" || isPastSchedule;
@@ -1231,6 +1257,24 @@ export default function TeacherExaminationPanel({
       if (examCategoryFilter === "closed" && !isClosed) return false;
       if (examCategoryFilter === "draft" && !isDraft) return false;
 
+      // Filter: Tugas Pengawas Saya
+      if (examCategoryFilter === "proctor") {
+        const isMyProctor = Boolean(
+          currentTeacherId &&
+          exam.proctorAssignments?.some((pa) => pa.proctorId === currentTeacherId)
+        );
+        if (!isMyProctor) return false;
+      }
+
+      // Safety filter for non-admin teachers: only show created exams or assigned proctor exams
+      if (!isAdmin && currentTeacherId) {
+        const isCreator = exam.createdById === currentTeacherId;
+        const isProctor = exam.proctorAssignments?.some(
+          (pa) => pa.proctorId === currentTeacherId
+        );
+        if (!isCreator && !isProctor) return false;
+      }
+
       return true;
     });
 
@@ -1272,7 +1316,7 @@ export default function TeacherExaminationPanel({
     });
 
     return Array.from(typeGroupsMap.values());
-  }, [examinations, examSearchFilter, examSubjectFilter, examClassFilter, examTypeFilter, examCategoryFilter, examSemesterFilter, examYearFilter]);
+  }, [examinations, examSearchFilter, examSubjectFilter, examClassFilter, examTypeFilter, examCategoryFilter, examSemesterFilter, examYearFilter, isAdmin, currentTeacherId]);
 
   const renderMonitoringExamCard = (exam: Examination) => {
     const now = new Date();
@@ -1283,6 +1327,14 @@ export default function TeacherExaminationPanel({
     const isAutoStarted = exam.status === "scheduled" && isWindowActive;
     const effectiveInProgress = !isClosed && (exam.status === "in_progress" || isAutoStarted);
     const effectiveScheduled = !isClosed && !effectiveInProgress && (exam.status === "scheduled" || exam.status === "ready");
+
+    const isCurrentUserProctor = Boolean(
+      currentTeacherId &&
+      exam.proctorAssignments?.some((pa) => pa.proctorId === currentTeacherId)
+    );
+    const myProctorAssignment = exam.proctorAssignments?.find(
+      (pa) => pa.proctorId === currentTeacherId
+    );
 
     // Participating classes
     const uniqueClassMap = new Map<string, { id: string; name: string }>();
@@ -1324,30 +1376,28 @@ export default function TeacherExaminationPanel({
     return (
       <div
         key={exam.id}
-        className={`bg-white p-5 rounded-2xl border transition flex flex-col justify-between space-y-4 shadow-sm hover:shadow-md ${
-          effectiveInProgress
-            ? "border-emerald-300 ring-1 ring-emerald-400/25"
-            : effectiveScheduled
+        className={`bg-white p-5 rounded-2xl border transition flex flex-col justify-between space-y-4 shadow-sm hover:shadow-md ${effectiveInProgress
+          ? "border-emerald-300 ring-1 ring-emerald-400/25"
+          : effectiveScheduled
             ? "border-blue-200"
             : isClosed
-            ? "border-slate-200 bg-slate-50/60"
-            : "border-slate-200"
-        }`}
+              ? "border-slate-200 bg-slate-50/60"
+              : "border-slate-200"
+          }`}
       >
         {/* Top Header: Status, Subject, Session, Token */}
         <div className="flex items-start justify-between flex-wrap gap-3">
           <div className="space-y-1.5">
             <div className="flex items-center gap-2 flex-wrap">
               <span
-                className={`px-2.5 py-0.5 rounded-full text-[11px] font-bold uppercase tracking-wider flex items-center gap-1.5 ${
-                  effectiveInProgress
-                    ? "bg-emerald-50 text-emerald-800 border border-emerald-300"
-                    : effectiveScheduled
+                className={`px-2.5 py-0.5 rounded-full text-[11px] font-bold uppercase tracking-wider flex items-center gap-1.5 ${effectiveInProgress
+                  ? "bg-emerald-50 text-emerald-800 border border-emerald-300"
+                  : effectiveScheduled
                     ? "bg-blue-50 text-blue-800 border border-blue-200"
                     : isClosed
-                    ? "bg-slate-100 text-slate-700 border border-slate-200"
-                    : "bg-amber-50 text-amber-800 border border-amber-200"
-                }`}
+                      ? "bg-slate-100 text-slate-700 border border-slate-200"
+                      : "bg-amber-50 text-amber-800 border border-amber-200"
+                  }`}
               >
                 {effectiveInProgress && (
                   <span className="w-2 h-2 rounded-full bg-emerald-500 animate-ping" />
@@ -1356,12 +1406,12 @@ export default function TeacherExaminationPanel({
                   {exam.status === "archived"
                     ? "Diarsipkan (Semester Lalu)"
                     : effectiveInProgress
-                    ? "Sedang Berlangsung Live"
-                    : effectiveScheduled
-                    ? "Akan Datang (Terjadwal)"
-                    : isClosed
-                    ? "Selesai"
-                    : exam.status}
+                      ? "Sedang Berlangsung Live"
+                      : effectiveScheduled
+                        ? "Akan Datang (Terjadwal)"
+                        : isClosed
+                          ? "Selesai"
+                          : exam.status}
                 </span>
               </span>
 
@@ -1589,11 +1639,10 @@ export default function TeacherExaminationPanel({
           <div className="flex items-center gap-2 flex-wrap">
             <Link
               href={`/teacher/examinations/${exam.id}/proctor`}
-              className={`px-4 py-2 rounded-xl text-xs font-bold flex items-center gap-2 transition cursor-pointer shadow-xs ${
-                effectiveInProgress
-                  ? "bg-emerald-600 hover:bg-emerald-500 text-white shadow-emerald-200"
-                  : "bg-[#0D274C] hover:bg-[#163866] text-white"
-              }`}
+              className={`px-4 py-2 rounded-xl text-xs font-bold flex items-center gap-2 transition cursor-pointer shadow-xs ${effectiveInProgress
+                ? "bg-emerald-600 hover:bg-emerald-500 text-white shadow-emerald-200"
+                : "bg-[#0D274C] hover:bg-[#163866] text-white"
+                }`}
             >
               <Radio className={`w-4 h-4 ${effectiveInProgress ? "animate-pulse text-white" : "text-emerald-400"}`} />
               <span>Masuk Pengawasan Live</span>
@@ -1608,9 +1657,9 @@ export default function TeacherExaminationPanel({
                 <> • <strong className="text-indigo-700">{exam.session.name}</strong></>
               ) : (
                 <> • {new Date(exam.scheduledStart).toLocaleTimeString("id-ID", { hour: "2-digit", minute: "2-digit", timeZone: "Asia/Jakarta" })}
-                {exam.scheduledEnd && (
-                  <> s/d {new Date(exam.scheduledEnd).toLocaleTimeString("id-ID", { hour: "2-digit", minute: "2-digit", timeZone: "Asia/Jakarta" })}</>
-                )}</>
+                  {exam.scheduledEnd && (
+                    <> s/d {new Date(exam.scheduledEnd).toLocaleTimeString("id-ID", { hour: "2-digit", minute: "2-digit", timeZone: "Asia/Jakarta" })}</>
+                  )}</>
               )}
             </span>
           </div>
@@ -1633,36 +1682,42 @@ export default function TeacherExaminationPanel({
     const effectiveInProgress = !isClosed && (exam.status === "in_progress" || isAutoStarted);
     const effectiveScheduled = !isClosed && !effectiveInProgress && (exam.status === "scheduled" || exam.status === "ready");
 
+    const isCurrentUserProctor = Boolean(
+      currentTeacherId &&
+      exam.proctorAssignments?.some((pa) => pa.proctorId === currentTeacherId)
+    );
+    const myProctorAssignment = exam.proctorAssignments?.find(
+      (pa) => pa.proctorId === currentTeacherId
+    );
+
     return (
       <div
         key={exam.id}
-        className={`bg-white p-5 rounded-xl border transition flex flex-col justify-between space-y-4 shadow-sm hover:shadow-md ${
-          effectiveInProgress
-            ? "border-emerald-300 ring-1 ring-emerald-400/25"
-            : effectiveScheduled
+        className={`bg-white p-5 rounded-xl border transition flex flex-col justify-between space-y-4 shadow-sm hover:shadow-md ${effectiveInProgress
+          ? "border-emerald-300 ring-1 ring-emerald-400/25"
+          : effectiveScheduled
             ? "border-blue-200"
             : isClosed
-            ? "border-slate-200 bg-slate-50/60"
-            : "border-slate-200"
-        }`}
+              ? "border-slate-200 bg-slate-50/60"
+              : "border-slate-200"
+          }`}
       >
         <div className="flex items-start justify-between flex-wrap gap-3">
           <div>
             <div className="flex items-center gap-2 mb-1.5 flex-wrap">
               <span
-                className={`px-2.5 py-0.5 rounded-full text-[11px] font-bold uppercase tracking-wider flex items-center gap-1.5 ${
-                  isDraft
-                    ? "bg-amber-50 text-amber-800 border border-amber-200"
-                    : isReady
+                className={`px-2.5 py-0.5 rounded-full text-[11px] font-bold uppercase tracking-wider flex items-center gap-1.5 ${isDraft
+                  ? "bg-amber-50 text-amber-800 border border-amber-200"
+                  : isReady
                     ? "bg-cyan-50 text-cyan-800 border border-cyan-200"
                     : isClosed
-                    ? "bg-rose-50 text-rose-800 border border-rose-200"
-                    : effectiveInProgress
-                    ? "bg-emerald-50 text-emerald-800 border border-emerald-200 animate-pulse"
-                    : effectiveScheduled
-                    ? "bg-blue-50 text-blue-800 border border-blue-200"
-                    : "bg-slate-100 text-slate-600 border border-slate-200"
-                }`}
+                      ? "bg-rose-50 text-rose-800 border border-rose-200"
+                      : effectiveInProgress
+                        ? "bg-emerald-50 text-emerald-800 border border-emerald-200 animate-pulse"
+                        : effectiveScheduled
+                          ? "bg-blue-50 text-blue-800 border border-blue-200"
+                          : "bg-slate-100 text-slate-600 border border-slate-200"
+                  }`}
               >
                 {effectiveInProgress && (
                   <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-ping" />
@@ -1671,14 +1726,14 @@ export default function TeacherExaminationPanel({
                   {exam.status === "archived"
                     ? "Diarsipkan (Semester Lalu)"
                     : isClosed
-                    ? (exam.status === "closed" ? "Selesai (Closed)" : "Selesai (Waktu Habis)")
-                    : isAutoStarted
-                    ? "Sedang Berjalan (Otomatis)"
-                    : effectiveInProgress
-                    ? "Sedang Berjalan"
-                    : effectiveScheduled
-                    ? (exam.status === "ready" ? "Siap Dijadwalkan" : "Akan Datang (Terjadwal)")
-                    : exam.status}
+                      ? (exam.status === "closed" ? "Selesai (Closed)" : "Selesai (Waktu Habis)")
+                      : isAutoStarted
+                        ? "Sedang Berjalan (Otomatis)"
+                        : effectiveInProgress
+                          ? "Sedang Berjalan"
+                          : effectiveScheduled
+                            ? (exam.status === "ready" ? "Siap Dijadwalkan" : "Akan Datang (Terjadwal)")
+                            : exam.status}
                 </span>
               </span>
               {exam.subject && (
@@ -1694,6 +1749,14 @@ export default function TeacherExaminationPanel({
               {exam.semester && (
                 <span className="px-2 py-0.5 rounded-md bg-purple-50 text-purple-800 border border-purple-200 text-[11px] font-medium">
                   {exam.semester.name}
+                </span>
+              )}
+              {isCurrentUserProctor && (
+                <span className="px-2.5 py-0.5 rounded-full text-[11px] font-bold bg-indigo-50 text-indigo-800 border border-indigo-300 flex items-center gap-1 shadow-2xs">
+                  <UserCheck className="w-3 h-3 text-indigo-600" />
+                  <span>
+                    Pengawas Ruang{myProctorAssignment?.roomName ? `: ${myProctorAssignment.roomName}` : ""}
+                  </span>
                 </span>
               )}
             </div>
@@ -1777,19 +1840,18 @@ export default function TeacherExaminationPanel({
             <span>Peserta: <strong className="text-slate-900">{exam._count?.participants || 0} Siswa</strong></span>
           </div>
           <div className="flex items-center gap-1.5">
-            <ShieldAlert className={`w-4 h-4 ${
-              exam.policySettings?.blockOnViolation === false
-                ? "text-slate-400"
-                : (exam.policySettings?.maxTabSwitches ?? 3) === 0
+            <ShieldAlert className={`w-4 h-4 ${exam.policySettings?.blockOnViolation === false
+              ? "text-slate-400"
+              : (exam.policySettings?.maxTabSwitches ?? 3) === 0
                 ? "text-rose-600"
                 : "text-amber-600"
-            }`} />
+              }`} />
             <span>Anti-Cheat: <strong className="text-slate-900">
               {exam.policySettings?.blockOnViolation === false
                 ? "Bebas (Pencatatan)"
                 : (exam.policySettings?.maxTabSwitches ?? 3) === 0
-                ? "Ketat (0x / Langsung Blokir)"
-                : `Aktif (${exam.policySettings?.maxTabSwitches ?? 3}x Tab)`}
+                  ? "Ketat (0x / Langsung Blokir)"
+                  : `Aktif (${exam.policySettings?.maxTabSwitches ?? 3}x Tab)`}
             </strong></span>
           </div>
         </div>
@@ -1909,9 +1971,9 @@ export default function TeacherExaminationPanel({
                     <> • <span className="font-semibold text-indigo-700">{exam.session.name} ({exam.session.startTime} - {exam.session.endTime} WIB)</span></>
                   ) : (
                     <> • {new Date(exam.scheduledStart).toLocaleTimeString("id-ID", { hour: "2-digit", minute: "2-digit", timeZone: "Asia/Jakarta" })}
-                    {exam.scheduledEnd && (
-                      <> s/d {new Date(exam.scheduledEnd).toLocaleTimeString("id-ID", { hour: "2-digit", minute: "2-digit", timeZone: "Asia/Jakarta" })}</>
-                    )}</>
+                      {exam.scheduledEnd && (
+                        <> s/d {new Date(exam.scheduledEnd).toLocaleTimeString("id-ID", { hour: "2-digit", minute: "2-digit", timeZone: "Asia/Jakarta" })}</>
+                      )}</>
                   )}
                 </span>
               </div>
@@ -1935,9 +1997,9 @@ export default function TeacherExaminationPanel({
                     <> • <span className="font-semibold text-purple-700">{exam.session.name} ({exam.session.startTime} - {exam.session.endTime} WIB)</span></>
                   ) : (
                     <> • {new Date(exam.scheduledStart).toLocaleTimeString("id-ID", { hour: "2-digit", minute: "2-digit", timeZone: "Asia/Jakarta" })}
-                    {exam.scheduledEnd && (
-                      <> s/d {new Date(exam.scheduledEnd).toLocaleTimeString("id-ID", { hour: "2-digit", minute: "2-digit", timeZone: "Asia/Jakarta" })}</>
-                    )}</>
+                      {exam.scheduledEnd && (
+                        <> s/d {new Date(exam.scheduledEnd).toLocaleTimeString("id-ID", { hour: "2-digit", minute: "2-digit", timeZone: "Asia/Jakarta" })}</>
+                      )}</>
                   )}
                 </span>
               </div>
@@ -1960,6 +2022,27 @@ export default function TeacherExaminationPanel({
                   <Users className="w-3.5 h-3.5 text-[#65C443]" />
                   <span>Daftarkan Kelas ({exam._count?.participants || 0})</span>
                 </button>
+
+                <Link
+                  href={`/teacher/examinations/${exam.id}/proctor`}
+                  className={`px-3 py-1.5 rounded-lg text-xs font-bold flex items-center gap-1.5 transition cursor-pointer shadow-xs ${
+                    effectiveInProgress
+                      ? "bg-emerald-600 hover:bg-emerald-500 text-white shadow-emerald-200"
+                      : "bg-[#0D274C] hover:bg-[#163866] text-white"
+                  }`}
+                  title="Masuk ke layar live monitoring pengawasan CBT"
+                >
+                  <Radio
+                    className={`w-3.5 h-3.5 ${
+                      effectiveInProgress ? "animate-pulse text-white" : "text-emerald-400"
+                    }`}
+                  />
+                  <span>
+                    {effectiveInProgress
+                      ? "Masuk Pengawasan Live"
+                      : "Pantau Ujian (CBT)"}
+                  </span>
+                </Link>
               </div>
 
               <div className="text-[11px] text-slate-500 flex items-center gap-1.5">
@@ -1970,9 +2053,9 @@ export default function TeacherExaminationPanel({
                     <> • <span className="font-semibold text-indigo-700">{exam.session.name} ({exam.session.startTime} - {exam.session.endTime} WIB)</span></>
                   ) : (
                     <> • {new Date(exam.scheduledStart).toLocaleTimeString("id-ID", { hour: "2-digit", minute: "2-digit", timeZone: "Asia/Jakarta" })}
-                    {exam.scheduledEnd && (
-                      <> s/d {new Date(exam.scheduledEnd).toLocaleTimeString("id-ID", { hour: "2-digit", minute: "2-digit", timeZone: "Asia/Jakarta" })}</>
-                    )}</>
+                      {exam.scheduledEnd && (
+                        <> s/d {new Date(exam.scheduledEnd).toLocaleTimeString("id-ID", { hour: "2-digit", minute: "2-digit", timeZone: "Asia/Jakarta" })}</>
+                      )}</>
                   )}
                 </span>
               </div>
@@ -2073,33 +2156,140 @@ export default function TeacherExaminationPanel({
       {/* TAB CONTENT 2: Section Header: Paket Ujian & Asesmen / Jadwal */}
       {activeTeacherTab === "examinations" && (
         <div className="space-y-4 animate-in fade-in duration-150">
+          {/* View Mode Switcher Pills (Jadwal vs Monitoring Live vs Rekap) */}
+          <div className="flex items-center justify-between border-b border-slate-200 pb-3 flex-wrap gap-3">
+            <div className="flex items-center gap-1.5 p-1 bg-slate-100 rounded-xl border border-slate-200 overflow-x-auto max-w-full">
+              <button
+                type="button"
+                onClick={() => {
+                  setActiveViewMode("schedule");
+                  setExamCategoryFilter("all");
+                }}
+                className={`px-3 py-1.5 rounded-lg text-xs font-semibold flex items-center gap-1.5 transition cursor-pointer whitespace-nowrap ${
+                  activeViewMode === "schedule"
+                    ? "bg-white text-[#0D274C] shadow-xs"
+                    : "text-slate-600 hover:text-slate-900"
+                }`}
+              >
+                <Calendar className="w-3.5 h-3.5" />
+                <span>Jadwal Ujian</span>
+              </button>
+
+              <button
+                type="button"
+                onClick={() => {
+                  setActiveViewMode("monitoring");
+                  setExamCategoryFilter("in_progress");
+                }}
+                className={`px-3 py-1.5 rounded-lg text-xs font-semibold flex items-center gap-1.5 transition cursor-pointer whitespace-nowrap ${
+                  activeViewMode === "monitoring"
+                    ? "bg-emerald-600 text-white shadow-xs"
+                    : "text-slate-600 hover:text-slate-900"
+                }`}
+              >
+                <Radio
+                  className={`w-3.5 h-3.5 ${
+                    categoryCounts.in_progress > 0
+                      ? activeViewMode === "monitoring"
+                        ? "animate-pulse text-white"
+                        : "text-emerald-500 animate-pulse"
+                      : ""
+                  }`}
+                />
+                <span>Pengawasan Live</span>
+                {categoryCounts.in_progress > 0 && (
+                  <span
+                    className={`w-2 h-2 rounded-full ${
+                      activeViewMode === "monitoring" ? "bg-white" : "bg-emerald-500"
+                    } animate-ping`}
+                  />
+                )}
+              </button>
+
+              <button
+                type="button"
+                onClick={() => {
+                  setActiveViewMode("results");
+                  setExamCategoryFilter("closed");
+                }}
+                className={`px-3 py-1.5 rounded-lg text-xs font-semibold flex items-center gap-1.5 transition cursor-pointer whitespace-nowrap ${
+                  activeViewMode === "results"
+                    ? "bg-purple-600 text-white shadow-xs"
+                    : "text-slate-600 hover:text-slate-900"
+                }`}
+              >
+                <Award className="w-3.5 h-3.5" />
+                <span>Rekap Nilai</span>
+              </button>
+
+              <button
+                type="button"
+                onClick={() => {
+                  setActiveViewMode("analysis");
+                  setExamCategoryFilter("closed");
+                }}
+                className={`px-3 py-1.5 rounded-lg text-xs font-semibold flex items-center gap-1.5 transition cursor-pointer whitespace-nowrap ${
+                  activeViewMode === "analysis"
+                    ? "bg-indigo-600 text-white shadow-xs"
+                    : "text-slate-600 hover:text-slate-900"
+                }`}
+              >
+                <PieChart className="w-3.5 h-3.5" />
+                <span>Analisis Soal</span>
+              </button>
+            </div>
+
+            <div className="flex items-center gap-2 flex-wrap">
+              {assignments && assignments.length > 0 && (
+                <button
+                  type="button"
+                  onClick={() => setActiveTeacherTab("classes")}
+                  className="px-3.5 py-1.5 rounded-xl text-xs font-semibold text-slate-600 hover:text-slate-900 hover:bg-slate-100 border border-slate-200 flex items-center gap-1.5 transition cursor-pointer"
+                >
+                  <Layers className="w-3.5 h-3.5 text-slate-500" />
+                  <span>Kelas Diampu ({assignments.length})</span>
+                </button>
+              )}
+
+              {activeViewMode === "schedule" && (
+                <Link
+                  href={isAdmin ? "/admin/examinations/create" : "/teacher/examinations/create"}
+                  className="px-3.5 py-1.5 rounded-xl bg-[#65C443] hover:bg-[#57b237] text-white text-xs font-medium flex items-center gap-1.5 transition shadow-xs cursor-pointer"
+                >
+                  <Plus className="w-3.5 h-3.5" />
+                  <span>Buat Ujian Baru</span>
+                </Link>
+              )}
+            </div>
+          </div>
+
           <div className="flex items-center justify-between border-b border-slate-200 pb-3 flex-wrap gap-4">
             <div>
               <div className="flex items-center gap-2">
-                {viewMode === "schedule" ? (
+                {activeViewMode === "schedule" ? (
                   <Calendar className="w-5 h-5 text-[#0D274C]" />
-                ) : viewMode === "monitoring" ? (
+                ) : activeViewMode === "monitoring" ? (
                   <Activity className="w-5 h-5 text-emerald-600" />
-                ) : viewMode === "results" ? (
+                ) : activeViewMode === "results" ? (
                   <Award className="w-5 h-5 text-purple-600" />
-                ) : viewMode === "analysis" ? (
+                ) : activeViewMode === "analysis" ? (
                   <PieChart className="w-5 h-5 text-indigo-600" />
                 ) : (
                   <FileSpreadsheet className="w-5 h-5 text-[#0D274C]" />
                 )}
                 <h3 className="text-base font-bold text-slate-900 flex items-center gap-2">
                   <span>
-                    {viewMode === "schedule"
+                    {activeViewMode === "schedule"
                       ? "Jadwal Pelaksanaan Ujian"
-                      : viewMode === "monitoring"
-                      ? "Status Siswa & Pemantauan Ujian Live"
-                      : viewMode === "results"
-                      ? "Hasil & Rekapitulasi Nilai Ujian"
-                      : viewMode === "analysis"
-                      ? "Analisis Butir Soal Ujian"
-                      : viewMode === "grades"
-                      ? "Rekap Nilai Siswa"
-                      : "Paket Ujian & Asesmen"}
+                      : activeViewMode === "monitoring"
+                        ? "Status Siswa & Pemantauan Ujian Live"
+                        : activeViewMode === "results"
+                          ? "Hasil & Rekapitulasi Nilai Ujian"
+                          : activeViewMode === "analysis"
+                            ? "Analisis Butir Soal Ujian"
+                            : activeViewMode === "grades"
+                              ? "Rekap Nilai Siswa"
+                              : "Paket Ujian & Asesmen"}
                   </span>
                   <span className="text-xs font-semibold px-2.5 py-0.5 rounded-full bg-slate-100 text-slate-600 border border-slate-200">
                     {examinations.length}
@@ -2107,43 +2297,22 @@ export default function TeacherExaminationPanel({
                 </h3>
               </div>
               <p className="text-xs text-slate-500 mt-0.5">
-                {viewMode === "schedule"
+                {activeViewMode === "schedule"
                   ? "Kelola jadwal ujian yang akan diadakan, pilih bank soal, tipe ujian, alokasi kelas, dan konfigurasi anti-cheat."
-                  : viewMode === "monitoring"
-                  ? "Pantau status pengerjaan peserta ujian, koneksi live, dan insiden anti-cheat secara real-time."
-                  : viewMode === "results"
-                  ? "Rekapitulasi skor ujian peserta didik, koreksi jawaban esai, dan ekspor nilai."
-                  : viewMode === "analysis"
-                  ? "Analisis butir soal, daya pembeda, dan tingkat kesukaran soal."
-                  : viewMode === "grades"
-                  ? "Rekap nilai akhir per rombongan belajar untuk pelaporan raport."
-                  : "Penyusunan jadwal asesmen, distribusi butir soal, dan konfigurasi proteksi anti-cheat ujian CBT."}
+                  : activeViewMode === "monitoring"
+                    ? "Pantau status pengerjaan peserta ujian, koneksi live, dan insiden anti-cheat secara real-time."
+                    : activeViewMode === "results"
+                      ? "Rekapitulasi skor ujian peserta didik, koreksi jawaban esai, dan ekspor nilai."
+                      : activeViewMode === "analysis"
+                        ? "Analisis butir soal, daya pembeda, dan tingkat kesukaran soal."
+                        : activeViewMode === "grades"
+                          ? "Rekap nilai akhir per rombongan belajar untuk pelaporan raport."
+                          : "Penyusunan jadwal asesmen, distribusi butir soal, dan konfigurasi proteksi anti-cheat ujian CBT."}
               </p>
             </div>
 
             <div className="flex items-center gap-2.5">
-              {assignments && assignments.length > 0 && (
-                <button
-                  type="button"
-                  onClick={() => setActiveTeacherTab("classes")}
-                  className="px-3.5 py-2 rounded-xl text-xs font-semibold text-slate-600 hover:text-slate-900 hover:bg-slate-100 border border-slate-200 flex items-center gap-1.5 transition cursor-pointer"
-                >
-                  <Layers className="w-3.5 h-3.5 text-slate-500" />
-                  <span>Kelas Diampu ({assignments.length})</span>
-                </button>
-              )}
-
-              {viewMode === "schedule" && (
-                <Link
-                  href={isAdmin ? "/admin/examinations/create" : "/teacher/examinations/create"}
-                  className="px-4 py-2 rounded-xl bg-[#65C443] hover:bg-[#57b237] text-white text-xs font-medium flex items-center gap-2 transition shadow-xs cursor-pointer"
-                >
-                  <Plus className="w-4 h-4" />
-                  <span>Buat Jadwal Ujian Baru</span>
-                </Link>
-              )}
-
-              {viewMode === "monitoring" && (
+              {activeViewMode === "monitoring" && (
                 <div className="flex items-center gap-2 px-3 py-1.5 rounded-xl bg-emerald-50 border border-emerald-200 text-emerald-800 text-xs font-semibold">
                   <span className="w-2 h-2 rounded-full bg-emerald-500 animate-ping" />
                   <span>Monitoring Live Aktif</span>
@@ -2152,460 +2321,473 @@ export default function TeacherExaminationPanel({
             </div>
           </div>
 
-      {/* ========================================================= */}
-      {/* TAB 1: BANK SOAL                                          */}
-      {/* ========================================================= */}
-      {activeTab === "questions" && (
-        <div className="space-y-4">
-          {/* Filter Bar */}
-          <div className="bg-white p-4 rounded-xl border border-slate-200 shadow-sm grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3">
-            <div className="relative">
-              <Search className="w-4 h-4 absolute left-3 top-3 text-slate-400" />
-              <input
-                type="text"
-                placeholder="Cari teks pertanyaan..."
-                value={questionSearch}
-                onChange={(e) => setQuestionSearch(e.target.value)}
-                onKeyDown={(e) => e.key === "Enter" && loadQuestions()}
-                className="w-full bg-slate-50 border border-slate-200 rounded-lg pl-9 pr-3 py-2 text-xs text-slate-900 placeholder-slate-400 focus:outline-none focus:border-[#65C443]"
-              />
-            </div>
+          {/* ========================================================= */}
+          {/* TAB 1: BANK SOAL                                          */}
+          {/* ========================================================= */}
+          {activeTab === "questions" && (
+            <div className="space-y-4">
+              {/* Filter Bar */}
+              <div className="bg-white p-4 rounded-xl border border-slate-200 shadow-sm grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3">
+                <div className="relative">
+                  <Search className="w-4 h-4 absolute left-3 top-3 text-slate-400" />
+                  <input
+                    type="text"
+                    placeholder="Cari teks pertanyaan..."
+                    value={questionSearch}
+                    onChange={(e) => setQuestionSearch(e.target.value)}
+                    onKeyDown={(e) => e.key === "Enter" && loadQuestions()}
+                    className="w-full bg-slate-50 border border-slate-200 rounded-lg pl-9 pr-3 py-2 text-xs text-slate-900 placeholder-slate-400 focus:outline-none focus:border-[#65C443]"
+                  />
+                </div>
 
-            <select
-              value={filterSubject}
-              onChange={(e) => setFilterSubject(e.target.value)}
-              className="bg-slate-50 border border-slate-200 rounded-lg px-3 py-2 text-xs text-slate-700 focus:outline-none focus:border-[#65C443]"
-            >
-              <option value="all">Semua Mata Pelajaran</option>
-              {subjects.map((s) => (
-                <option key={s.id} value={s.id}>
-                  {s.name} ({s.code})
-                </option>
-              ))}
-            </select>
-
-            <select
-              value={filterType}
-              onChange={(e) => setFilterType(e.target.value)}
-              className="bg-slate-50 border border-slate-200 rounded-lg px-3 py-2 text-xs text-slate-700 focus:outline-none focus:border-[#65C443]"
-            >
-              <option value="all">Semua Tipe Soal (6 Tipe)</option>
-              {QUESTION_TYPES.map((t) => (
-                <option key={t.id} value={t.id}>
-                  {t.label}
-                </option>
-              ))}
-            </select>
-
-            <select
-              value={filterDifficulty}
-              onChange={(e) => setFilterDifficulty(e.target.value)}
-              className="bg-slate-50 border border-slate-200 rounded-lg px-3 py-2 text-xs text-slate-700 focus:outline-none focus:border-[#65C443]"
-            >
-              <option value="all">Semua Tingkat Kesulitan</option>
-              <option value="easy">Mudah (Easy)</option>
-              <option value="medium">Sedang (Medium)</option>
-              <option value="hard">Sulit (Hard)</option>
-            </select>
-          </div>
-
-          {/* Question Cards Grid */}
-          {loadingQuestions ? (
-            <div className="p-12 text-center text-sm text-slate-400">Memuat butir soal...</div>
-          ) : questions.length === 0 ? (
-            <div className="bg-white p-12 text-center rounded-xl border border-slate-200 shadow-sm text-slate-500 space-y-3">
-              <BookOpen className="w-10 h-10 mx-auto text-slate-400" />
-              <div className="font-semibold text-slate-800">Belum Ada Soal di Bank Soal</div>
-              <p className="text-xs max-w-md mx-auto">
-                Buat butir soal pertama Anda dengan mengeklik tombol <strong>Buat Soal Baru</strong> di atas. Mendukung 6 tipe soal lengkap!
-              </p>
-            </div>
-          ) : (
-            <div className="space-y-3">
-              {questions.map((q, idx) => {
-                const currentVersion = q.versions[0];
-                const typeObj = QUESTION_TYPES.find((t) => t.id === q.type);
-
-                return (
-                  <div
-                    key={q.id}
-                    className="bg-white p-5 rounded-xl border border-slate-200 shadow-sm hover:shadow-md transition space-y-3"
-                  >
-                    <div className="flex items-center justify-between flex-wrap gap-2">
-                      <div className="flex items-center gap-2">
-                        <span className="text-xs font-mono font-bold text-slate-400">#{idx + 1}</span>
-                        <span className="px-2.5 py-0.5 rounded-full text-[11px] font-semibold bg-slate-100 text-[#0D274C] border border-slate-200">
-                          {typeObj?.badge || q.type}
-                        </span>
-                        {q.difficulty && (
-                          <span
-                            className={`px-2 py-0.5 rounded text-[10px] font-medium uppercase ${
-                              q.difficulty === "easy"
-                                ? "bg-emerald-50 text-emerald-700 border border-emerald-200"
-                                : q.difficulty === "hard"
-                                ? "bg-rose-50 text-rose-700 border border-rose-200"
-                                : "bg-amber-50 text-amber-700 border border-amber-200"
-                            }`}
-                          >
-                            {q.difficulty}
-                          </span>
-                        )}
-                        {q.subject && (
-                          <span className="text-xs text-slate-600 font-medium">
-                            • {q.subject.name}
-                          </span>
-                        )}
-                        {q.category && (
-                          <span className="text-[11px] text-slate-400">({q.category.name})</span>
-                        )}
-                      </div>
-
-                      <div className="flex items-center gap-2">
-                        <span className="text-xs text-slate-500 font-mono">
-                          Poin: <strong className="text-slate-900">{currentVersion?.gradingConfig.points || 1}</strong>
-                        </span>
-                        <span className="text-xs text-slate-400 font-mono">
-                          v{currentVersion?.versionNumber || 1}
-                        </span>
-                        <button
-                          onClick={() => openEditModal(q)}
-                          className="p-1.5 rounded-lg hover:bg-slate-100 text-slate-500 hover:text-[#0D274C] transition cursor-pointer"
-                          title="Edit Soal"
-                        >
-                          <Edit className="w-4 h-4" />
-                        </button>
-                        <button
-                          onClick={() => handleArchiveQuestion(q.id)}
-                          className="p-1.5 rounded-lg hover:bg-slate-100 text-slate-500 hover:text-rose-600 transition cursor-pointer"
-                          title="Arsipkan Soal"
-                        >
-                          <Trash2 className="w-4 h-4" />
-                        </button>
-                      </div>
-                    </div>
-
-                    {/* Question Content */}
-                    <div className="text-sm text-slate-800 font-medium leading-relaxed whitespace-pre-wrap">
-                      {currentVersion?.content.text}
-                    </div>
-
-                    {/* Image Preview if image_based */}
-                    {currentVersion?.content.imageUrl && (
-                      <div className="rounded-lg overflow-hidden border border-slate-200 max-w-sm">
-                        <img
-                          src={currentVersion.content.imageUrl}
-                          alt="Ilustrasi Soal"
-                          className="w-full h-auto object-cover max-h-48"
-                        />
-                      </div>
-                    )}
-
-                    {/* Options Preview for Choice Types */}
-                    {currentVersion?.options && currentVersion.options.length > 0 && (
-                      <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 pt-1">
-                        {currentVersion.options.map((opt) => (
-                          <div
-                            key={opt.id}
-                            className={`p-2.5 rounded-lg text-xs flex items-start gap-2 border ${
-                              opt.isCorrect
-                                ? "bg-emerald-50 border-emerald-300 text-emerald-800 font-semibold"
-                                : "bg-slate-50 border-slate-200 text-slate-700"
-                            }`}
-                          >
-                            <span className="font-mono px-1.5 py-0.5 rounded bg-slate-200 text-slate-700 text-[10px]">
-                              {opt.label}
-                            </span>
-                            <span className="flex-1">{opt.content.text}</span>
-                            {opt.isCorrect && <Check className="w-3.5 h-3.5 text-emerald-600 shrink-0 mt-0.5" />}
-                          </div>
-                        ))}
-                      </div>
-                    )}
-
-                    {/* Short Answer Preview */}
-                    {q.type === "short_answer" && (
-                      <div className="p-2.5 rounded-lg bg-emerald-50 border border-emerald-200 text-xs text-emerald-800 font-medium">
-                        Kunci Jawaban Isian: <strong className="text-[#0D274C] font-mono">{currentVersion?.gradingConfig.answerKey}</strong>
-                      </div>
-                    )}
-
-                    {/* Essay Instructions Preview */}
-                    {q.type === "essay" && currentVersion?.content.rubric && (
-                      <div className="p-2.5 rounded-lg bg-slate-50 border border-slate-200 text-xs text-slate-600">
-                        Pedoman Koreksi / Rubrik: <span className="text-slate-800">{currentVersion.content.rubric}</span>
-                      </div>
-                    )}
-                  </div>
-                );
-              })}
-            </div>
-          )}
-        </div>
-      )}
-
-      {/* ========================================================= */}
-      {/* TAB 2: MANAJEMEN UJIAN & ASESMEN                           */}
-      {/* ========================================================= */}
-      {activeTab === "examinations" && (
-        <div className="space-y-4">
-          {/* Filter Bar: Status Pills & Search */}
-          <div className="bg-white p-3.5 rounded-xl border border-slate-200 shadow-sm flex flex-col md:flex-row items-stretch md:items-center justify-between gap-3">
-            {/* Category Filter Pills */}
-            <div className="flex items-center gap-1.5 overflow-x-auto pb-1 md:pb-0 scrollbar-none">
-              {viewMode !== "monitoring" && viewMode !== "analysis" && viewMode !== "results" && viewMode !== "grades" && (
-                <button
-                  type="button"
-                  onClick={() => setExamCategoryFilter("all")}
-                  className={`px-3 py-1.5 rounded-lg text-xs font-semibold whitespace-nowrap transition cursor-pointer flex items-center gap-1.5 ${
-                    examCategoryFilter === "all"
-                      ? "bg-[#0D274C] text-white shadow-xs"
-                      : "bg-slate-100 hover:bg-slate-200 text-slate-700"
-                  }`}
-                >
-                  <span>Semua Ujian</span>
-                  <span className={`px-1.5 py-0.2 rounded-full text-[10px] font-bold ${
-                    examCategoryFilter === "all" ? "bg-white/20 text-white" : "bg-slate-200 text-slate-700"
-                  }`}>
-                    {categoryCounts.all}
-                  </span>
-                </button>
-              )}
-
-              <button
-                type="button"
-                onClick={() => setExamCategoryFilter("in_progress")}
-                className={`px-3 py-1.5 rounded-lg text-xs font-semibold whitespace-nowrap transition cursor-pointer flex items-center gap-1.5 ${
-                  examCategoryFilter === "in_progress"
-                    ? "bg-emerald-600 text-white shadow-xs"
-                    : "bg-emerald-50 hover:bg-emerald-100 text-emerald-800 border border-emerald-200"
-                }`}
-              >
-                <span className="w-2 h-2 rounded-full bg-emerald-500 animate-ping shrink-0" />
-                <span>Sedang Berjalan</span>
-                <span className={`px-1.5 py-0.2 rounded-full text-[10px] font-bold ${
-                  examCategoryFilter === "in_progress" ? "bg-white/25 text-white" : "bg-emerald-200 text-emerald-900"
-                }`}>
-                  {categoryCounts.in_progress}
-                </span>
-              </button>
-
-              {viewMode !== "monitoring" && viewMode !== "analysis" && viewMode !== "results" && viewMode !== "grades" && (
-                <button
-                  type="button"
-                  onClick={() => setExamCategoryFilter("upcoming")}
-                  className={`px-3 py-1.5 rounded-lg text-xs font-semibold whitespace-nowrap transition cursor-pointer flex items-center gap-1.5 ${
-                    examCategoryFilter === "upcoming"
-                      ? "bg-blue-600 text-white shadow-xs"
-                      : "bg-blue-50 hover:bg-blue-100 text-blue-800 border border-blue-200"
-                  }`}
-                >
-                  <Clock className="w-3.5 h-3.5 shrink-0" />
-                  <span>Akan Datang</span>
-                  <span className={`px-1.5 py-0.2 rounded-full text-[10px] font-bold ${
-                    examCategoryFilter === "upcoming" ? "bg-white/25 text-white" : "bg-blue-200 text-blue-900"
-                  }`}>
-                    {categoryCounts.upcoming}
-                  </span>
-                </button>
-              )}
-
-              <button
-                type="button"
-                onClick={() => setExamCategoryFilter("closed")}
-                className={`px-3 py-1.5 rounded-lg text-xs font-semibold whitespace-nowrap transition cursor-pointer flex items-center gap-1.5 ${
-                  examCategoryFilter === "closed"
-                    ? "bg-slate-700 text-white shadow-xs"
-                    : "bg-slate-100 hover:bg-slate-200 text-slate-700 border border-slate-200"
-                }`}
-              >
-                <CheckCircle2 className="w-3.5 h-3.5 shrink-0" />
-                <span>{viewMode === "monitoring" ? "Sudah Selesai" : "Selesai"}</span>
-                <span className={`px-1.5 py-0.2 rounded-full text-[10px] font-bold ${
-                  examCategoryFilter === "closed" ? "bg-white/25 text-white" : "bg-slate-200 text-slate-700"
-                }`}>
-                  {categoryCounts.closed}
-                </span>
-              </button>
-
-              {viewMode !== "monitoring" && viewMode !== "analysis" && viewMode !== "results" && viewMode !== "grades" && categoryCounts.draft > 0 && (
-                <button
-                  type="button"
-                  onClick={() => setExamCategoryFilter("draft")}
-                  className={`px-3 py-1.5 rounded-lg text-xs font-semibold whitespace-nowrap transition cursor-pointer flex items-center gap-1.5 ${
-                    examCategoryFilter === "draft"
-                      ? "bg-amber-600 text-white shadow-xs"
-                      : "bg-amber-50 hover:bg-amber-100 text-amber-800 border border-amber-200"
-                  }`}
-                >
-                  <span>Draft</span>
-                  <span className={`px-1.5 py-0.2 rounded-full text-[10px] font-bold ${
-                    examCategoryFilter === "draft" ? "bg-white/25 text-white" : "bg-amber-200 text-amber-900"
-                  }`}>
-                    {categoryCounts.draft}
-                  </span>
-                </button>
-              )}
-            </div>
-
-            {/* Search and Filters */}
-            <div className="flex items-center gap-2 flex-wrap">
-              <div className="relative flex-1 min-w-[180px] md:w-64">
-                <Search className="w-3.5 h-3.5 absolute left-3 top-2.5 text-slate-400" />
-                <input
-                  type="text"
-                  placeholder="Cari ujian / mapel..."
-                  value={examSearchFilter}
-                  onChange={(e) => setExamSearchFilter(e.target.value)}
-                  className="w-full bg-slate-50 border border-slate-200 rounded-lg pl-8 pr-7 py-1.5 text-xs text-slate-900 placeholder-slate-400 focus:outline-none focus:border-[#65C443]"
-                />
-                {examSearchFilter && (
-                  <button
-                    onClick={() => setExamSearchFilter("")}
-                    className="absolute right-2 top-2 text-slate-400 hover:text-slate-600"
-                  >
-                    <X className="w-3.5 h-3.5" />
-                  </button>
-                )}
-              </div>
-
-              {/* Filter Semester */}
-              {allAvailableSemesters.length > 0 && (
                 <select
-                  value={examSemesterFilter}
-                  onChange={(e) => setExamSemesterFilter(e.target.value)}
-                  className="bg-slate-50 border border-slate-200 rounded-lg px-2.5 py-1.5 text-xs text-slate-700 focus:outline-none focus:border-[#65C443] max-w-[175px]"
+                  value={filterSubject}
+                  onChange={(e) => setFilterSubject(e.target.value)}
+                  className="bg-slate-50 border border-slate-200 rounded-lg px-3 py-2 text-xs text-slate-700 focus:outline-none focus:border-[#65C443]"
                 >
-                  <option value="all">Semua Semester</option>
-                  {allAvailableSemesters.map((s) => (
-                    <option key={s.id} value={s.id}>
-                      {s.name} {s.academicYearName ? `(${s.academicYearName})` : ""} {s.status === "active" ? "• Aktif" : ""}
-                    </option>
-                  ))}
-                </select>
-              )}
-
-              {/* Filter Kelas / Rombel */}
-              <select
-                value={examClassFilter}
-                onChange={(e) => setExamClassFilter(e.target.value)}
-                className="bg-slate-50 border border-slate-200 rounded-lg px-2.5 py-1.5 text-xs text-slate-700 focus:outline-none focus:border-[#65C443] max-w-[170px]"
-              >
-                <option value="all">Semua Kelas / Rombel</option>
-                {allAvailableClasses.map((c) => (
-                  <option key={c.id} value={c.id}>
-                    {c.name}
-                  </option>
-                ))}
-              </select>
-
-              {/* Filter Jenis Ujian */}
-              {examinationTypes.length > 0 && (
-                <select
-                  value={examTypeFilter}
-                  onChange={(e) => setExamTypeFilter(e.target.value)}
-                  className="bg-slate-50 border border-slate-200 rounded-lg px-2.5 py-1.5 text-xs text-slate-700 focus:outline-none focus:border-[#65C443] max-w-[170px]"
-                >
-                  <option value="all">Semua Jenis Ujian</option>
-                  {examinationTypes.map((t) => (
-                    <option key={t.id} value={t.id}>
-                      [{t.code}] {t.name}
-                    </option>
-                  ))}
-                </select>
-              )}
-
-              {subjects.length > 1 && (
-                <select
-                  value={examSubjectFilter}
-                  onChange={(e) => setExamSubjectFilter(e.target.value)}
-                  className="bg-slate-50 border border-slate-200 rounded-lg px-2.5 py-1.5 text-xs text-slate-700 focus:outline-none focus:border-[#65C443] max-w-[150px]"
-                >
-                  <option value="all">Semua Mapel</option>
+                  <option value="all">Semua Mata Pelajaran</option>
                   {subjects.map((s) => (
                     <option key={s.id} value={s.id}>
-                      {s.code || s.name}
+                      {s.name} ({s.code})
                     </option>
                   ))}
                 </select>
+
+                <select
+                  value={filterType}
+                  onChange={(e) => setFilterType(e.target.value)}
+                  className="bg-slate-50 border border-slate-200 rounded-lg px-3 py-2 text-xs text-slate-700 focus:outline-none focus:border-[#65C443]"
+                >
+                  <option value="all">Semua Tipe Soal (6 Tipe)</option>
+                  {QUESTION_TYPES.map((t) => (
+                    <option key={t.id} value={t.id}>
+                      {t.label}
+                    </option>
+                  ))}
+                </select>
+
+                <select
+                  value={filterDifficulty}
+                  onChange={(e) => setFilterDifficulty(e.target.value)}
+                  className="bg-slate-50 border border-slate-200 rounded-lg px-3 py-2 text-xs text-slate-700 focus:outline-none focus:border-[#65C443]"
+                >
+                  <option value="all">Semua Tingkat Kesulitan</option>
+                  <option value="easy">Mudah (Easy)</option>
+                  <option value="medium">Sedang (Medium)</option>
+                  <option value="hard">Sulit (Hard)</option>
+                </select>
+              </div>
+
+              {/* Question Cards Grid */}
+              {loadingQuestions ? (
+                <div className="p-12 text-center text-sm text-slate-400">Memuat butir soal...</div>
+              ) : questions.length === 0 ? (
+                <div className="bg-white p-12 text-center rounded-xl border border-slate-200 shadow-sm text-slate-500 space-y-3">
+                  <BookOpen className="w-10 h-10 mx-auto text-slate-400" />
+                  <div className="font-semibold text-slate-800">Belum Ada Soal di Bank Soal</div>
+                  <p className="text-xs max-w-md mx-auto">
+                    Buat butir soal pertama Anda dengan mengeklik tombol <strong>Buat Soal Baru</strong> di atas. Mendukung 6 tipe soal lengkap!
+                  </p>
+                </div>
+              ) : (
+                <div className="space-y-3">
+                  {questions.map((q, idx) => {
+                    const currentVersion = q.versions[0];
+                    const typeObj = QUESTION_TYPES.find((t) => t.id === q.type);
+
+                    return (
+                      <div
+                        key={q.id}
+                        className="bg-white p-5 rounded-xl border border-slate-200 shadow-sm hover:shadow-md transition space-y-3"
+                      >
+                        <div className="flex items-center justify-between flex-wrap gap-2">
+                          <div className="flex items-center gap-2">
+                            <span className="text-xs font-mono font-bold text-slate-400">#{idx + 1}</span>
+                            <span className="px-2.5 py-0.5 rounded-full text-[11px] font-semibold bg-slate-100 text-[#0D274C] border border-slate-200">
+                              {typeObj?.badge || q.type}
+                            </span>
+                            {q.difficulty && (
+                              <span
+                                className={`px-2 py-0.5 rounded text-[10px] font-medium uppercase ${q.difficulty === "easy"
+                                  ? "bg-emerald-50 text-emerald-700 border border-emerald-200"
+                                  : q.difficulty === "hard"
+                                    ? "bg-rose-50 text-rose-700 border border-rose-200"
+                                    : "bg-amber-50 text-amber-700 border border-amber-200"
+                                  }`}
+                              >
+                                {q.difficulty}
+                              </span>
+                            )}
+                            {q.subject && (
+                              <span className="text-xs text-slate-600 font-medium">
+                                • {q.subject.name}
+                              </span>
+                            )}
+                            {q.category && (
+                              <span className="text-[11px] text-slate-400">({q.category.name})</span>
+                            )}
+                          </div>
+
+                          <div className="flex items-center gap-2">
+                            <span className="text-xs text-slate-500 font-mono">
+                              Poin: <strong className="text-slate-900">{currentVersion?.gradingConfig.points || 1}</strong>
+                            </span>
+                            <span className="text-xs text-slate-400 font-mono">
+                              v{currentVersion?.versionNumber || 1}
+                            </span>
+                            <button
+                              onClick={() => openEditModal(q)}
+                              className="p-1.5 rounded-lg hover:bg-slate-100 text-slate-500 hover:text-[#0D274C] transition cursor-pointer"
+                              title="Edit Soal"
+                            >
+                              <Edit className="w-4 h-4" />
+                            </button>
+                            <button
+                              onClick={() => handleArchiveQuestion(q.id)}
+                              className="p-1.5 rounded-lg hover:bg-slate-100 text-slate-500 hover:text-rose-600 transition cursor-pointer"
+                              title="Arsipkan Soal"
+                            >
+                              <Trash2 className="w-4 h-4" />
+                            </button>
+                          </div>
+                        </div>
+
+                        {/* Question Content */}
+                        <div className="text-sm text-slate-800 font-medium leading-relaxed whitespace-pre-wrap">
+                          {currentVersion?.content.text}
+                        </div>
+
+                        {/* Image Preview if image_based */}
+                        {currentVersion?.content.imageUrl && (
+                          <div className="rounded-lg overflow-hidden border border-slate-200 max-w-sm">
+                            <img
+                              src={currentVersion.content.imageUrl}
+                              alt="Ilustrasi Soal"
+                              className="w-full h-auto object-cover max-h-48"
+                            />
+                          </div>
+                        )}
+
+                        {/* Options Preview for Choice Types */}
+                        {currentVersion?.options && currentVersion.options.length > 0 && (
+                          <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 pt-1">
+                            {currentVersion.options.map((opt) => (
+                              <div
+                                key={opt.id}
+                                className={`p-2.5 rounded-lg text-xs flex items-start gap-2 border ${opt.isCorrect
+                                  ? "bg-emerald-50 border-emerald-300 text-emerald-800 font-semibold"
+                                  : "bg-slate-50 border-slate-200 text-slate-700"
+                                  }`}
+                              >
+                                <span className="font-mono px-1.5 py-0.5 rounded bg-slate-200 text-slate-700 text-[10px]">
+                                  {opt.label}
+                                </span>
+                                <span className="flex-1">{opt.content.text}</span>
+                                {opt.isCorrect && <Check className="w-3.5 h-3.5 text-emerald-600 shrink-0 mt-0.5" />}
+                              </div>
+                            ))}
+                          </div>
+                        )}
+
+                        {/* Short Answer Preview */}
+                        {q.type === "short_answer" && (
+                          <div className="p-2.5 rounded-lg bg-emerald-50 border border-emerald-200 text-xs text-emerald-800 font-medium">
+                            Kunci Jawaban Isian: <strong className="text-[#0D274C] font-mono">{currentVersion?.gradingConfig.answerKey}</strong>
+                          </div>
+                        )}
+
+                        {/* Essay Instructions Preview */}
+                        {q.type === "essay" && currentVersion?.content.rubric && (
+                          <div className="p-2.5 rounded-lg bg-slate-50 border border-slate-200 text-xs text-slate-600">
+                            Pedoman Koreksi / Rubrik: <span className="text-slate-800">{currentVersion.content.rubric}</span>
+                          </div>
+                        )}
+                      </div>
+                    );
+                  })}
+                </div>
               )}
             </div>
-          </div>
+          )}
 
-          {/* Examinations List / Groups */}
-          {loadingExams ? (
-            <div className="p-12 text-center text-sm text-slate-400">Memuat paket ujian...</div>
-          ) : examinations.length === 0 ? (
-            <div className="bg-white p-12 text-center rounded-xl border border-slate-200 shadow-sm text-slate-500 space-y-3">
-              <Activity className="w-10 h-10 mx-auto text-slate-400" />
-              <div className="font-semibold text-slate-800">Belum Ada Sesi Ujian</div>
-              <p className="text-xs max-w-md mx-auto">
-                {viewMode === "monitoring"
-                  ? "Sesi ujian yang dijadwalkan akan muncul di sini untuk pengawasan status live peserta."
-                  : "Klik tombol Buat Jadwal Ujian Baru untuk menyusun paket asesmen lengkap."}
-              </p>
-            </div>
-          ) : groupedByTypeExaminations.length === 0 ? (
-            <div className="bg-white p-10 text-center rounded-xl border border-slate-200 shadow-sm text-slate-500 space-y-3">
-              <Search className="w-8 h-8 mx-auto text-slate-300" />
-              <div className="font-semibold text-slate-800">Tidak Ada Ujian yang Sesuai Filter</div>
-              <p className="text-xs text-slate-500 max-w-sm mx-auto">
-                Tidak ditemukan sesi ujian yang sesuai dengan kriteria filter kelas, jenis ujian, status, atau pencarian Anda.
-              </p>
-              <button
-                type="button"
-                onClick={() => {
-                  setExamSearchFilter("");
-                  setExamSubjectFilter("all");
-                  setExamClassFilter("all");
-                  setExamTypeFilter("all");
-                  setExamSemesterFilter(activeSemesterId || "all");
-                  setExamYearFilter(activeYearId || "all");
-                  setExamCategoryFilter(viewMode === "monitoring" ? "in_progress" : "all");
-                }}
-                className="px-3 py-1.5 rounded-lg bg-slate-100 hover:bg-slate-200 text-xs font-semibold text-slate-700 transition cursor-pointer"
-              >
-                Reset Filter
-              </button>
-            </div>
-          ) : (
-            <div className="space-y-6">
-              {groupedByTypeExaminations.map((group) => (
-                <div key={group.typeId} className="space-y-3">
-                  <div className="flex items-center justify-between pb-2.5 border-b border-slate-200 flex-wrap gap-2">
-                    <div className="flex items-center gap-2.5">
-                      <span className="p-1.5 rounded-lg bg-amber-50 text-amber-800 border border-amber-200 font-mono font-bold text-xs tracking-wider">
-                        {group.typeCode}
+          {/* ========================================================= */}
+          {/* TAB 2: MANAJEMEN UJIAN & ASESMEN                           */}
+          {/* ========================================================= */}
+          {activeTab === "examinations" && (
+            <div className="space-y-4">
+              {/* Filter Bar: Status Pills & Search */}
+              <div className="bg-white p-3.5 rounded-xl border border-slate-200 shadow-sm flex flex-col md:flex-row items-stretch md:items-center justify-between gap-3">
+                {/* Category Filter Pills */}
+                <div className="flex items-center gap-1.5 overflow-x-auto pb-1 md:pb-0 scrollbar-none">
+                  {activeViewMode !== "monitoring" && activeViewMode !== "analysis" && activeViewMode !== "results" && activeViewMode !== "grades" && (
+                    <button
+                      type="button"
+                      onClick={() => setExamCategoryFilter("all")}
+                      className={`px-3 py-1.5 rounded-lg text-xs font-semibold whitespace-nowrap transition cursor-pointer flex items-center gap-1.5 ${examCategoryFilter === "all"
+                        ? "bg-[#0D274C] text-white shadow-xs"
+                        : "bg-slate-100 hover:bg-slate-200 text-slate-700"
+                        }`}
+                    >
+                      <span>Semua Ujian</span>
+                      <span className={`px-1.5 py-0.2 rounded-full text-[10px] font-bold ${examCategoryFilter === "all" ? "bg-white/20 text-white" : "bg-slate-200 text-slate-700"
+                        }`}>
+                        {categoryCounts.all}
                       </span>
-                      <h4 className="text-sm font-bold text-slate-900 flex items-center gap-2">
-                        <span>{group.typeName}</span>
-                        <span className="px-2 py-0.5 rounded-full text-[11px] font-bold bg-slate-100 text-slate-700 border border-slate-200">
-                          {group.exams.length} Ujian
-                        </span>
-                      </h4>
-                    </div>
-                    <div className="flex items-center gap-2 text-xs font-semibold">
-                      {viewMode === "monitoring" && group.activeStudentsCount > 0 ? (
-                        <span className="flex items-center gap-1.5 text-emerald-700 bg-emerald-50 px-2.5 py-1 rounded-lg border border-emerald-200">
-                          <span className="w-2 h-2 rounded-full bg-emerald-500 animate-ping" />
-                          {group.activeStudentsCount} Siswa Aktif Live
-                        </span>
-                      ) : (
-                        <span className="text-slate-500">{group.totalParticipantsCount} Peserta Terdaftar</span>
-                      )}
-                    </div>
+                    </button>
+                  )}
+
+                  <button
+                    type="button"
+                    onClick={() => setExamCategoryFilter("in_progress")}
+                    className={`px-3 py-1.5 rounded-lg text-xs font-semibold whitespace-nowrap transition cursor-pointer flex items-center gap-1.5 ${examCategoryFilter === "in_progress"
+                      ? "bg-emerald-600 text-white shadow-xs"
+                      : "bg-emerald-50 hover:bg-emerald-100 text-emerald-800 border border-emerald-200"
+                      }`}
+                  >
+                    <span className="w-2 h-2 rounded-full bg-emerald-500 animate-ping shrink-0" />
+                    <span>Sedang Berjalan</span>
+                    <span className={`px-1.5 py-0.2 rounded-full text-[10px] font-bold ${examCategoryFilter === "in_progress" ? "bg-white/25 text-white" : "bg-emerald-200 text-emerald-900"
+                      }`}>
+                      {categoryCounts.in_progress}
+                    </span>
+                  </button>
+
+                  {/* Filter Khusus: Tugas Pengawas Saya */}
+                  {currentTeacherId && (
+                    <button
+                      type="button"
+                      onClick={() => setExamCategoryFilter("proctor")}
+                      className={`px-3 py-1.5 rounded-lg text-xs font-semibold whitespace-nowrap transition cursor-pointer flex items-center gap-1.5 ${
+                        examCategoryFilter === "proctor"
+                          ? "bg-indigo-600 text-white shadow-xs"
+                          : "bg-indigo-50 hover:bg-indigo-100 text-indigo-800 border border-indigo-200"
+                      }`}
+                    >
+                      <UserCheck className="w-3.5 h-3.5 shrink-0" />
+                      <span>Tugas Pengawas Saya</span>
+                      <span
+                        className={`px-1.5 py-0.2 rounded-full text-[10px] font-bold ${
+                          examCategoryFilter === "proctor"
+                            ? "bg-white/25 text-white"
+                            : "bg-indigo-200 text-indigo-900"
+                        }`}
+                      >
+                        {categoryCounts.proctor}
+                      </span>
+                    </button>
+                  )}
+
+                  {activeViewMode !== "monitoring" && activeViewMode !== "analysis" && activeViewMode !== "results" && activeViewMode !== "grades" && (
+                    <button
+                      type="button"
+                      onClick={() => setExamCategoryFilter("upcoming")}
+                      className={`px-3 py-1.5 rounded-lg text-xs font-semibold whitespace-nowrap transition cursor-pointer flex items-center gap-1.5 ${examCategoryFilter === "upcoming"
+                        ? "bg-blue-600 text-white shadow-xs"
+                        : "bg-blue-50 hover:bg-blue-100 text-blue-800 border border-blue-200"
+                        }`}
+                    >
+                      <Clock className="w-3.5 h-3.5 shrink-0" />
+                      <span>Akan Datang</span>
+                      <span className={`px-1.5 py-0.2 rounded-full text-[10px] font-bold ${examCategoryFilter === "upcoming" ? "bg-white/25 text-white" : "bg-blue-200 text-blue-900"
+                        }`}>
+                        {categoryCounts.upcoming}
+                      </span>
+                    </button>
+                  )}
+
+                  <button
+                    type="button"
+                    onClick={() => setExamCategoryFilter("closed")}
+                    className={`px-3 py-1.5 rounded-lg text-xs font-semibold whitespace-nowrap transition cursor-pointer flex items-center gap-1.5 ${examCategoryFilter === "closed"
+                      ? "bg-slate-700 text-white shadow-xs"
+                      : "bg-slate-100 hover:bg-slate-200 text-slate-700 border border-slate-200"
+                      }`}
+                  >
+                    <CheckCircle2 className="w-3.5 h-3.5 shrink-0" />
+                    <span>{activeViewMode === "monitoring" ? "Sudah Selesai" : "Selesai"}</span>
+                    <span className={`px-1.5 py-0.2 rounded-full text-[10px] font-bold ${examCategoryFilter === "closed" ? "bg-white/25 text-white" : "bg-slate-200 text-slate-700"
+                      }`}>
+                      {categoryCounts.closed}
+                    </span>
+                  </button>
+
+                  {activeViewMode !== "monitoring" && activeViewMode !== "analysis" && activeViewMode !== "results" && activeViewMode !== "grades" && categoryCounts.draft > 0 && (
+                    <button
+                      type="button"
+                      onClick={() => setExamCategoryFilter("draft")}
+                      className={`px-3 py-1.5 rounded-lg text-xs font-semibold whitespace-nowrap transition cursor-pointer flex items-center gap-1.5 ${examCategoryFilter === "draft"
+                        ? "bg-amber-600 text-white shadow-xs"
+                        : "bg-amber-50 hover:bg-amber-100 text-amber-800 border border-amber-200"
+                        }`}
+                    >
+                      <span>Draft</span>
+                      <span className={`px-1.5 py-0.2 rounded-full text-[10px] font-bold ${examCategoryFilter === "draft" ? "bg-white/25 text-white" : "bg-amber-200 text-amber-900"
+                        }`}>
+                        {categoryCounts.draft}
+                      </span>
+                    </button>
+                  )}
+                </div>
+
+                {/* Search and Filters */}
+                <div className="flex items-center gap-2 flex-wrap">
+                  <div className="relative flex-1 min-w-[180px] md:w-64">
+                    <Search className="w-3.5 h-3.5 absolute left-3 top-2.5 text-slate-400" />
+                    <input
+                      type="text"
+                      placeholder="Cari ujian / mapel..."
+                      value={examSearchFilter}
+                      onChange={(e) => setExamSearchFilter(e.target.value)}
+                      className="w-full bg-slate-50 border border-slate-200 rounded-lg pl-8 pr-7 py-1.5 text-xs text-slate-900 placeholder-slate-400 focus:outline-none focus:border-[#65C443]"
+                    />
+                    {examSearchFilter && (
+                      <button
+                        onClick={() => setExamSearchFilter("")}
+                        className="absolute right-2 top-2 text-slate-400 hover:text-slate-600"
+                      >
+                        <X className="w-3.5 h-3.5" />
+                      </button>
+                    )}
                   </div>
 
-                  <div className="grid grid-cols-1 gap-4">
-                    {group.exams.map(viewMode === "monitoring" ? renderMonitoringExamCard : renderExamCard)}
-                  </div>
+                  {/* Filter Semester */}
+                  {allAvailableSemesters.length > 0 && (
+                    <select
+                      value={examSemesterFilter}
+                      onChange={(e) => setExamSemesterFilter(e.target.value)}
+                      className="bg-slate-50 border border-slate-200 rounded-lg px-2.5 py-1.5 text-xs text-slate-700 focus:outline-none focus:border-[#65C443] max-w-[175px]"
+                    >
+                      <option value="all">Semua Semester</option>
+                      {allAvailableSemesters.map((s) => (
+                        <option key={s.id} value={s.id}>
+                          {s.name} {s.academicYearName ? `(${s.academicYearName})` : ""} {s.status === "active" ? "• Aktif" : ""}
+                        </option>
+                      ))}
+                    </select>
+                  )}
+
+                  {/* Filter Kelas / Rombel */}
+                  <select
+                    value={examClassFilter}
+                    onChange={(e) => setExamClassFilter(e.target.value)}
+                    className="bg-slate-50 border border-slate-200 rounded-lg px-2.5 py-1.5 text-xs text-slate-700 focus:outline-none focus:border-[#65C443] max-w-[170px]"
+                  >
+                    <option value="all">Semua Kelas / Rombel</option>
+                    {allAvailableClasses.map((c) => (
+                      <option key={c.id} value={c.id}>
+                        {c.name}
+                      </option>
+                    ))}
+                  </select>
+
+                  {/* Filter Jenis Ujian */}
+                  {examinationTypes.length > 0 && (
+                    <select
+                      value={examTypeFilter}
+                      onChange={(e) => setExamTypeFilter(e.target.value)}
+                      className="bg-slate-50 border border-slate-200 rounded-lg px-2.5 py-1.5 text-xs text-slate-700 focus:outline-none focus:border-[#65C443] max-w-[170px]"
+                    >
+                      <option value="all">Semua Jenis Ujian</option>
+                      {examinationTypes.map((t) => (
+                        <option key={t.id} value={t.id}>
+                          [{t.code}] {t.name}
+                        </option>
+                      ))}
+                    </select>
+                  )}
+
+                  {subjects.length > 1 && (
+                    <select
+                      value={examSubjectFilter}
+                      onChange={(e) => setExamSubjectFilter(e.target.value)}
+                      className="bg-slate-50 border border-slate-200 rounded-lg px-2.5 py-1.5 text-xs text-slate-700 focus:outline-none focus:border-[#65C443] max-w-[150px]"
+                    >
+                      <option value="all">Semua Mapel</option>
+                      {subjects.map((s) => (
+                        <option key={s.id} value={s.id}>
+                          {s.code || s.name}
+                        </option>
+                      ))}
+                    </select>
+                  )}
                 </div>
-              ))}
+              </div>
+
+              {/* Examinations List / Groups */}
+              {loadingExams ? (
+                <div className="p-12 text-center text-sm text-slate-400">Memuat paket ujian...</div>
+              ) : examinations.length === 0 ? (
+                <div className="bg-white p-12 text-center rounded-xl border border-slate-200 shadow-sm text-slate-500 space-y-3">
+                  <Activity className="w-10 h-10 mx-auto text-slate-400" />
+                  <div className="font-semibold text-slate-800">Belum Ada Sesi Ujian</div>
+                  <p className="text-xs max-w-md mx-auto">
+                    {activeViewMode === "monitoring"
+                      ? "Sesi ujian yang dijadwalkan akan muncul di sini untuk pengawasan status live peserta."
+                      : "Klik tombol Buat Jadwal Ujian Baru untuk menyusun paket asesmen lengkap."}
+                  </p>
+                </div>
+              ) : groupedByTypeExaminations.length === 0 ? (
+                <div className="bg-white p-10 text-center rounded-xl border border-slate-200 shadow-sm text-slate-500 space-y-3">
+                  <Search className="w-8 h-8 mx-auto text-slate-300" />
+                  <div className="font-semibold text-slate-800">Tidak Ada Ujian yang Sesuai Filter</div>
+                  <p className="text-xs text-slate-500 max-w-sm mx-auto">
+                    Tidak ditemukan sesi ujian yang sesuai dengan kriteria filter kelas, jenis ujian, status, atau pencarian Anda.
+                  </p>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setExamSearchFilter("");
+                      setExamSubjectFilter("all");
+                      setExamClassFilter("all");
+                      setExamTypeFilter("all");
+                      setExamSemesterFilter(activeSemesterId || "all");
+                      setExamYearFilter(activeYearId || "all");
+                      setExamCategoryFilter(activeViewMode === "monitoring" ? "in_progress" : "all");
+                    }}
+                    className="px-3 py-1.5 rounded-lg bg-slate-100 hover:bg-slate-200 text-xs font-semibold text-slate-700 transition cursor-pointer"
+                  >
+                    Reset Filter
+                  </button>
+                </div>
+              ) : (
+                <div className="space-y-6">
+                  {groupedByTypeExaminations.map((group) => (
+                    <div key={group.typeId} className="space-y-3">
+                      <div className="flex items-center justify-between pb-2.5 border-b border-slate-200 flex-wrap gap-2">
+                        <div className="flex items-center gap-2.5">
+                          <span className="p-1.5 rounded-lg bg-amber-50 text-amber-800 border border-amber-200 font-mono font-bold text-xs tracking-wider">
+                            {group.typeCode}
+                          </span>
+                          <h4 className="text-sm font-bold text-slate-900 flex items-center gap-2">
+                            <span>{group.typeName}</span>
+                            <span className="px-2 py-0.5 rounded-full text-[11px] font-bold bg-slate-100 text-slate-700 border border-slate-200">
+                              {group.exams.length} Ujian
+                            </span>
+                          </h4>
+                        </div>
+                        <div className="flex items-center gap-2 text-xs font-semibold">
+                          {activeViewMode === "monitoring" && group.activeStudentsCount > 0 ? (
+                            <span className="flex items-center gap-1.5 text-emerald-700 bg-emerald-50 px-2.5 py-1 rounded-lg border border-emerald-200">
+                              <span className="w-2 h-2 rounded-full bg-emerald-500 animate-ping" />
+                              {group.activeStudentsCount} Siswa Aktif Live
+                            </span>
+                          ) : (
+                            <span className="text-slate-500">{group.totalParticipantsCount} Peserta Terdaftar</span>
+                          )}
+                        </div>
+                      </div>
+
+                      <div className="grid grid-cols-1 gap-4">
+                        {group.exams.map(activeViewMode === "monitoring" ? renderMonitoringExamCard : renderExamCard)}
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              )}
             </div>
           )}
         </div>
       )}
-    </div>
-  )}
 
       {/* ========================================================= */}
       {/* MODAL: BUAT / EDIT BUTIR SOAL                             */}
@@ -2777,11 +2959,10 @@ export default function TeacherExaminationPanel({
                               setQOptions(qOptions.map((o, i) => (i === idx ? { ...o, isCorrect: !o.isCorrect } : o)));
                             }
                           }}
-                          className={`w-7 h-7 rounded-lg flex items-center justify-center font-bold text-xs shrink-0 cursor-pointer transition ${
-                            opt.isCorrect
-                              ? "bg-[#65C443] text-white shadow-xs"
-                              : "bg-slate-100 text-slate-600 hover:bg-slate-200 border border-slate-200"
-                          }`}
+                          className={`w-7 h-7 rounded-lg flex items-center justify-center font-bold text-xs shrink-0 cursor-pointer transition ${opt.isCorrect
+                            ? "bg-[#65C443] text-white shadow-xs"
+                            : "bg-slate-100 text-slate-600 hover:bg-slate-200 border border-slate-200"
+                            }`}
                           title={opt.isCorrect ? "Kunci Benar" : "Tandai Benar"}
                         >
                           {opt.label}
@@ -2928,8 +3109,8 @@ export default function TeacherExaminationPanel({
               const rawList = subjectQuestions.length > 0
                 ? subjectQuestions
                 : questions.filter(
-                    (q) => !managingExamQuestions.subjectId || q.subjectId === managingExamQuestions.subjectId
-                  );
+                  (q) => !managingExamQuestions.subjectId || q.subjectId === managingExamQuestions.subjectId
+                );
 
               const displayedModalBanks =
                 examModalGradeFilter === "all"
@@ -3046,16 +3227,15 @@ export default function TeacherExaminationPanel({
                                 setSelectedQuestionIds([...selectedQuestionIds, q.id]);
                               }
                             }}
-                            className={`p-3.5 rounded-xl border text-xs cursor-pointer transition flex items-start gap-3 ${
-                              isSelected
-                                ? "bg-emerald-50 border-emerald-300 text-emerald-900 font-medium shadow-xs"
-                                : "bg-slate-50 border-slate-200 text-slate-700 hover:bg-slate-100"
-                            }`}
+                            className={`p-3.5 rounded-xl border text-xs cursor-pointer transition flex items-start gap-3 ${isSelected
+                              ? "bg-emerald-50 border-emerald-300 text-emerald-900 font-medium shadow-xs"
+                              : "bg-slate-50 border-slate-200 text-slate-700 hover:bg-slate-100"
+                              }`}
                           >
                             <input
                               type="checkbox"
                               checked={isSelected}
-                              onChange={() => {}}
+                              onChange={() => { }}
                               className="mt-1 rounded accent-[#65C443] cursor-pointer"
                             />
                             <div className="flex-1 min-w-0">
@@ -3147,11 +3327,10 @@ export default function TeacherExaminationPanel({
                   return (
                     <label
                       key={cg.id}
-                      className={`p-3 rounded-xl border text-xs cursor-pointer transition flex items-center gap-3 ${
-                        isChecked
-                          ? "bg-emerald-50 border-emerald-300 text-emerald-900 font-semibold"
-                          : "bg-slate-50 border-slate-200 text-slate-700 hover:bg-slate-100"
-                      }`}
+                      className={`p-3 rounded-xl border text-xs cursor-pointer transition flex items-center gap-3 ${isChecked
+                        ? "bg-emerald-50 border-emerald-300 text-emerald-900 font-semibold"
+                        : "bg-slate-50 border-slate-200 text-slate-700 hover:bg-slate-100"
+                        }`}
                     >
                       <input
                         type="checkbox"

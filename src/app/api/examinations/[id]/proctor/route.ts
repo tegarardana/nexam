@@ -129,6 +129,22 @@ export async function GET(
       return NextResponse.json({ success: false, error: "Ujian tidak ditemukan." }, { status: 404 });
     }
 
+    const isAdmin = session.user.roles.includes("administrator");
+    const isCreator = examination.createdById === session.user.id;
+    const isAssignedProctor = examination.proctorAssignments.some(
+      (pa) => pa.proctorId === session.user.id
+    );
+
+    if (!isAdmin && !isCreator && !isAssignedProctor) {
+      return NextResponse.json(
+        {
+          success: false,
+          error: "Akses ditolak: Anda bukan pembuat ujian atau pengawas yang ditugaskan pada ujian ini.",
+        },
+        { status: 403 }
+      );
+    }
+
     const attemptIds = examination.attempts.map((a) => a.id);
     const recentEvents = await prisma.examinationEvent.findMany({
       where: {

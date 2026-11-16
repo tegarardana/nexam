@@ -96,4 +96,27 @@ describe("Phase 2: Examination Lifecycle & Validation", () => {
     expect(VALID_EXAM_TRANSITIONS.archived).toContain("scheduled");
     expect(VALID_EXAM_TRANSITIONS.archived).toContain("ready");
   });
+
+  it("validates proctor assignments schema with room names", () => {
+    const examWithProctors = {
+      title: "Ujian dengan Pengawas Khusus",
+      academicYearId: "a0eebc99-9c0b-4ef8-bb6d-6bb9bd380a11",
+      semesterId: "b0eebc99-9c0b-4ef8-bb6d-6bb9bd380a22",
+      durationMinutes: 90,
+      scheduledStart: new Date("2026-11-01T08:00:00Z"),
+      scheduledEnd: new Date("2026-11-01T10:00:00Z"),
+      proctorIds: ["c0eebc99-9c0b-4ef8-bb6d-6bb9bd380a33"],
+      proctors: [
+        {
+          proctorId: "c0eebc99-9c0b-4ef8-bb6d-6bb9bd380a33",
+          roomName: "Ruang Lab Komputer 1",
+        },
+      ],
+    };
+    const res = CreateExaminationSchema.safeParse(examWithProctors);
+    expect(res.success).toBe(true);
+    if (res.success) {
+      expect(res.data.proctors?.[0]?.roomName).toBe("Ruang Lab Komputer 1");
+    }
+  });
 });

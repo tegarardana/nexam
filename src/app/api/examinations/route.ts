@@ -15,6 +15,27 @@ export async function GET(request: NextRequest) {
   const subjectId = searchParams.get("subjectId");
   const academicYearId = searchParams.get("academicYearId");
   const semesterId = searchParams.get("semesterId");
+  const proctorOnly = searchParams.get("proctorOnly") === "true";
+
+  const isAdmin = session.user.roles.includes("administrator");
+  const isTeacher = session.user.roles.includes("teacher");
+
+  // Non-admin teachers can only access exams they created OR exams they are assigned to proctor
+  let accessFilter = {};
+  if (!isAdmin && isTeacher) {
+    if (proctorOnly) {
+      accessFilter = {
+        proctorAssignments: { some: { proctorId: session.user.id } },
+      };
+    } else {
+      accessFilter = {
+        OR: [
+          { createdById: session.user.id },
+          { proctorAssignments: { some: { proctorId: session.user.id } } },
+        ],
+      };
+    }
+  }
 
   try {
     const { syncExaminationStates } = await import("@/lib/examination-state");
@@ -26,6 +47,7 @@ export async function GET(request: NextRequest) {
         subjectId: subjectId || undefined,
         academicYearId: academicYearId || undefined,
         semesterId: semesterId || undefined,
+        ...accessFilter,
       },
       include: {
         subject: { select: { id: true, name: true, code: true } },
@@ -149,18 +171,18 @@ export async function POST(request: NextRequest) {
       const computedBlockThreshold = !polBlockOnViolation
         ? 9999
         : polMaxTabSwitches === 0
-        ? 1
-        : polMaxTabSwitches;
+          ? 1
+          : polMaxTabSwitches;
       const computedWarnThreshold = !polBlockOnViolation
         ? 9999
         : polMaxTabSwitches === 0
-        ? 0
-        : 1;
+          ? 0
+          : 1;
       const computedMode = !polBlockOnViolation
         ? "practice"
         : polMaxTabSwitches === 0
-        ? "strict"
-        : "standard";
+          ? "strict"
+          : "standard";
 
       await tx.examinationPolicySetting.create({
         data: {

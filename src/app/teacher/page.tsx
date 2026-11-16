@@ -1,4 +1,5 @@
 import React from "react";
+import Link from "next/link";
 import { redirect } from "next/navigation";
 import { getCurrentSession } from "@/lib/auth/session";
 import prisma from "@/lib/prisma";
@@ -8,18 +9,22 @@ import { formatNameWithTitle } from "@/lib/format-user";
 import {
   BookOpen,
   Users,
-  FileSpreadsheet,
   MonitorCheck,
-  CheckCircle2,
-  Clock,
-  Sparkles,
-  Layers,
+  ShieldAlert,
   ArrowRight,
 } from "lucide-react";
 
 export const dynamic = "force-dynamic";
 
-export default async function TeacherDashboardPage() {
+interface TeacherDashboardPageProps {
+  searchParams?: Promise<{
+    tab?: string;
+    view?: string;
+  }>;
+}
+
+export default async function TeacherDashboardPage(props: TeacherDashboardPageProps) {
+  const searchParams = props.searchParams ? await props.searchParams : undefined;
   const session = await getCurrentSession();
 
   if (!session) {
@@ -33,7 +38,7 @@ export default async function TeacherDashboardPage() {
   });
 
   // Query platform resources for examination & question creation
-  const [allSubjects, academicYears, semesters, classGroups, allTeachers] = await Promise.all([
+  const [allSubjects, academicYears, semesters, classGroups, allTeachers, assignedProctorCount] = await Promise.all([
     prisma.subject.findMany({
       where: { isActive: true, archivedAt: null },
       orderBy: { name: "asc" },
@@ -67,6 +72,14 @@ export default async function TeacherDashboardPage() {
         email: true,
       },
     }),
+    prisma.examinationProctorAssignment.count({
+      where: {
+        proctorId: session.user.id,
+        examination: {
+          status: { in: ["scheduled", "in_progress", "ready"] },
+        },
+      },
+    }),
   ]);
 
   // Teacher subject offerings
@@ -93,6 +106,12 @@ export default async function TeacherDashboardPage() {
     0
   );
 
+  const validViewModes = ["schedule", "monitoring", "results", "analysis", "grades"] as const;
+  const initialViewMode =
+    searchParams?.view && validViewModes.includes(searchParams.view as (typeof validViewModes)[number])
+      ? (searchParams.view as (typeof validViewModes)[number])
+      : "schedule";
+
   return (
     <div className="min-h-screen bg-[#F8FAFC] flex flex-col">
       <Header
@@ -118,14 +137,42 @@ export default async function TeacherDashboardPage() {
               </p>
             </div>
 
-            <div className="flex items-center gap-3 bg-green-50 border border-green-200 p-3.5 rounded-xl shadow-xs">
-              <div className="w-10 h-10 rounded-lg bg-white border border-green-200 flex items-center justify-center text-green-600 shadow-xs">
-                <Users className="w-5 h-5 text-[#65C443]" />
+            <div className="flex flex-wrap items-center gap-3">
+              <div className="flex items-center gap-3 bg-green-50 border border-green-200 p-3.5 rounded-xl shadow-xs">
+                <div className="w-10 h-10 rounded-lg bg-white border border-green-200 flex items-center justify-center text-green-600 shadow-xs">
+                  <Users className="w-5 h-5 text-[#65C443]" />
+                </div>
+                <div>
+                  <div className="text-xs text-green-800/80 font-medium">Total Siswa Binaan</div>
+                  <div className="text-sm font-bold text-green-700">{totalStudents} Siswa Terdaftar</div>
+                </div>
               </div>
-              <div>
-                <div className="text-xs text-green-800/80 font-medium">Total Siswa Binaan</div>
-                <div className="text-sm font-bold text-green-700">{totalStudents} Siswa Terdaftar</div>
-              </div>
+
+              <Link
+                href="/teacher?view=monitoring"
+                className={`flex items-center gap-3 p-3.5 rounded-xl border transition shadow-xs group ${
+                  assignedProctorCount > 0
+                    ? "bg-blue-50/80 border-blue-200 hover:bg-blue-100/80 hover:border-blue-300"
+                    : "bg-slate-50 border-slate-200 hover:bg-slate-100"
+                }`}
+              >
+                <div
+                  className={`w-10 h-10 rounded-lg bg-white border flex items-center justify-center shadow-xs ${
+                    assignedProctorCount > 0 ? "border-blue-200 text-blue-600" : "border-slate-200 text-slate-500"
+                  }`}
+                >
+                  <ShieldAlert className="w-5 h-5" />
+                </div>
+                <div>
+                  <div className="text-xs font-medium text-slate-600 flex items-center gap-1">
+                    <span>Tugas Pengawas Ujian</span>
+                    <ArrowRight className="w-3 h-3 text-slate-400 group-hover:translate-x-0.5 transition-transform" />
+                  </div>
+                  <div className={`text-sm font-bold ${assignedProctorCount > 0 ? "text-blue-700" : "text-slate-700"}`}>
+                    {assignedProctorCount} Sesi Ditugaskan
+                  </div>
+                </div>
+              </Link>
             </div>
           </div>
         </div>
@@ -145,6 +192,7 @@ export default async function TeacherDashboardPage() {
             currentTeacherId={session.user.id}
             userRoles={session.user.roles}
             teachers={allTeachers}
+            viewMode={initialViewMode}
           />
         </div>
       </main>
