@@ -90,12 +90,14 @@ export default function AdminManagementPanel({
   initialStats,
   activeYearId,
   activeYearName,
+  activeSemesterId,
   activeSemesterName,
   user,
 }: {
   initialStats: AdminStats;
   activeYearId: string | null;
   activeYearName?: string | null;
+  activeSemesterId?: string | null;
   activeSemesterName?: string | null;
   user?: {
     username: string;
@@ -3113,6 +3115,8 @@ export default function AdminManagementPanel({
                 classes={classes}
                 activeYearId={activeYearId}
                 activeYearName={activeYearName}
+                activeSemesterId={activeSemesterId}
+                activeSemesterName={activeSemesterName}
                 userRoles={["administrator"]}
                 teachers={teachers}
                 viewMode="schedule"
@@ -3132,6 +3136,8 @@ export default function AdminManagementPanel({
                 classes={classes}
                 activeYearId={activeYearId}
                 activeYearName={activeYearName}
+                activeSemesterId={activeSemesterId}
+                activeSemesterName={activeSemesterName}
                 userRoles={["administrator"]}
                 teachers={teachers}
                 viewMode={
@@ -3154,6 +3160,8 @@ export default function AdminManagementPanel({
                 classes={classes}
                 activeYearId={activeYearId}
                 activeYearName={activeYearName}
+                activeSemesterId={activeSemesterId}
+                activeSemesterName={activeSemesterName}
                 userRoles={["administrator"]}
               />
             </div>

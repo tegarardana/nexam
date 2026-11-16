@@ -113,6 +113,8 @@ interface Examination {
   examinationTypeId?: string | null;
   session?: { id: string; name: string; code: string; startTime?: string; endTime?: string } | null;
   sessionId?: string | null;
+  academicYear?: { id: string; name: string; status?: string } | null;
+  semester?: { id: string; name: string; status?: string } | null;
   policySettings?: {
     randomizeQuestions: boolean;
     randomizeOptions: boolean;
@@ -147,6 +149,8 @@ interface TeacherExaminationPanelProps {
   assignments?: any[];
   currentTeacherId?: string;
   activeYearName?: string | null;
+  activeSemesterId?: string | null;
+  activeSemesterName?: string | null;
   userRoles?: string[];
   teachers?: Array<{ id: string; name?: string; username?: string; displayName?: string | null; email?: string; nip?: string | null }>;
   viewMode?: "schedule" | "monitoring" | "results" | "analysis" | "grades";
@@ -171,6 +175,8 @@ export default function TeacherExaminationPanel({
   assignments = [],
   currentTeacherId,
   activeYearName,
+  activeSemesterId,
+  activeSemesterName,
   userRoles = [],
   teachers = [],
   viewMode = "schedule",
@@ -226,6 +232,20 @@ export default function TeacherExaminationPanel({
   const [examSubjectFilter, setExamSubjectFilter] = useState("all");
   const [examClassFilter, setExamClassFilter] = useState("all");
   const [examTypeFilter, setExamTypeFilter] = useState("all");
+  const [examSemesterFilter, setExamSemesterFilter] = useState<string>(activeSemesterId || "all");
+  const [examYearFilter, setExamYearFilter] = useState<string>(activeYearId || "all");
+
+  useEffect(() => {
+    if (activeSemesterId) {
+      setExamSemesterFilter(activeSemesterId);
+    }
+  }, [activeSemesterId]);
+
+  useEffect(() => {
+    if (activeYearId) {
+      setExamYearFilter(activeYearId);
+    }
+  }, [activeYearId]);
 
   // Exam Wizard Form State
   const [examTitle, setExamTitle] = useState("");
@@ -904,16 +924,20 @@ export default function TeacherExaminationPanel({
   const { groupedExaminations, categoryCounts, totalMatches } = useMemo(() => {
     const now = new Date();
 
-    // Counts across all examinations (unfiltered by search/subject)
+    // Counts across all examinations (filtered by semester/year if selected)
     const counts = {
       in_progress: 0,
       upcoming: 0,
       closed: 0,
       draft: 0,
-      all: examinations.length,
+      all: 0,
     };
 
     examinations.forEach((exam) => {
+      if (examSemesterFilter !== "all" && exam.semesterId !== examSemesterFilter) return;
+      if (examYearFilter !== "all" && exam.academicYearId !== examYearFilter) return;
+
+      counts.all++;
       const isPastSchedule = Boolean(exam.scheduledEnd && now > new Date(exam.scheduledEnd));
       const isDraft = exam.status === "draft";
       const isClosed = exam.status === "closed" || exam.status === "finalized" || exam.status === "archived" || isPastSchedule;
@@ -941,6 +965,16 @@ export default function TeacherExaminationPanel({
     const searchLower = examSearchFilter.trim().toLowerCase();
 
     examinations.forEach((exam) => {
+      // Semester filter
+      if (examSemesterFilter !== "all" && exam.semesterId !== examSemesterFilter) {
+        return;
+      }
+
+      // Year filter
+      if (examYearFilter !== "all" && exam.academicYearId !== examYearFilter) {
+        return;
+      }
+
       // Search filter
       if (searchLower) {
         const matchesTitle = exam.title.toLowerCase().includes(searchLower);
@@ -999,7 +1033,7 @@ export default function TeacherExaminationPanel({
       categoryCounts: counts,
       totalMatches: total,
     };
-  }, [examinations, examSearchFilter, examSubjectFilter, examClassFilter, examTypeFilter]);
+  }, [examinations, examSearchFilter, examSubjectFilter, examClassFilter, examTypeFilter, examSemesterFilter, examYearFilter]);
 
   // Available classes for filtering
   const allAvailableClasses = useMemo(() => {
@@ -1019,12 +1053,48 @@ export default function TeacherExaminationPanel({
     return Array.from(map.values()).sort((a, b) => a.name.localeCompare(b.name));
   }, [classes, examinations]);
 
+  // Available semesters for filtering
+  const allAvailableSemesters = useMemo(() => {
+    const map = new Map<string, { id: string; name: string; status?: string; academicYearName?: string }>();
+    if (Array.isArray(semesters)) {
+      semesters.forEach((s) => {
+        if (s?.id && s?.name) {
+          const year = academicYears.find((y) => y.id === s.academicYearId);
+          map.set(s.id, {
+            id: s.id,
+            name: s.name,
+            status: s.status,
+            academicYearName: year?.name,
+          });
+        }
+      });
+    }
+    examinations.forEach((e) => {
+      if (e?.semester?.id && e?.semester?.name) {
+        if (!map.has(e.semester.id)) {
+          map.set(e.semester.id, {
+            id: e.semester.id,
+            name: e.semester.name,
+            status: e.semester.status,
+            academicYearName: e.academicYear?.name,
+          });
+        }
+      }
+    });
+    return Array.from(map.values());
+  }, [semesters, academicYears, examinations]);
+
   // Grouping by Examination Type for monitoring view
   const groupedByTypeExaminations = useMemo(() => {
     const now = new Date();
 
     // Collect all matching examinations for monitoring
     const matchingExams = examinations.filter((exam) => {
+      // Semester filter
+      if (examSemesterFilter !== "all" && exam.semesterId !== examSemesterFilter) return false;
+      // Year filter
+      if (examYearFilter !== "all" && exam.academicYearId !== examYearFilter) return false;
+
       // 1. Search filter
       if (examSearchFilter.trim()) {
         const q = examSearchFilter.trim().toLowerCase();
@@ -1100,7 +1170,7 @@ export default function TeacherExaminationPanel({
     });
 
     return Array.from(typeGroupsMap.values());
-  }, [examinations, examSearchFilter, examSubjectFilter, examClassFilter, examTypeFilter, examCategoryFilter]);
+  }, [examinations, examSearchFilter, examSubjectFilter, examClassFilter, examTypeFilter, examCategoryFilter, examSemesterFilter, examYearFilter]);
 
   const renderMonitoringExamCard = (exam: Examination) => {
     const now = new Date();
@@ -1159,7 +1229,9 @@ export default function TeacherExaminationPanel({
                   <span className="w-2 h-2 rounded-full bg-emerald-500 animate-ping" />
                 )}
                 <span>
-                  {effectiveInProgress
+                  {exam.status === "archived"
+                    ? "Diarsipkan (Semester Lalu)"
+                    : effectiveInProgress
                     ? "Sedang Berlangsung Live"
                     : effectiveScheduled
                     ? "Akan Datang (Terjadwal)"
@@ -1178,6 +1250,12 @@ export default function TeacherExaminationPanel({
               {exam.examinationType && (
                 <span className="px-2 py-0.5 rounded-md bg-amber-50 text-amber-800 border border-amber-200 font-mono font-bold text-[11px] tracking-wide">
                   {exam.examinationType.code}
+                </span>
+              )}
+
+              {exam.semester && (
+                <span className="px-2 py-0.5 rounded-md bg-purple-50 text-purple-800 border border-purple-200 text-[11px] font-medium">
+                  {exam.semester.name}
                 </span>
               )}
 
@@ -1385,7 +1463,9 @@ export default function TeacherExaminationPanel({
                   <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-ping" />
                 )}
                 <span>
-                  {isClosed
+                  {exam.status === "archived"
+                    ? "Diarsipkan (Semester Lalu)"
+                    : isClosed
                     ? (exam.status === "closed" ? "Selesai (Closed)" : "Selesai (Waktu Habis)")
                     : isAutoStarted
                     ? "Sedang Berjalan (Otomatis)"
@@ -1404,6 +1484,11 @@ export default function TeacherExaminationPanel({
               {exam.examinationType && (
                 <span className="px-2 py-0.5 rounded-md bg-amber-50 text-amber-800 border border-amber-200 font-mono font-bold text-[11px] tracking-wide">
                   {exam.examinationType.code}
+                </span>
+              )}
+              {exam.semester && (
+                <span className="px-2 py-0.5 rounded-md bg-purple-50 text-purple-800 border border-purple-200 text-[11px] font-medium">
+                  {exam.semester.name}
                 </span>
               )}
             </div>
@@ -2119,6 +2204,22 @@ export default function TeacherExaminationPanel({
                 )}
               </div>
 
+              {/* Filter Semester */}
+              {allAvailableSemesters.length > 0 && (
+                <select
+                  value={examSemesterFilter}
+                  onChange={(e) => setExamSemesterFilter(e.target.value)}
+                  className="bg-slate-50 border border-slate-200 rounded-lg px-2.5 py-1.5 text-xs text-slate-700 focus:outline-none focus:border-[#65C443] max-w-[175px]"
+                >
+                  <option value="all">Semua Semester</option>
+                  {allAvailableSemesters.map((s) => (
+                    <option key={s.id} value={s.id}>
+                      {s.name} {s.academicYearName ? `(${s.academicYearName})` : ""} {s.status === "active" ? "• Aktif" : ""}
+                    </option>
+                  ))}
+                </select>
+              )}
+
               {/* Filter Kelas / Rombel */}
               <select
                 value={examClassFilter}
@@ -2193,6 +2294,8 @@ export default function TeacherExaminationPanel({
                   setExamSubjectFilter("all");
                   setExamClassFilter("all");
                   setExamTypeFilter("all");
+                  setExamSemesterFilter(activeSemesterId || "all");
+                  setExamYearFilter(activeYearId || "all");
                   setExamCategoryFilter(viewMode === "monitoring" ? "in_progress" : "all");
                 }}
                 className="px-3 py-1.5 rounded-lg bg-slate-100 hover:bg-slate-200 text-xs font-semibold text-slate-700 transition cursor-pointer"

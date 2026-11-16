@@ -3,6 +3,7 @@ import prisma from "@/lib/prisma";
 import { authenticateApi } from "@/lib/auth/rbac";
 import { logAudit } from "@/lib/audit";
 import { academicYearSchema } from "@/lib/validation/academic";
+import { autoArchiveAcademicYearExaminations } from "@/lib/examination-state";
 
 export async function GET() {
   const auth = await authenticateApi("academic:read");
@@ -135,8 +136,16 @@ export async function PUT(req: NextRequest) {
       );
     }
 
+    let otherArchivedYearIds: string[] = [];
+
     const updated = await prisma.$transaction(async (tx) => {
       if (status === "active") {
+        const otherYears = await tx.academicYear.findMany({
+          where: { status: "active", NOT: { id } },
+          select: { id: true },
+        });
+        otherArchivedYearIds = otherYears.map((y) => y.id);
+
         // Demote other active years to archived
         await tx.academicYear.updateMany({
           where: { status: "active", NOT: { id } },
@@ -169,12 +178,24 @@ export async function PUT(req: NextRequest) {
       });
     });
 
+    // Auto-archive examinations of archived academic years
+    let totalArchivedExams = 0;
+    if (status === "active" && otherArchivedYearIds.length > 0) {
+      for (const yId of otherArchivedYearIds) {
+        const res = await autoArchiveAcademicYearExaminations(yId);
+        totalArchivedExams += res.archivedExams;
+      }
+    } else if (status === "archived") {
+      const res = await autoArchiveAcademicYearExaminations(id);
+      totalArchivedExams += res.archivedExams;
+    }
+
     await logAudit({
       actorId: auth.user.id,
       action: "academic_year:status_change",
       entityType: "academic_years",
       entityId: id,
-      afterValue: { status },
+      afterValue: { status, archivedExaminationsCount: totalArchivedExams },
     });
 
     return NextResponse.json({ success: true, data: updated });

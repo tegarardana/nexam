@@ -14,6 +14,7 @@ export async function GET(request: NextRequest) {
   const status = searchParams.get("status");
   const subjectId = searchParams.get("subjectId");
   const academicYearId = searchParams.get("academicYearId");
+  const semesterId = searchParams.get("semesterId");
 
   try {
     const { syncExaminationStates } = await import("@/lib/examination-state");
@@ -24,13 +25,14 @@ export async function GET(request: NextRequest) {
         status: status || undefined,
         subjectId: subjectId || undefined,
         academicYearId: academicYearId || undefined,
+        semesterId: semesterId || undefined,
       },
       include: {
         subject: { select: { id: true, name: true, code: true } },
         examinationType: { select: { id: true, name: true, code: true } },
         session: { select: { id: true, name: true, code: true, startTime: true, endTime: true } },
-        academicYear: { select: { id: true, name: true } },
-        semester: { select: { id: true, name: true } },
+        academicYear: { select: { id: true, name: true, status: true } },
+        semester: { select: { id: true, name: true, status: true } },
         createdBy: { select: { id: true, displayName: true } },
         policySettings: true,
         participants: {

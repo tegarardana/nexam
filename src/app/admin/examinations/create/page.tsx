@@ -89,6 +89,7 @@ export default async function AdminCreateExaminationPage() {
       majors={allMajors}
       teachers={teacherUsers}
       activeYearId={activeYear?.id || null}
+      activeSemesterId={activeYear?.semesters[0]?.id || null}
     />
   );
 }

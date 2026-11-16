@@ -31,6 +31,8 @@ interface ExamGradeRecapPanelProps {
   classes?: any[];
   activeYearId?: string | null;
   activeYearName?: string | null;
+  activeSemesterId?: string | null;
+  activeSemesterName?: string | null;
   userRoles?: string[];
 }
 
@@ -40,6 +42,8 @@ export default function ExamGradeRecapPanel({
   classes = [],
   activeYearId,
   activeYearName,
+  activeSemesterId,
+  activeSemesterName,
   userRoles = [],
 }: ExamGradeRecapPanelProps) {
   const [items, setItems] = useState<any[]>([]);
@@ -56,6 +60,7 @@ export default function ExamGradeRecapPanel({
   // Filters & Search
   const [statusFilter, setStatusFilter] = useState<"all" | "recapped" | "pending" | "in_progress">("all");
   const [selectedSubject, setSelectedSubject] = useState<string>("all");
+  const [selectedSemester, setSelectedSemester] = useState<string>(activeSemesterId || "all");
   const [searchQuery, setSearchQuery] = useState("");
 
   // Checkbox selections for batch export
@@ -79,6 +84,34 @@ export default function ExamGradeRecapPanel({
     }, 4500);
   };
 
+  // Available semesters for filtering
+  const allSemesters = useMemo(() => {
+    const map = new Map<string, { id: string; name: string; status?: string }>();
+    if (Array.isArray(academicYears)) {
+      academicYears.forEach((y) => {
+        if (Array.isArray(y.semesters)) {
+          y.semesters.forEach((s: any) => {
+            if (s?.id && s?.name) {
+              map.set(s.id, {
+                id: s.id,
+                name: `Semester ${s.name} (${y.name || "T.A"})`,
+                status: s.status,
+              });
+            }
+          });
+        }
+      });
+    }
+    return Array.from(map.values());
+  }, [academicYears]);
+
+  // Sync activeSemesterId if changed externally
+  useEffect(() => {
+    if (activeSemesterId) {
+      setSelectedSemester(activeSemesterId);
+    }
+  }, [activeSemesterId]);
+
   // Fetch Items
   const loadRecapData = useCallback(async () => {
     try {
@@ -86,6 +119,8 @@ export default function ExamGradeRecapPanel({
       const params = new URLSearchParams();
       if (statusFilter !== "all") params.append("status", statusFilter);
       if (selectedSubject !== "all") params.append("subjectId", selectedSubject);
+      if (selectedSemester !== "all") params.append("semesterId", selectedSemester);
+      if (activeYearId) params.append("academicYearId", activeYearId);
       if (searchQuery.trim()) params.append("search", searchQuery.trim());
 
       const res = await fetch(`/api/examinations/recap?${params.toString()}`);
@@ -104,7 +139,7 @@ export default function ExamGradeRecapPanel({
     } finally {
       setLoading(false);
     }
-  }, [statusFilter, selectedSubject, searchQuery]);
+  }, [statusFilter, selectedSubject, selectedSemester, activeYearId, searchQuery]);
 
   useEffect(() => {
     loadRecapData();
@@ -483,6 +518,23 @@ export default function ExamGradeRecapPanel({
               className="w-full bg-slate-50 border border-slate-200 rounded-lg pl-9 pr-3 py-1.5 text-xs text-slate-900 placeholder-slate-400 focus:outline-none focus:border-purple-500"
             />
           </div>
+
+          {/* Filter Semester */}
+          {allSemesters.length > 0 && (
+            <select
+              aria-label="Filter semester rekap"
+              value={selectedSemester}
+              onChange={(e) => setSelectedSemester(e.target.value)}
+              className="bg-slate-50 border border-slate-200 rounded-lg px-2.5 py-1.5 text-xs text-slate-700 font-semibold focus:outline-none focus:border-purple-500 max-w-[170px]"
+            >
+              <option value="all">Semua Semester (Arsip)</option>
+              {allSemesters.map((s) => (
+                <option key={s.id} value={s.id}>
+                  {s.name} {s.status === "active" ? "(Aktif)" : "(Arsip)"}
+                </option>
+              ))}
+            </select>
+          )}
 
           {subjects.length > 0 && (
             <select

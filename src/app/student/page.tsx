@@ -18,6 +18,7 @@ import {
   Sparkles,
   Award,
   KeyRound,
+  ChevronDown,
 } from "lucide-react";
 import StudentTokenQuickLauncher from "@/components/student/StudentTokenQuickLauncher";
 
@@ -52,8 +53,9 @@ export default async function StudentDashboardPage() {
     : null;
 
   // Real scheduled & active examinations assigned to this student (via direct participation, class group, or subject enrollment)
+  const activeSemesterId = activeYear?.semesters[0]?.id || null;
   const { getEligibleExamsForStudent } = await import("@/lib/examination-participants");
-  const validExams = await getEligibleExamsForStudent(session.user.id);
+  const validExams = await getEligibleExamsForStudent(session.user.id, { activeSemesterOnly: true });
 
   const examIds = validExams.map((e) => e.id);
 
@@ -68,6 +70,31 @@ export default async function StudentDashboardPage() {
         include: { result: true },
       })
     : [];
+
+  // Fetch past semester attempts (Riwayat Arsip Ujian Semester Sebelumnya)
+  const pastSemesterAttempts = await prisma.examinationAttempt.findMany({
+    where: {
+      studentId: session.user.id,
+      status: { in: ["submitted", "grading_pending", "completed"] },
+      examination: {
+        OR: [
+          ...(activeSemesterId ? [{ semesterId: { not: activeSemesterId } }] : []),
+          ...(activeYear?.id ? [{ academicYearId: { not: activeYear.id } }] : []),
+        ],
+      },
+    },
+    include: {
+      examination: {
+        include: {
+          subject: true,
+          academicYear: true,
+          semester: true,
+        },
+      },
+      result: true,
+    },
+    orderBy: { submittedAt: "desc" },
+  });
 
   const attemptsByExam = new Map<string, any>();
   for (const att of attempts) {
@@ -528,6 +555,84 @@ export default async function StudentDashboardPage() {
                 );
               })}
             </div>
+          </div>
+        )}
+
+        {/* SECTION 4: RIWAYAT UJIAN SEMESTER SEBELUMNYA (ARSIP) */}
+        {pastSemesterAttempts.length > 0 && (
+          <div className="space-y-4 pt-2">
+            <details className="group bg-white rounded-2xl border border-slate-200 shadow-xs overflow-hidden">
+              <summary className="p-5 flex items-center justify-between cursor-pointer select-none hover:bg-slate-50 transition">
+                <div className="flex items-center gap-2.5">
+                  <div className="w-8 h-8 rounded-xl bg-purple-50 border border-purple-200 text-purple-700 flex items-center justify-center">
+                    <Award className="w-4 h-4" />
+                  </div>
+                  <div>
+                    <h3 className="text-base font-bold text-slate-900">
+                      Riwayat Ujian Semester Sebelumnya (Arsip)
+                    </h3>
+                    <p className="text-xs text-slate-500">
+                      Transkrip dan catatan ujian yang telah diselesaikan pada semester lampau
+                    </p>
+                  </div>
+                </div>
+                <div className="flex items-center gap-2">
+                  <span className="px-2.5 py-1 rounded-full text-xs font-bold bg-slate-100 text-slate-700 border border-slate-200">
+                    {pastSemesterAttempts.length} Ujian Lalu
+                  </span>
+                  <ChevronDown className="w-4 h-4 text-slate-400 group-open:rotate-180 transition-transform" />
+                </div>
+              </summary>
+              <div className="p-5 pt-0 border-t border-slate-100">
+                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4 pt-4">
+                  {pastSemesterAttempts.map((att) => {
+                    const exam = att.examination;
+                    const res = att.result;
+                    const percentage = res?.percentage !== undefined && res?.percentage !== null ? Number(res.percentage) : null;
+                    const passingScore = Number(exam.passingScore) || 75;
+                    const isPassed = percentage !== null && percentage >= passingScore;
+
+                    return (
+                      <div
+                        key={att.id}
+                        className="p-4 rounded-xl border border-slate-200 bg-slate-50/50 flex flex-col justify-between space-y-3"
+                      >
+                        <div>
+                          <div className="flex items-center justify-between gap-1.5 text-[11px] mb-1">
+                            <span className="px-2 py-0.5 rounded bg-purple-50 text-purple-800 font-semibold border border-purple-200">
+                              Semester {exam.semester.name} • {exam.academicYear.name}
+                            </span>
+                            <span className="font-mono text-slate-500 font-bold">
+                              {exam.subject?.code}
+                            </span>
+                          </div>
+                          <h4 className="font-bold text-slate-900 text-sm">{exam.title}</h4>
+                          <p className="text-xs text-slate-500">{exam.subject?.name}</p>
+                        </div>
+
+                        <div className="pt-2 border-t border-slate-200/80 flex items-center justify-between">
+                          <div>
+                            <div className="text-[10px] text-slate-400 font-medium">Nilai Akhir</div>
+                            <div className="text-lg font-black font-mono text-slate-900">
+                              {percentage !== null ? `${percentage}%` : "-"}
+                            </div>
+                          </div>
+                          <span
+                            className={`px-2.5 py-0.5 rounded-full text-xs font-bold border ${
+                              isPassed
+                                ? "bg-emerald-50 text-emerald-800 border-emerald-200"
+                                : "bg-rose-50 text-rose-800 border-rose-200"
+                            }`}
+                          >
+                            {isPassed ? "LULUS" : "REMEDIAL"}
+                          </span>
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
+              </div>
+            </details>
           </div>
         )}
       </main>

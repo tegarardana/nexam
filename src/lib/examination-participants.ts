@@ -129,14 +129,29 @@ export async function enrollClassGroups(
  * assigned via class group, or scheduled for their class subject offerings.
  * Also ensures an examinationParticipant record exists for frictionless attempt creation.
  */
-export async function getEligibleExamsForStudent(studentId: string) {
+export async function getEligibleExamsForStudent(
+  studentId: string,
+  options?: { activeSemesterOnly?: boolean }
+) {
   const { syncExaminationStates } = await import("@/lib/examination-state");
   await syncExaminationStates();
+
+  const activeSemesterOnly = options?.activeSemesterOnly ?? true;
+
+  // Find currently active academic year and active semester
+  const activeYear = await prisma.academicYear.findFirst({
+    where: { status: "active" },
+    include: { semesters: { where: { status: "active" } } },
+  });
+
+  const activeAcademicYearId = activeYear?.id || null;
+  const activeSemesterId = activeYear?.semesters[0]?.id || null;
 
   const enrollment = await prisma.studentEnrollment.findFirst({
     where: {
       studentId,
       status: "active",
+      ...(activeAcademicYearId ? { academicYearId: activeAcademicYearId } : {}),
     },
     include: {
       classGroup: {
@@ -149,13 +164,21 @@ export async function getEligibleExamsForStudent(studentId: string) {
 
   const offeredSubjectIds = enrollment?.classGroup?.subjectOfferings.map((s) => s.subjectId) || [];
   const classGroupId = enrollment?.classGroupId || null;
-  const academicYearId = enrollment?.academicYearId || null;
+  const academicYearId = enrollment?.academicYearId || activeAcademicYearId;
 
   // 1. Direct participant examinations
   const directParticipants = await prisma.examinationParticipant.findMany({
     where: {
       studentId,
       status: "eligible",
+      ...(activeSemesterOnly && activeSemesterId
+        ? {
+            examination: {
+              ...(academicYearId ? { academicYearId } : {}),
+              semesterId: activeSemesterId,
+            },
+          }
+        : {}),
     },
     include: {
       examination: {
@@ -187,6 +210,7 @@ export async function getEligibleExamsForStudent(studentId: string) {
       where: {
         id: { notIn: Array.from(knownExamIds) },
         academicYearId,
+        ...(activeSemesterOnly && activeSemesterId ? { semesterId: activeSemesterId } : {}),
         status: { in: ["scheduled", "in_progress", "closed", "grading", "finalized"] },
         OR: [
           // Exam explicitly has participants from student's class

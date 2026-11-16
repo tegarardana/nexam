@@ -76,6 +76,7 @@ export default async function TeacherCreateExaminationPage() {
       majors={allMajors}
       currentTeacherId={session.user.id}
       activeYearId={activeYear?.id || null}
+      activeSemesterId={activeYear?.semesters[0]?.id || null}
     />
   );
 }

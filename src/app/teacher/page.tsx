@@ -123,9 +123,11 @@ export default async function TeacherDashboardPage() {
             semesters={semesters}
             classGroups={classGroups}
             activeYearId={activeYear?.id}
+            activeYearName={activeYear?.name}
+            activeSemesterId={activeYear?.semesters[0]?.id || null}
+            activeSemesterName={activeYear?.semesters[0]?.name || null}
             assignments={JSON.parse(JSON.stringify(assignments))}
             currentTeacherId={session.user.id}
-            activeYearName={activeYear?.name}
             userRoles={session.user.roles}
           />
         </div>

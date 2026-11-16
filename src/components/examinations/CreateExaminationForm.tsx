@@ -67,6 +67,7 @@ interface CreateExaminationFormProps {
   teachers?: any[];
   currentTeacherId?: string;
   activeYearId?: string | null;
+  activeSemesterId?: string | null;
 }
 
 export default function CreateExaminationForm({
@@ -80,6 +81,7 @@ export default function CreateExaminationForm({
   teachers = [],
   currentTeacherId = "",
   activeYearId = null,
+  activeSemesterId = null,
 }: CreateExaminationFormProps) {
   const router = useRouter();
   const isAdmin = userRole === "administrator";
@@ -93,7 +95,10 @@ export default function CreateExaminationForm({
     activeYearId || academicYears[0]?.id || ""
   );
   const [semesterId, setSemesterId] = useState(
-    semesters.find((s) => s.status === "active")?.id || semesters[0]?.id || ""
+    activeSemesterId ||
+    semesters.find((s) => s.status === "active")?.id ||
+    semesters[0]?.id ||
+    ""
   );
   const [durationMinutes, setDurationMinutes] = useState(90);
   const [passingScore, setPassingScore] = useState(75);
@@ -132,6 +137,18 @@ export default function CreateExaminationForm({
       setSelectedMajorFilter("all");
     }
   }, [subjectId, subjects]);
+
+  // When academic year changes, ensure selected semester belongs to it
+  useEffect(() => {
+    const validInYear = semesters.filter(
+      (s) => !s.academicYearId || s.academicYearId === academicYearId
+    );
+    const hasCurrent = validInYear.some((s) => s.id === semesterId);
+    if (!hasCurrent && validInYear.length > 0) {
+      const activeSem = validInYear.find((s) => s.status === "active");
+      setSemesterId(activeSem ? activeSem.id : validInYear[0].id);
+    }
+  }, [academicYearId, semesters, semesterId]);
 
   // Anti-Cheat & Policy
   const [polRandomizeQ, setPolRandomizeQ] = useState(true);

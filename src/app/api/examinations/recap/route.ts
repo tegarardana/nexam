@@ -17,12 +17,37 @@ export async function GET(request: NextRequest) {
   const { searchParams } = new URL(request.url);
   const statusFilter = searchParams.get("status") || "all"; // all | recapped | pending
   const academicYearId = searchParams.get("academicYearId");
+  const semesterId = searchParams.get("semesterId");
   const subjectId = searchParams.get("subjectId");
   const search = searchParams.get("search")?.toLowerCase().trim();
 
   try {
-    // 1. Fetch all ExamGradeRecaps
+    let targetSemesterName: string | null = null;
+    if (semesterId) {
+      const s = await prisma.semester.findUnique({
+        where: { id: semesterId },
+        select: { name: true },
+      });
+      targetSemesterName = s?.name || null;
+    }
+
+    // 1. Fetch ExamGradeRecaps filtered by academicYear or semester if specified
     const recaps = await prisma.examGradeRecap.findMany({
+      where: {
+        ...(academicYearId
+          ? {
+              OR: [{ examination: { academicYearId } }],
+            }
+          : {}),
+        ...(semesterId
+          ? {
+              OR: [
+                { examination: { semesterId } },
+                ...(targetSemesterName ? [{ semesterName: targetSemesterName }] : []),
+              ],
+            }
+          : {}),
+      },
       orderBy: { lockedAt: "desc" },
     });
 
@@ -31,6 +56,7 @@ export async function GET(request: NextRequest) {
       where: {
         status: { in: ["in_progress", "closed", "finalized"] },
         ...(academicYearId ? { academicYearId } : {}),
+        ...(semesterId ? { semesterId } : {}),
         ...(subjectId ? { subjectId } : {}),
       },
       include: {

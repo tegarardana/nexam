@@ -12,7 +12,7 @@ export const VALID_EXAM_TRANSITIONS: Record<ExaminationStatus, ExaminationStatus
   scheduled: ["draft", "in_progress", "closed", "archived"],
   in_progress: ["closed"],
   closed: ["grading", "finalized", "archived", "scheduled", "ready", "in_progress"],
-  grading: ["finalized", "closed"],
+  grading: ["finalized", "closed", "archived"],
   finalized: ["archived", "scheduled"],
   archived: [],
 };
@@ -162,7 +162,7 @@ export async function autoCloseExpiredExaminations(): Promise<number> {
       const { submitAttempt } = await import("@/lib/exam-engine/attempt-manager");
       for (const att of openAttempts) {
         try {
-          await submitAttempt(att.id, att.studentId);
+          await submitAttempt(att.studentId, exam.id, "time_expired");
         } catch (err) {
           console.error(`Auto-closing attempt ${att.id} failed:`, err);
         }
@@ -171,6 +171,138 @@ export async function autoCloseExpiredExaminations(): Promise<number> {
   }
 
   return expiredExams.length;
+}
+
+/**
+ * Automatically archives all examinations of a semester when it is deactivated/archived.
+ * Any open attempts are auto-submitted, and non-finalized examinations are transitioned to 'archived'.
+ */
+export async function autoArchiveSemesterExaminations(
+  semesterId: string
+): Promise<{ archivedExams: number; submittedAttempts: number }> {
+  // 1. Find all active/pending/in-progress examinations belonging to this semester
+  const examinations = await prisma.examination.findMany({
+    where: {
+      semesterId,
+      status: { in: ["draft", "ready", "scheduled", "in_progress", "closed", "grading"] },
+    },
+    select: {
+      id: true,
+      status: true,
+    },
+  });
+
+  if (examinations.length === 0) {
+    return { archivedExams: 0, submittedAttempts: 0 };
+  }
+
+  const examIds = examinations.map((e) => e.id);
+
+  // 2. Find and submit any open attempts
+  const openAttempts = await prisma.examinationAttempt.findMany({
+    where: {
+      examinationId: { in: examIds },
+      status: { in: ["in_progress", "warning", "blocked"] },
+    },
+    select: {
+      id: true,
+      studentId: true,
+      examinationId: true,
+    },
+  });
+
+  let submittedAttempts = 0;
+  if (openAttempts.length > 0) {
+    const { submitAttempt } = await import("@/lib/exam-engine/attempt-manager");
+    for (const att of openAttempts) {
+      try {
+        await submitAttempt(att.studentId, att.examinationId, "semester_transition_archive");
+        submittedAttempts++;
+      } catch (err) {
+        console.error(`Auto-archiving attempt ${att.id} error:`, err);
+        await prisma.examinationAttempt.update({
+          where: { id: att.id },
+          data: { status: "completed", submittedAt: new Date() },
+        });
+      }
+    }
+  }
+
+  // 3. Mark examinations as archived
+  const result = await prisma.examination.updateMany({
+    where: {
+      id: { in: examIds },
+    },
+    data: {
+      status: "archived",
+    },
+  });
+
+  return { archivedExams: result.count, submittedAttempts };
+}
+
+/**
+ * Automatically archives all examinations of an academic year when it is archived.
+ */
+export async function autoArchiveAcademicYearExaminations(
+  academicYearId: string
+): Promise<{ archivedExams: number; submittedAttempts: number }> {
+  const examinations = await prisma.examination.findMany({
+    where: {
+      academicYearId,
+      status: { in: ["draft", "ready", "scheduled", "in_progress", "closed", "grading"] },
+    },
+    select: {
+      id: true,
+      status: true,
+    },
+  });
+
+  if (examinations.length === 0) {
+    return { archivedExams: 0, submittedAttempts: 0 };
+  }
+
+  const examIds = examinations.map((e) => e.id);
+
+  const openAttempts = await prisma.examinationAttempt.findMany({
+    where: {
+      examinationId: { in: examIds },
+      status: { in: ["in_progress", "warning", "blocked"] },
+    },
+    select: {
+      id: true,
+      studentId: true,
+      examinationId: true,
+    },
+  });
+
+  let submittedAttempts = 0;
+  if (openAttempts.length > 0) {
+    const { submitAttempt } = await import("@/lib/exam-engine/attempt-manager");
+    for (const att of openAttempts) {
+      try {
+        await submitAttempt(att.studentId, att.examinationId, "academic_year_archive");
+        submittedAttempts++;
+      } catch (err) {
+        console.error(`Auto-archiving attempt ${att.id} error:`, err);
+        await prisma.examinationAttempt.update({
+          where: { id: att.id },
+          data: { status: "completed", submittedAt: new Date() },
+        });
+      }
+    }
+  }
+
+  const result = await prisma.examination.updateMany({
+    where: {
+      id: { in: examIds },
+    },
+    data: {
+      status: "archived",
+    },
+  });
+
+  return { archivedExams: result.count, submittedAttempts };
 }
 
 /**

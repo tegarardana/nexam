@@ -63,6 +63,8 @@ export async function GET(request: NextRequest) {
         description: exam.description,
         subjectName: exam.subject?.name || "Mata Pelajaran",
         subjectCode: exam.subject?.code || "-",
+        semesterName: exam.semester?.name || null,
+        academicYearName: exam.academicYear?.name || null,
         durationMinutes: exam.durationMinutes,
         status: exam.status,
         scheduledStart: exam.scheduledStart.toISOString(),

@@ -38,6 +38,7 @@ export default async function AdminDashboardPage() {
       initialStats={{ totalStudents, totalTeachers, totalClasses, totalMajors }}
       activeYearId={activeYear?.id || null}
       activeYearName={activeYear?.name || null}
+      activeSemesterId={activeYear?.semesters[0]?.id || null}
       activeSemesterName={activeYear?.semesters[0]?.name || null}
     />
   );

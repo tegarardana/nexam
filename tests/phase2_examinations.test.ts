@@ -50,9 +50,14 @@ describe("Phase 2: Examination Lifecycle & Validation", () => {
     // In Progress can only transition to closed
     expect(VALID_EXAM_TRANSITIONS.in_progress).toEqual(["closed"]);
 
-    // Closed can transition to grading or finalized
+    // Closed can transition to grading or finalized or archived
     expect(VALID_EXAM_TRANSITIONS.closed).toContain("grading");
     expect(VALID_EXAM_TRANSITIONS.closed).toContain("finalized");
+    expect(VALID_EXAM_TRANSITIONS.closed).toContain("archived");
+
+    // Finalized can transition to archived
+    expect(VALID_EXAM_TRANSITIONS.finalized).toContain("archived");
+    expect(VALID_EXAM_TRANSITIONS.draft).toContain("archived");
 
     // Finalized cannot transition to active states
     expect(VALID_EXAM_TRANSITIONS.finalized).not.toContain("draft");
