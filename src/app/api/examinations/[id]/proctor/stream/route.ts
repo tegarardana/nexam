@@ -4,6 +4,7 @@ import { hasAnyRole } from "@/lib/auth/rbac";
 import { prisma } from "@/lib/prisma";
 import { proctorHub, ProctorEventPayload } from "@/lib/anti-cheat/proctor-hub";
 import { formatNameWithTitle } from "@/lib/format-user";
+import { isStudentInAssignedRoom, getProctorScope } from "@/lib/proctor-scope";
 
 export const dynamic = "force-dynamic";
 export const runtime = "nodejs";
@@ -71,6 +72,8 @@ export async function GET(
     return new Response("Forbidden: Akses pengawasan hanya untuk pembuat ujian atau pengawas yang ditugaskan.", { status: 403 });
   }
 
+  const proctorScope = getProctorScope(examination, session.user);
+
   // Fetch recent events for initial state
   const attemptIds = examination.attempts.map((a) => a.id);
   const recentEvents = await prisma.examinationEvent.findMany({
@@ -103,13 +106,24 @@ export async function GET(
   // Prepare roster data
   const participantsMap = new Map<string, any>();
   for (const part of examination.participants) {
+    const studentClass = part.classGroup?.name || "-";
+    if (
+      proctorScope.isScoped &&
+      !isStudentInAssignedRoom(
+        { classGroupId: part.classGroupId, className: studentClass },
+        proctorScope.assignedRoom
+      )
+    ) {
+      continue;
+    }
+
     const studentAttempt = examination.attempts.find((a) => a.studentId === part.studentId);
     participantsMap.set(part.studentId, {
       studentId: part.studentId,
       studentName: part.student.displayName,
       username: part.student.username,
       nis: part.student.nis,
-      className: part.classGroup?.name || "-",
+      className: studentClass,
       attemptId: studentAttempt?.id || null,
       status: studentAttempt?.status || "not_started",
       connectionStatus: studentAttempt?.connectionStatus || "unknown",
@@ -122,6 +136,21 @@ export async function GET(
       lastHeartbeat: studentAttempt?.lastHeartbeat || null,
     });
   }
+
+  const visibleStudentIds = new Set(participantsMap.keys());
+  const visibleAttemptIds = new Set(
+    Array.from(participantsMap.values())
+      .map((p) => p.attemptId)
+      .filter(Boolean)
+  );
+
+  const filteredRecentEvents = proctorScope.isScoped
+    ? recentEvents.filter(
+        (evt) =>
+          visibleStudentIds.has(evt.attempt.student.id) ||
+          visibleAttemptIds.has(evt.attemptId)
+      )
+    : recentEvents;
 
   const encoder = new TextEncoder();
 
@@ -141,8 +170,9 @@ export async function GET(
             status: examination.status,
             policy: examination.policySettings,
           },
+          proctorScope,
           roster: Array.from(participantsMap.values()),
-          recentEvents: recentEvents.map((evt) => ({
+          recentEvents: filteredRecentEvents.map((evt) => ({
             id: evt.id,
             attemptId: evt.attemptId,
             studentId: evt.attempt.student.id,
@@ -166,6 +196,18 @@ export async function GET(
         examinationId,
         (event: ProctorEventPayload) => {
           try {
+            // If proctor is scoped, only forward events related to visible students
+            if (proctorScope.isScoped) {
+              const evtStudentId = (event.data as any)?.studentId;
+              const evtAttemptId = (event.data as any)?.attemptId;
+              if (
+                (evtStudentId && !visibleStudentIds.has(evtStudentId)) ||
+                (evtAttemptId && !visibleAttemptIds.has(evtAttemptId))
+              ) {
+                return;
+              }
+            }
+
             controller.enqueue(
               encoder.encode(`event: message\ndata: ${JSON.stringify(event)}\n\n`)
             );

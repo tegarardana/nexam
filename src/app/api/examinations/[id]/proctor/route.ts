@@ -4,6 +4,7 @@ import { hasAnyRole } from "@/lib/auth/rbac";
 import { prisma } from "@/lib/prisma";
 import { formatNameWithTitle } from "@/lib/format-user";
 import { logAudit } from "@/lib/audit";
+import { isStudentInAssignedRoom, getProctorScope } from "@/lib/proctor-scope";
 
 export const dynamic = "force-dynamic";
 export const runtime = "nodejs";
@@ -145,6 +146,8 @@ export async function GET(
       );
     }
 
+    const proctorScope = getProctorScope(examination, session.user);
+
     const attemptIds = examination.attempts.map((a) => a.id);
     const recentEvents = await prisma.examinationEvent.findMany({
       where: {
@@ -181,6 +184,15 @@ export async function GET(
         part.classGroup,
         part.student.studentEnrollments
       );
+
+      // If proctor is scoped to a specific room or class, only include matching students
+      if (
+        proctorScope.isScoped &&
+        !isStudentInAssignedRoom({ classGroupId, className }, proctorScope.assignedRoom)
+      ) {
+        continue;
+      }
+
       participantsMap.set(part.studentId, {
         studentId: part.studentId,
         studentName: part.student.displayName,
@@ -209,6 +221,14 @@ export async function GET(
           null,
           att.student?.studentEnrollments
         );
+
+        if (
+          proctorScope.isScoped &&
+          !isStudentInAssignedRoom({ classGroupId, className }, proctorScope.assignedRoom)
+        ) {
+          continue;
+        }
+
         participantsMap.set(att.studentId, {
           studentId: att.studentId,
           studentName: att.student?.displayName || "Siswa",
@@ -229,6 +249,21 @@ export async function GET(
         });
       }
     }
+
+    const visibleStudentIds = new Set(participantsMap.keys());
+    const visibleAttemptIds = new Set(
+      Array.from(participantsMap.values())
+        .map((p) => p.attemptId)
+        .filter(Boolean)
+    );
+
+    const filteredRecentEvents = proctorScope.isScoped
+      ? recentEvents.filter(
+          (evt) =>
+            visibleStudentIds.has(evt.attempt.student.id) ||
+            visibleAttemptIds.has(evt.attemptId)
+        )
+      : recentEvents;
 
     return NextResponse.json({
       success: true,
@@ -253,7 +288,8 @@ export async function GET(
           })),
         },
         roster: Array.from(participantsMap.values()),
-        recentEvents: recentEvents.map((evt) => ({
+        proctorScope,
+        recentEvents: filteredRecentEvents.map((evt) => ({
           id: evt.id,
           attemptId: evt.attemptId,
           studentId: evt.attempt.student.id,

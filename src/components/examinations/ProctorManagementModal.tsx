@@ -39,6 +39,7 @@ interface ProctorManagementModalProps {
   examinationTitle: string;
   initialProctors?: ProctorItem[];
   allTeachers?: TeacherOption[];
+  availableClasses?: Array<{ id: string; name: string }>;
   onSuccess?: () => void;
 }
 
@@ -49,6 +50,7 @@ export default function ProctorManagementModal({
   examinationTitle,
   initialProctors = [],
   allTeachers = [],
+  availableClasses = [],
   onSuccess,
 }: ProctorManagementModalProps) {
   const [proctors, setProctors] = useState<ProctorItem[]>(initialProctors);
@@ -231,18 +233,37 @@ export default function ProctorManagementModal({
 
               <div className="space-y-1">
                 <label className="text-[11px] font-semibold text-slate-600">
-                  Nama Ruang / Lab (Opsional)
+                  Nama Ruang / Kelas Tugas (Opsional)
                 </label>
                 <div className="relative">
                   <DoorOpen className="w-3.5 h-3.5 absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" />
                   <input
                     type="text"
-                    placeholder="Contoh: Ruang 01 / Lab A"
+                    placeholder="Contoh: X-TKJ-1 / Lab A"
                     value={roomNameInput}
                     onChange={(e) => setRoomNameInput(e.target.value)}
                     className="w-full pl-8 pr-3 py-2 rounded-xl bg-white border border-slate-200 text-xs text-slate-800 placeholder:text-slate-400 focus:outline-none focus:border-indigo-500"
                   />
                 </div>
+                {availableClasses && availableClasses.length > 0 && (
+                  <div className="flex items-center gap-1.5 flex-wrap pt-1">
+                    <span className="text-[10px] text-slate-400">Pilih kelas:</span>
+                    {availableClasses.map((cls) => (
+                      <button
+                        key={cls.id}
+                        type="button"
+                        onClick={() => setRoomNameInput(cls.name)}
+                        className={`px-1.5 py-0.5 rounded text-[10px] font-semibold transition cursor-pointer border ${
+                          roomNameInput === cls.name
+                            ? "bg-indigo-600 text-white border-indigo-600"
+                            : "bg-white text-indigo-700 border-indigo-200 hover:bg-indigo-50"
+                        }`}
+                      >
+                        {cls.name}
+                      </button>
+                    ))}
+                  </div>
+                )}
               </div>
             </div>
 

@@ -3,6 +3,7 @@ import { getCurrentSession } from "@/lib/auth/session";
 import { hasAnyRole } from "@/lib/auth/rbac";
 import { evaluateAntiCheatEvent } from "@/lib/anti-cheat/policy-evaluator";
 import { prisma } from "@/lib/prisma";
+import { verifyProctorCanAccessAttempt } from "@/lib/proctor-scope";
 
 export async function POST(request: NextRequest) {
   const session = await getCurrentSession();
@@ -18,6 +19,11 @@ export async function POST(request: NextRequest) {
         { success: false, error: "attemptId wajib diisi." },
         { status: 400 }
       );
+    }
+
+    const authCheck = await verifyProctorCanAccessAttempt(attemptId, session.user);
+    if (!authCheck.allowed) {
+      return NextResponse.json({ success: false, error: authCheck.error }, { status: 403 });
     }
 
     if (!note || !note.trim()) {

@@ -1346,8 +1346,26 @@ export default function TeacherExaminationPanel({
     const uniqueClasses = Array.from(uniqueClassMap.values());
     const classList = uniqueClasses.length > 0 ? uniqueClasses : (exam.participants?.map((p) => p.classGroup).filter(Boolean) || []);
 
+    // Proctor scope detection for non-admin non-creator
+    const isProctorScoped = !isAdmin && exam.createdById !== currentTeacherId && Boolean(myProctorAssignment?.roomName?.trim());
+    const assignedRoomName = myProctorAssignment?.roomName?.trim() || null;
+
+    // Check if assignedRoomName matches a participating class
+    const matchingClass = assignedRoomName
+      ? uniqueClasses.find((cls) => {
+          const rawA = assignedRoomName.toLowerCase();
+          const rawC = cls.name.toLowerCase();
+          if (rawA === rawC) return true;
+          const cleanA = rawA.replace(/^(kelas|ruang|ruangan|rombel|lab)\s+/i, "").replace(/[-_\s]+/g, " ").trim();
+          const cleanC = rawC.replace(/^(kelas|ruang|ruangan|rombel|lab)\s+/i, "").replace(/[-_\s]+/g, " ").trim();
+          return cleanA === cleanC || (cleanA.length >= 3 && cleanC.length >= 3 && (cleanA.includes(cleanC) || cleanC.includes(cleanA)));
+        })
+      : null;
+
     // Filter by class in this monitoring card
-    const selectedClassFilter = monitoringClassFilter[exam.id] || "all";
+    const selectedClassFilter = isProctorScoped && matchingClass
+      ? matchingClass.id
+      : (monitoringClassFilter[exam.id] || "all");
     const attempts = exam.attempts || [];
     let relevantAttempts = attempts;
     let effectiveTotalParticipants = exam._count?.participants || 0;
@@ -1483,15 +1501,17 @@ export default function TeacherExaminationPanel({
                 <span className="text-slate-400 text-[11px] italic">Belum ada pengawas khusus</span>
               )}
 
-              <button
-                type="button"
-                onClick={() => setProctorModalExam(exam)}
-                className="text-[11px] text-indigo-700 hover:text-indigo-900 hover:underline font-semibold cursor-pointer"
-              >
-                {exam.proctorAssignments && exam.proctorAssignments.length > 0
-                  ? "[Kelola Pengawas]"
-                  : "[+ Tunjuk Pengawas]"}
-              </button>
+              {(isAdmin || exam.createdById === currentTeacherId) && (
+                <button
+                  type="button"
+                  onClick={() => setProctorModalExam(exam)}
+                  className="text-[11px] text-indigo-700 hover:text-indigo-900 hover:underline font-semibold cursor-pointer"
+                >
+                  {exam.proctorAssignments && exam.proctorAssignments.length > 0
+                    ? "[Kelola Pengawas]"
+                    : "[+ Tunjuk Pengawas]"}
+                </button>
+              )}
             </div>
           </div>
 
@@ -1570,28 +1590,37 @@ export default function TeacherExaminationPanel({
             {uniqueClasses.length > 0 && (
               <div className="flex items-center gap-1.5 self-start sm:self-auto">
                 <span className="text-[11px] font-semibold text-slate-500 whitespace-nowrap">Filter Kelas:</span>
-                <select
-                  aria-label="Filter siswa berdasarkan kelas"
-                  value={selectedClassFilter}
-                  onChange={(e) =>
-                    setMonitoringClassFilter((prev) => ({
-                      ...prev,
-                      [exam.id]: e.target.value,
-                    }))
-                  }
-                  className="px-2.5 py-1 rounded-lg bg-white border border-slate-200 text-xs font-semibold text-slate-700 focus:outline-none focus:border-[#65C443] cursor-pointer"
-                >
-                  <option value="all">Semua Kelas ({exam._count?.participants || 0} Siswa)</option>
-                  {uniqueClasses.map((cls) => {
-                    const cnt =
-                      exam.participants?.filter((p) => p.classGroupId === cls.id).length || 0;
-                    return (
-                      <option key={cls.id} value={cls.id}>
-                        {cls.name} ({cnt} Siswa)
-                      </option>
-                    );
-                  })}
-                </select>
+                {isProctorScoped && matchingClass ? (
+                  <div className="px-2.5 py-1 rounded-lg bg-blue-50 border border-blue-200 text-xs font-semibold text-blue-900 flex items-center gap-1.5 shadow-2xs">
+                    <span>Ruang Tugas: {assignedRoomName}</span>
+                    <span className="text-[10px] bg-white px-1.5 py-0.2 rounded border border-blue-200 font-mono text-blue-700">
+                      Kelas {matchingClass.name}
+                    </span>
+                  </div>
+                ) : (
+                  <select
+                    aria-label="Filter siswa berdasarkan kelas"
+                    value={selectedClassFilter}
+                    onChange={(e) =>
+                      setMonitoringClassFilter((prev) => ({
+                        ...prev,
+                        [exam.id]: e.target.value,
+                      }))
+                    }
+                    className="px-2.5 py-1 rounded-lg bg-white border border-slate-200 text-xs font-semibold text-slate-700 focus:outline-none focus:border-[#65C443] cursor-pointer"
+                  >
+                    <option value="all">Semua Kelas ({exam._count?.participants || 0} Siswa)</option>
+                    {uniqueClasses.map((cls) => {
+                      const cnt =
+                        exam.participants?.filter((p) => p.classGroupId === cls.id).length || 0;
+                      return (
+                        <option key={cls.id} value={cls.id}>
+                          {cls.name} ({cnt} Siswa)
+                        </option>
+                      );
+                    })}
+                  </select>
+                )}
               </div>
             )}
           </div>
@@ -3579,6 +3608,16 @@ export default function TeacherExaminationPanel({
             })) || []
           }
           allTeachers={teacherOptions}
+          availableClasses={
+            Array.from(
+              new Map(
+                (proctorModalExam.participants || [])
+                  .map((p) => p.classGroup)
+                  .filter((cg): cg is { id: string; name: string } => Boolean(cg?.id && cg?.name))
+                  .map((cg) => [cg.id, cg])
+              ).values()
+            )
+          }
           onSuccess={() => {
             loadExaminations(true);
           }}

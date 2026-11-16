@@ -1150,22 +1150,65 @@ export default function CreateExaminationForm({
 
                         {/* Optional Room Assignment Input */}
                         {isSelected && (
-                          <div className="pt-2 border-t border-indigo-100 flex items-center gap-2">
-                            <span className="text-[10px] font-semibold text-indigo-700 whitespace-nowrap">
-                              Ruang Pengawasan:
-                            </span>
-                            <input
-                              type="text"
-                              placeholder="Opsional, misal: Ruang 01 / Lab CBT A"
-                              value={proctorRooms[t.id] || ""}
-                              onChange={(e) =>
-                                setProctorRooms((prev) => ({
-                                  ...prev,
-                                  [t.id]: e.target.value,
-                                }))
-                              }
-                              className="flex-1 px-2.5 py-1 rounded-lg bg-white border border-indigo-200 text-xs text-slate-800 placeholder:text-slate-400 focus:outline-none focus:border-indigo-500"
-                            />
+                          <div className="pt-2 border-t border-indigo-100 space-y-1.5">
+                            <div className="flex items-center gap-2">
+                              <span className="text-[10px] font-semibold text-indigo-700 whitespace-nowrap">
+                                Ruang / Kelas Tugas:
+                              </span>
+                              <input
+                                type="text"
+                                placeholder="Pilih kelas di bawah atau ketik nama ruang..."
+                                value={proctorRooms[t.id] || ""}
+                                onChange={(e) =>
+                                  setProctorRooms((prev) => ({
+                                    ...prev,
+                                    [t.id]: e.target.value,
+                                  }))
+                                }
+                                className="flex-1 px-2.5 py-1 rounded-lg bg-white border border-indigo-200 text-xs text-slate-800 placeholder:text-slate-400 focus:outline-none focus:border-indigo-500"
+                              />
+                            </div>
+                            {selectedClassIds.length > 0 && (
+                              <div className="flex items-center gap-1.5 flex-wrap pl-1">
+                                <span className="text-[10px] text-slate-400">Pilih cepat kelas:</span>
+                                {classes
+                                  .filter((c) => selectedClassIds.includes(c.id))
+                                  .map((c) => (
+                                    <button
+                                      key={c.id}
+                                      type="button"
+                                      onClick={() =>
+                                        setProctorRooms((prev) => ({
+                                          ...prev,
+                                          [t.id]: c.name,
+                                        }))
+                                      }
+                                      className={`px-1.5 py-0.5 rounded text-[10px] font-semibold transition cursor-pointer border ${
+                                        proctorRooms[t.id] === c.name
+                                          ? "bg-indigo-600 text-white border-indigo-600"
+                                          : "bg-white text-indigo-700 border-indigo-200 hover:bg-indigo-50"
+                                      }`}
+                                    >
+                                      {c.name}
+                                    </button>
+                                  ))}
+                                {proctorRooms[t.id] && (
+                                  <button
+                                    type="button"
+                                    onClick={() =>
+                                      setProctorRooms((prev) => {
+                                        const next = { ...prev };
+                                        delete next[t.id];
+                                        return next;
+                                      })
+                                    }
+                                    className="text-[10px] text-rose-500 hover:underline ml-1 cursor-pointer"
+                                  >
+                                    Reset
+                                  </button>
+                                )}
+                              </div>
+                            )}
                           </div>
                         )}
                       </div>

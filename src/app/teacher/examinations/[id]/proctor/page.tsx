@@ -67,6 +67,12 @@ interface EventLogItem {
   timestamp: string;
 }
 
+interface ProctorScopeInfo {
+  isScoped: boolean;
+  assignedRoom: string | null;
+  canAccessAll: boolean;
+}
+
 export default function ProctorDashboardPage() {
   const params = useParams();
   const router = useRouter();
@@ -75,6 +81,7 @@ export default function ProctorDashboardPage() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [examInfo, setExamInfo] = useState<any>(null);
+  const [proctorScope, setProctorScope] = useState<ProctorScopeInfo | null>(null);
   const [roster, setRoster] = useState<StudentRosterItem[]>([]);
   const [eventLogs, setEventLogs] = useState<EventLogItem[]>([]);
   const [sseConnected, setSseConnected] = useState(false);
@@ -170,6 +177,9 @@ export default function ProctorDashboardPage() {
         setExamInfo(json.data.examination);
         setRoster(json.data.roster);
         setEventLogs(json.data.recentEvents);
+        if (json.data.proctorScope) {
+          setProctorScope(json.data.proctorScope);
+        }
         setSseConnected(true);
         setError(null);
       } else {
@@ -689,6 +699,31 @@ export default function ProctorDashboardPage() {
           </div>
         </div>
 
+        {/* Proctor Scope Information Banner (Scoped to specific room/class) */}
+        {proctorScope?.isScoped && proctorScope.assignedRoom && (
+          <div className="p-3.5 rounded-xl bg-blue-50/80 border border-blue-200 text-blue-950 flex flex-col sm:flex-row sm:items-center justify-between gap-2 shadow-xs">
+            <div className="flex items-center gap-2.5">
+              <div className="w-8 h-8 rounded-lg bg-blue-600 text-white flex items-center justify-center shrink-0">
+                <ShieldAlert className="w-4 h-4" />
+              </div>
+              <div>
+                <div className="text-xs font-bold text-blue-900 flex items-center gap-2 flex-wrap">
+                  <span>Ruang / Kelas Tugas Pengawasan:</span>
+                  <span className="px-2 py-0.5 rounded-md bg-white border border-blue-200 text-blue-700 font-mono">
+                    {proctorScope.assignedRoom}
+                  </span>
+                </div>
+                <div className="text-[11px] text-blue-800/80 mt-0.5">
+                  Tampilan live monitoring dan aksi intervensi dibatasi khusus untuk siswa pada ruang / kelas yang ditugaskan.
+                </div>
+              </div>
+            </div>
+            <div className="text-xs font-semibold text-blue-800 bg-white/80 px-2.5 py-1 rounded-lg border border-blue-200/60 self-start sm:self-center shrink-0">
+              {roster.length} Siswa Terdaftar di Ruang Ini
+            </div>
+          </div>
+        )}
+
         {/* Metric Cards Row */}
         <div className="grid grid-cols-2 sm:grid-cols-6 gap-3">
           <div className="p-4 rounded-xl bg-white border border-slate-200 shadow-xs">
@@ -779,19 +814,28 @@ export default function ProctorDashboardPage() {
             {/* Filter Siswa Berdasarkan Kelas */}
             <div className="relative">
               <Filter className="w-3.5 h-3.5 absolute left-3 top-1/2 -translate-y-1/2 text-slate-400 pointer-events-none" />
-              <select
-                aria-label="Filter siswa berdasarkan kelas"
-                value={classFilter}
-                onChange={(e) => setClassFilter(e.target.value)}
-                className="w-full sm:w-auto min-w-[175px] pl-8 pr-3 py-1.5 rounded-lg bg-slate-50 border border-slate-200 text-xs font-semibold text-slate-700 focus:outline-none focus:border-[#65C443] cursor-pointer"
-              >
-                <option value="all">Semua Kelas ({roster.length})</option>
-                {availableClasses.map((cls) => (
-                  <option key={cls.name} value={cls.name}>
-                    {cls.name === "-" ? "Tanpa Kelas" : `Kelas: ${cls.name}`} ({cls.count})
-                  </option>
-                ))}
-              </select>
+              {proctorScope?.isScoped && proctorScope.assignedRoom ? (
+                <div className="w-full sm:w-auto min-w-[190px] pl-8 pr-3 py-1.5 rounded-lg bg-blue-50 border border-blue-200 text-xs font-semibold text-blue-900 flex items-center justify-between gap-2 shadow-2xs">
+                  <span>Ruang: {proctorScope.assignedRoom}</span>
+                  <span className="text-[10px] bg-white px-1.5 py-0.5 rounded border border-blue-200 text-blue-700 font-mono">
+                    {roster.length} Siswa
+                  </span>
+                </div>
+              ) : (
+                <select
+                  aria-label="Filter siswa berdasarkan kelas"
+                  value={classFilter}
+                  onChange={(e) => setClassFilter(e.target.value)}
+                  className="w-full sm:w-auto min-w-[175px] pl-8 pr-3 py-1.5 rounded-lg bg-slate-50 border border-slate-200 text-xs font-semibold text-slate-700 focus:outline-none focus:border-[#65C443] cursor-pointer"
+                >
+                  <option value="all">Semua Kelas ({roster.length})</option>
+                  {availableClasses.map((cls) => (
+                    <option key={cls.name} value={cls.name}>
+                      {cls.name === "-" ? "Tanpa Kelas" : `Kelas: ${cls.name}`} ({cls.count})
+                    </option>
+                  ))}
+                </select>
+              )}
             </div>
 
             <div className="relative w-full sm:w-64">
