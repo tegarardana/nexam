@@ -33,7 +33,15 @@ export default async function TeacherDashboardPage(props: TeacherDashboardPagePr
     prisma.subject.findMany({
       where: { isActive: true, archivedAt: null },
       orderBy: { name: "asc" },
-      select: { id: true, name: true, code: true },
+      select: {
+        id: true,
+        name: true,
+        code: true,
+        category: true,
+        subjectCategory: { select: { id: true, name: true } },
+        major: { select: { id: true, name: true } },
+        _count: { select: { questionBanks: true, questions: true } },
+      },
     }),
     prisma.academicYear.findMany({
       orderBy: { startDate: "desc" },
@@ -100,7 +108,11 @@ export default async function TeacherDashboardPage(props: TeacherDashboardPagePr
   const tabParam = searchParams?.tab;
   const viewParam = searchParams?.view;
   let initialTab: TeacherTab = "dashboard";
-  if (tabParam === "exam_status" || viewParam === "monitoring") {
+  if (tabParam === "question_banks") {
+    initialTab = "question_banks";
+  } else if (tabParam === "exam_schedules") {
+    initialTab = "exam_schedules";
+  } else if (tabParam === "exam_status" || viewParam === "monitoring") {
     initialTab = "exam_status";
   } else if (tabParam === "exam_results" || viewParam === "results") {
     initialTab = "exam_results";

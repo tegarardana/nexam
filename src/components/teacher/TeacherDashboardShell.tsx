@@ -1,6 +1,7 @@
 "use client";
 
 import React, { useState } from "react";
+import Link from "next/link";
 import { useRouter } from "next/navigation";
 import Header from "@/components/layout/Header";
 import TeacherSidebar, { TeacherTab } from "@/components/teacher/TeacherSidebar";
@@ -14,6 +15,9 @@ import {
   ArrowRight,
   LayoutDashboard,
   ChevronRight,
+  Search,
+  FileQuestion,
+  Calendar,
 } from "lucide-react";
 
 interface TeacherDashboardShellProps {
@@ -59,8 +63,20 @@ export default function TeacherDashboardShell({
   const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
   const [mobileSidebarOpen, setMobileSidebarOpen] = useState(false);
   const [activeTab, setActiveTab] = useState<TeacherTab>(initialTab);
+  const [qbSearchTerm, setQbSearchTerm] = useState("");
 
   const activeSemester = activeYear?.semesters[0];
+
+  const filteredQbSubjects = (subjects || []).filter((sub: any) => {
+    if (!qbSearchTerm.trim()) return true;
+    const term = qbSearchTerm.toLowerCase();
+    return (
+      sub.name?.toLowerCase().includes(term) ||
+      sub.code?.toLowerCase().includes(term) ||
+      sub.subjectCategory?.name?.toLowerCase().includes(term) ||
+      sub.category?.toLowerCase().includes(term)
+    );
+  });
 
   const handleSelectTab = (tab: TeacherTab) => {
     setActiveTab(tab);
@@ -73,6 +89,8 @@ export default function TeacherDashboardShell({
         params.set("tab", tab);
         const viewMap: Record<TeacherTab, string> = {
           dashboard: "schedule",
+          question_banks: "question_banks",
+          exam_schedules: "schedule",
           exam_status: "monitoring",
           exam_results: "results",
           exam_analysis: "analysis",
@@ -87,7 +105,7 @@ export default function TeacherDashboardShell({
 
   const handlePanelModeChange = (mode: "schedule" | "monitoring" | "results" | "analysis" | "grades") => {
     const tabMap: Record<string, TeacherTab> = {
-      schedule: "dashboard",
+      schedule: "exam_schedules",
       monitoring: "exam_status",
       results: "exam_results",
       analysis: "exam_analysis",
@@ -103,6 +121,10 @@ export default function TeacherDashboardShell({
     switch (tab) {
       case "dashboard":
         return "Dashboard";
+      case "question_banks":
+        return "Bank Soal Ujian";
+      case "exam_schedules":
+        return "Jadwal Pelaksanaan Ujian";
       case "exam_status":
         return "Status Siswa (Monitoring CBT)";
       case "exam_results":
@@ -160,7 +182,7 @@ export default function TeacherDashboardShell({
                 </button>
                 <ChevronRight className="w-3.5 h-3.5 text-slate-300 shrink-0" />
                 <span className="text-slate-500 font-medium whitespace-nowrap shrink-0">
-                  Pelaksanaan Ujian
+                  Ujian / Ulangan
                 </span>
                 <ChevronRight className="w-3.5 h-3.5 text-slate-300 shrink-0" />
                 <span className="font-bold text-[#0D274C] whitespace-nowrap truncate max-w-[140px] sm:max-w-xs md:max-w-none">
@@ -233,6 +255,115 @@ export default function TeacherDashboardShell({
 
           {/* VIEW: DASHBOARD (JADWAL UJIAN & BANK SOAL MAPEL) */}
           {activeTab === "dashboard" && (
+            <div className="pt-1 animate-in fade-in duration-150">
+              <TeacherExaminationPanel
+                subjects={subjects}
+                academicYears={academicYears}
+                semesters={semesters}
+                classGroups={classGroups}
+                activeYearId={activeYear?.id}
+                activeYearName={activeYear?.name}
+                activeSemesterId={activeSemester?.id || null}
+                activeSemesterName={activeSemester?.name || null}
+                assignments={assignments}
+                currentTeacherId={user.id}
+                userRoles={user.roles}
+                teachers={teachers}
+                viewMode="schedule"
+                onViewModeChange={handlePanelModeChange}
+              />
+            </div>
+          )}
+
+          {/* VIEW: BANK SOAL UJIAN (KATALOG BANK SOAL MAPEL) */}
+          {activeTab === "question_banks" && (
+            <div className="space-y-4 animate-in fade-in duration-200">
+              <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3">
+                <div>
+                  <h3 className="text-base font-bold text-slate-900">Katalog Bank Soal Ujian CBT</h3>
+                  <p className="text-xs text-slate-500 mt-0.5">
+                    Pilih mata pelajaran untuk mengelola butir soal, mengatur paket ujian, dan melihat kisi-kisi soal.
+                  </p>
+                </div>
+
+                <div className="flex items-center gap-2">
+                  <div className="relative">
+                    <Search className="w-3.5 h-3.5 absolute left-3 top-1/2 -translate-y-1/2 text-slate-400 pointer-events-none" />
+                    <input
+                      type="text"
+                      placeholder="Cari mata pelajaran..."
+                      value={qbSearchTerm}
+                      onChange={(e) => setQbSearchTerm(e.target.value)}
+                      className="pl-8 pr-3 py-1.5 rounded-xl bg-white border border-slate-200 text-xs text-slate-800 placeholder:text-slate-400 focus:outline-none focus:border-[#65C443]"
+                    />
+                  </div>
+                </div>
+              </div>
+
+              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+                {filteredQbSubjects.length === 0 ? (
+                  <div className="col-span-full py-12 text-center text-slate-400 bg-white rounded-2xl border border-slate-200">
+                    Tidak ada mata pelajaran yang sesuai.
+                  </div>
+                ) : (
+                  filteredQbSubjects.map((sub: any) => {
+                    const isTaughtByMe = assignments?.some(
+                      (a: any) =>
+                        a.subjectOffering?.subject?.id === sub.id ||
+                        a.subjectOffering?.subjectId === sub.id
+                    );
+
+                    return (
+                      <div
+                        key={sub.id}
+                        className="p-5 rounded-2xl bg-white border border-slate-200 shadow-sm hover:border-[#65C443]/50 hover:shadow-md transition flex flex-col justify-between space-y-4"
+                      >
+                        <div className="space-y-2">
+                          <div className="flex items-center justify-between gap-2 flex-wrap">
+                            <span className="px-2 py-0.5 rounded text-[10px] font-mono font-bold bg-slate-100 text-slate-700 border border-slate-200">
+                              {sub.code || "MAPEL"}
+                            </span>
+                            <div className="flex items-center gap-1.5">
+                              {isTaughtByMe && (
+                                <span className="text-[10px] px-2 py-0.5 rounded-full bg-blue-50 text-blue-700 border border-blue-200 font-semibold">
+                                  Diampu Anda
+                                </span>
+                              )}
+                              <span className="text-[10px] px-2 py-0.5 rounded-full bg-emerald-50 text-emerald-700 border border-emerald-200 font-semibold">
+                                {sub.subjectCategory?.name || sub.category || "Umum"}
+                              </span>
+                            </div>
+                          </div>
+                          <h4 className="text-sm font-bold text-slate-900">{sub.name}</h4>
+                          <p className="text-xs text-slate-500 line-clamp-2">
+                            {sub.major?.name
+                              ? `Jurusan: ${sub.major.name}`
+                              : "Mata Pelajaran Umum (Semua Jurusan)"}
+                          </p>
+                        </div>
+
+                        <div className="pt-3 border-t border-slate-100 flex items-center justify-between">
+                          <span className="text-xs text-slate-400">
+                            {sub._count?.questionBanks || 0} Paket Bank Soal
+                          </span>
+                          <Link
+                            href={`/teacher/question-banks/${sub.id}`}
+                            className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-[#0D274C] hover:bg-[#163B6E] text-white text-xs font-semibold transition cursor-pointer shadow-xs"
+                          >
+                            <span>Buka Bank Soal</span>
+                            <ArrowRight className="w-3.5 h-3.5" />
+                          </Link>
+                        </div>
+                      </div>
+                    );
+                  })
+                )}
+              </div>
+            </div>
+          )}
+
+          {/* VIEW: JADWAL UJIAN */}
+          {activeTab === "exam_schedules" && (
             <div className="pt-1 animate-in fade-in duration-150">
               <TeacherExaminationPanel
                 subjects={subjects}
