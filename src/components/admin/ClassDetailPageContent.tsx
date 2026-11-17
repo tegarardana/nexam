@@ -78,6 +78,70 @@ export default function ClassDetailPageContent({ initialClassId }: ClassDetailPa
   const [editStudentSubmitting, setEditStudentSubmitting] = useState(false);
   const [editStudentError, setEditStudentError] = useState<string | null>(null);
 
+  // Edit Class Modal State
+  const [showEditClassModal, setShowEditClassModal] = useState(false);
+  const [editClassName, setEditClassName] = useState("");
+  const [editClassGrade, setEditClassGrade] = useState("10");
+  const [editClassMajorId, setEditClassMajorId] = useState("");
+  const [editClassHomeroomTeacherId, setEditClassHomeroomTeacherId] = useState("");
+  const [editClassSubmitting, setEditClassSubmitting] = useState(false);
+  const [teachersList, setTeachersList] = useState<any[]>([]);
+  const [majorsList, setMajorsList] = useState<any[]>([]);
+
+  // Open Edit Class Modal
+  const openEditClassModal = async () => {
+    if (!classData) return;
+    setEditClassName(classData.name || "");
+    setEditClassGrade(String(classData.gradeLevel || 10));
+    setEditClassMajorId(classData.majorId || classData.major?.id || "");
+    setEditClassHomeroomTeacherId(classData.homeroomTeacherId || classData.homeroomTeacher?.id || "");
+    setShowEditClassModal(true);
+
+    try {
+      const [tRes, mRes] = await Promise.all([
+        fetch("/api/users?role=teacher").then((r) => r.json()),
+        fetch("/api/academic/majors").then((r) => r.json()),
+      ]);
+      if (tRes.success && Array.isArray(tRes.data)) {
+        setTeachersList(tRes.data);
+      }
+      if (mRes.success && Array.isArray(mRes.data)) {
+        setMajorsList(mRes.data);
+      }
+    } catch (e) {
+      console.error("Failed to load teachers or majors:", e);
+    }
+  };
+
+  // Submit Edit Class
+  const handleSaveEditClass = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setEditClassSubmitting(true);
+    try {
+      const res = await fetch(`/api/academic/classes/${initialClassId}`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          name: editClassName,
+          gradeLevel: parseInt(editClassGrade, 10),
+          majorId: editClassMajorId || null,
+          homeroomTeacherId: editClassHomeroomTeacherId || null,
+        }),
+      });
+      const json = await res.json();
+      if (res.ok && json.success) {
+        setShowEditClassModal(false);
+        fetchClassDetail();
+      } else {
+        alert(json.error || "Gagal memperbarui rombel kelas.");
+      }
+    } catch {
+      alert("Kesalahan jaringan saat memperbarui rombel.");
+    } finally {
+      setEditClassSubmitting(false);
+    }
+  };
+
   // Open Edit Student Modal
   const openEditStudentModal = (s: any) => {
     setEditingStudentId(s.studentId);
@@ -161,11 +225,12 @@ export default function ClassDetailPageContent({ initialClassId }: ClassDetailPa
       if (e.key === "Escape") {
         if (roleModalOpen) setRoleModalOpen(false);
         if (showEditStudentModal) setShowEditStudentModal(false);
+        if (showEditClassModal) setShowEditClassModal(false);
       }
     };
     window.addEventListener("keydown", handleKeyDown);
     return () => window.removeEventListener("keydown", handleKeyDown);
-  }, [roleModalOpen, showEditStudentModal]);
+  }, [roleModalOpen, showEditStudentModal, showEditClassModal]);
 
   // Open Assign Modal From Structure Card
   const openAssignModalForRole = (roleName: string, currentHolder?: any) => {
@@ -544,6 +609,16 @@ export default function ClassDetailPageContent({ initialClassId }: ClassDetailPa
 
           <div className="flex items-center gap-2.5 flex-wrap">
             <button
+              type="button"
+              onClick={openEditClassModal}
+              className="inline-flex items-center gap-2 px-3.5 py-2.5 rounded-xl bg-white border border-slate-200 hover:bg-slate-50 hover:border-slate-300 text-slate-700 hover:text-slate-900 text-xs font-bold transition cursor-pointer shadow-xs"
+              title="Edit Data Rombongan Belajar / Wali Kelas"
+            >
+              <Edit2 className="w-4 h-4 text-[#0D274C]" />
+              <span>Edit Rombel</span>
+            </button>
+
+            <button
               onClick={handleExportToExcel}
               className="inline-flex items-center gap-2 px-4 py-2.5 rounded-xl bg-[#65C443] hover:bg-[#52a835] text-white text-xs font-bold transition cursor-pointer shadow-sm shadow-[#65C443]/20"
               title="Unduh Berkas Excel (.xlsx) Daftar Siswa Kelas Ini"
@@ -636,9 +711,20 @@ export default function ClassDetailPageContent({ initialClassId }: ClassDetailPa
               </div>
               <span className="font-bold text-slate-700">Wali Kelas</span>
             </span>
-            <span className="text-[11px] px-3 py-1 rounded-lg bg-[#65C443]/15 text-[#2e7d18] font-semibold border border-[#65C443]/30">
-              Guru Pengampu
-            </span>
+            <div className="flex items-center gap-1.5">
+              <span className="text-[11px] px-2.5 py-0.5 rounded-lg bg-[#65C443]/15 text-[#2e7d18] font-semibold border border-[#65C443]/30">
+                Guru Pengampu
+              </span>
+              <button
+                type="button"
+                onClick={openEditClassModal}
+                className="text-[11px] px-2 py-0.5 rounded-lg bg-slate-100 hover:bg-slate-200 text-slate-700 font-semibold border border-slate-300 transition cursor-pointer inline-flex items-center gap-1"
+                title="Ubah Wali Kelas"
+              >
+                <Edit2 className="w-2.5 h-2.5" />
+                <span>Ubah</span>
+              </button>
+            </div>
           </div>
           <div>
             <div className="text-base font-bold text-slate-900 truncate">
@@ -1360,6 +1446,95 @@ export default function ClassDetailPageContent({ initialClassId }: ClassDetailPa
                   className="px-5 py-2 rounded-xl bg-[#65C443] hover:bg-[#52a835] disabled:opacity-50 text-white text-xs font-bold shadow-sm transition cursor-pointer"
                 >
                   {editStudentSubmitting ? "Menyimpan..." : "Simpan Perubahan Siswa"}
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+      {/* MODAL: EDIT ROMBEL KELAS */}
+      {showEditClassModal && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/40 backdrop-blur-xs animate-in fade-in duration-200">
+          <div className="w-full max-w-md rounded-2xl p-6 bg-white border border-slate-200 shadow-2xl relative text-slate-800">
+            <h3 className="text-lg font-bold text-slate-900 mb-1">Edit Rombel Kelas</h3>
+            <p className="text-xs text-slate-500 mb-4">
+              Ubah identitas kelas dan penugasan guru wali kelas.
+            </p>
+
+            <form onSubmit={handleSaveEditClass} className="space-y-3.5 text-xs">
+              <div>
+                <label className="block text-slate-700 mb-1 font-medium">Nama Kelas *</label>
+                <input
+                  required
+                  type="text"
+                  placeholder="Contoh: X TKJ A, XII RPL 1"
+                  value={editClassName}
+                  onChange={(e) => setEditClassName(e.target.value)}
+                  className="w-full px-3 py-2 rounded-xl bg-white border border-slate-300 text-slate-900 focus:outline-none focus:border-[#0D274C] focus:ring-1 focus:ring-[#0D274C]"
+                />
+              </div>
+
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <label className="block text-slate-700 mb-1 font-medium">Tingkat Kelas *</label>
+                  <select
+                    value={editClassGrade}
+                    onChange={(e) => setEditClassGrade(e.target.value)}
+                    className="w-full px-3 py-2 rounded-xl bg-white border border-slate-300 text-slate-900 focus:outline-none focus:border-[#0D274C] focus:ring-1 focus:ring-[#0D274C]"
+                  >
+                    <option value="10">Kelas 10 (X)</option>
+                    <option value="11">Kelas 11 (XI)</option>
+                    <option value="12">Kelas 12 (XII)</option>
+                    <option value="13">Kelas 13 (XIII)</option>
+                  </select>
+                </div>
+                <div>
+                  <label className="block text-slate-700 mb-1 font-medium">Jurusan / Keahlian</label>
+                  <select
+                    value={editClassMajorId}
+                    onChange={(e) => setEditClassMajorId(e.target.value)}
+                    className="w-full px-3 py-2 rounded-xl bg-white border border-slate-300 text-slate-900 focus:outline-none focus:border-[#0D274C] focus:ring-1 focus:ring-[#0D274C]"
+                  >
+                    <option value="">Umum / Tanpa Jurusan</option>
+                    {majorsList.map((m) => (
+                      <option key={m.id} value={m.id}>
+                        {m.name} ({m.code})
+                      </option>
+                    ))}
+                  </select>
+                </div>
+              </div>
+
+              <div>
+                <label className="block text-slate-700 mb-1 font-medium">Wali Kelas</label>
+                <select
+                  value={editClassHomeroomTeacherId}
+                  onChange={(e) => setEditClassHomeroomTeacherId(e.target.value)}
+                  className="w-full px-3 py-2 rounded-xl bg-white border border-slate-300 text-slate-900 focus:outline-none focus:border-[#0D274C] focus:ring-1 focus:ring-[#0D274C]"
+                >
+                  <option value="">-- Belum Ditentukan (Kosongkan) --</option>
+                  {teachersList.map((t) => (
+                    <option key={t.id} value={t.id}>
+                      {formatNameWithTitle(t.displayName, t.title)} ({t.nip || t.username})
+                    </option>
+                  ))}
+                </select>
+              </div>
+
+              <div className="pt-3 flex items-center justify-end gap-2 border-t border-slate-200">
+                <button
+                  type="button"
+                  onClick={() => setShowEditClassModal(false)}
+                  className="px-4 py-2 rounded-xl bg-slate-100 hover:bg-slate-200 text-slate-700 font-medium transition cursor-pointer"
+                >
+                  Batal
+                </button>
+                <button
+                  type="submit"
+                  disabled={editClassSubmitting}
+                  className="px-4 py-2 rounded-xl bg-[#0D274C] hover:bg-[#163866] text-white font-medium shadow-sm transition cursor-pointer disabled:opacity-50"
+                >
+                  {editClassSubmitting ? "Menyimpan..." : "Simpan Perubahan"}
                 </button>
               </div>
             </form>

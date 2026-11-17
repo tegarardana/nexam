@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import prisma from "@/lib/prisma";
 import { authenticateApi, hasPermission } from "@/lib/auth/rbac";
 import { logAudit } from "@/lib/audit";
+import { syncHomeroomTeacherPositions } from "@/lib/academic-sync";
 
 interface RouteParams {
   params: Promise<{ id: string }>;
@@ -233,6 +234,12 @@ export async function PATCH(req: NextRequest, { params }: RouteParams) {
         { status: 403 }
       );
     }
+
+    const oldClass = await prisma.classGroup.findUnique({
+      where: { id },
+      select: { homeroomTeacherId: true },
+    });
+
     const { name, gradeLevel, majorId, homeroomTeacherId, isActive } = body;
     const updateData: any = {};
     if (name !== undefined) updateData.name = name;
@@ -249,6 +256,15 @@ export async function PATCH(req: NextRequest, { params }: RouteParams) {
         homeroomTeacher: true,
       },
     });
+
+    // Synchronize homeroom teacher positions (set new to 'Wali Kelas', revert old to 'Guru' if no other classes)
+    if (homeroomTeacherId !== undefined) {
+      await syncHomeroomTeacherPositions(
+        oldClass?.homeroomTeacherId,
+        homeroomTeacherId || null,
+        id
+      );
+    }
 
     await logAudit({
       actorId: auth.user.id,
@@ -303,6 +319,11 @@ export async function DELETE(req: NextRequest, { params }: RouteParams) {
     await prisma.classGroup.delete({
       where: { id },
     });
+
+    // Synchronize homeroom teacher position (if old teacher has no remaining classes, revert to 'Guru')
+    if (existing.homeroomTeacherId) {
+      await syncHomeroomTeacherPositions(existing.homeroomTeacherId, null, id);
+    }
 
     await logAudit({
       actorId: auth.user.id,

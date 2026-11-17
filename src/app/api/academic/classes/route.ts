@@ -3,6 +3,7 @@ import prisma from "@/lib/prisma";
 import { authenticateApi } from "@/lib/auth/rbac";
 import { logAudit } from "@/lib/audit";
 import { classGroupSchema } from "@/lib/validation/academic";
+import { syncHomeroomTeacherPositions } from "@/lib/academic-sync";
 
 export async function GET(req: NextRequest) {
   const auth = await authenticateApi("academic:read");
@@ -106,10 +107,7 @@ export async function POST(req: NextRequest) {
 
     // Synchronize teacher position to 'Wali Kelas' if assigned
     if (homeroomTeacherId) {
-      await prisma.user.update({
-        where: { id: homeroomTeacherId },
-        data: { position: "Wali Kelas" },
-      });
+      await syncHomeroomTeacherPositions(null, homeroomTeacherId);
     }
 
     await logAudit({
@@ -162,29 +160,13 @@ export async function PUT(req: NextRequest) {
       },
     });
 
-    // If homeroom teacher changed or removed
-    if (homeroomTeacherId !== undefined && oldClass.homeroomTeacherId && oldClass.homeroomTeacherId !== homeroomTeacherId) {
-      const remainingHomerooms = await prisma.classGroup.count({
-        where: {
-          homeroomTeacherId: oldClass.homeroomTeacherId,
-          id: { not: id },
-          isActive: true,
-        },
-      });
-      if (remainingHomerooms === 0) {
-        await prisma.user.updateMany({
-          where: { id: oldClass.homeroomTeacherId, position: "Wali Kelas" },
-          data: { position: "Guru" },
-        });
-      }
-    }
-
-    // Set new homeroom teacher position to 'Wali Kelas'
-    if (homeroomTeacherId) {
-      await prisma.user.update({
-        where: { id: homeroomTeacherId },
-        data: { position: "Wali Kelas" },
-      });
+    // Synchronize homeroom teacher positions (set new to 'Wali Kelas', revert old to 'Guru' if no other classes)
+    if (homeroomTeacherId !== undefined) {
+      await syncHomeroomTeacherPositions(
+        oldClass.homeroomTeacherId,
+        homeroomTeacherId || null,
+        id
+      );
     }
 
     await logAudit({
